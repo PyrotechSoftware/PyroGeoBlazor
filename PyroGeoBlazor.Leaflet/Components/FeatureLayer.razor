@@ -1,0 +1,16 @@
+﻿@inject IJSRuntime JS
+
+@code {
+    [CascadingParameter] public LeafletMap? ParentMap { get; set; }
+
+    [Parameter] public string LayerId { get; set; } = Guid.NewGuid().ToString();
+    [Parameter] public string GeoJson { get; set; } = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && !string.IsNullOrWhiteSpace(GeoJson) && !string.IsNullOrEmpty(ParentMap?.MapId))
+        {
+            await JS.InvokeVoidAsync("leafletInterop.addLayer", ParentMap.MapId, LayerId, GeoJson);
+        }
+    }
+}

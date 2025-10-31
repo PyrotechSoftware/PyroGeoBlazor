@@ -1,0 +1,8 @@
+{
+  "scripts": {
+    "build": "esbuild Scripts/index.ts --bundle --outfile=wwwroot/leafletInterop.js --minify --external:leaflet"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.11"
+  }
+}

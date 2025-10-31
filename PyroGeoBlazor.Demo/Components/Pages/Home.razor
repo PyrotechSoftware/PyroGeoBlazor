@@ -1,0 +1,20 @@
+﻿@page "/"
+@using PyroGeoBlazor.Leaflet.Components
+
+<PageTitle>Home</PageTitle>
+
+<h1>Hello, world!</h1>
+
+Welcome to your new app.
+
+<LeafletMap Height="500" MapId="map" @ref="mapRef">
+    <BasemapLayer />
+</LeafletMap>
+<br />
+<button class="btn btn-primary" @onclick="() => mapRef?.SetView(51.505, -0.09, 13)">Go to London</button>
+
+@code {
+    private LeafletMap? mapRef;
+
+
+}

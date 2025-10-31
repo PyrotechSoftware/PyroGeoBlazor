@@ -1,0 +1,59 @@
+﻿@namespace PyroGeoBlazor.Leaflet.Components
+
+<div id="@MapId" style="@MapStyle"></div>
+
+<CascadingValue Value="this">
+    @ChildContent
+</CascadingValue>
+
+@code {
+    [Inject] IJSRuntime JS { get; set; } = default!;
+
+    [Parameter] public string MapId { get; set; } = "map";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public int Height { get; set; } = 500;
+
+    private bool _basemapSet = false;
+    private string MapStyle => $"height: {Height}px;";
+
+    // JS map object reference captured from leafletMap.initMap
+    private IJSObjectReference? _mapJsRef;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+            return;
+
+        // Capture the returned JS map object so we can call methods on it directly
+        _mapJsRef = await JS.InvokeAsync<IJSObjectReference>("leafletMap.initMap", MapId);
+    }
+
+    public bool TrySetBasemap()
+    {
+        if (_basemapSet)
+            return false;
+
+        _basemapSet = true;
+        return true;
+    }
+
+    public async Task SetView(double lat, double lng, int zoom)
+    {
+        if (_mapJsRef is null)
+        {
+            throw new InvalidOperationException("Map JS reference not available. Call SetView only after the map is initialized and the JS reference is captured.");
+        }
+
+        // Call Leaflet's setView on the map instance via the captured JS object reference
+        await JS.InvokeVoidAsync("leafletMap.setView", _mapJsRef, lat, lng, zoom);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_mapJsRef is not null)
+        {
+            await _mapJsRef.DisposeAsync();
+            _mapJsRef = null;
+        }
+    }
+}

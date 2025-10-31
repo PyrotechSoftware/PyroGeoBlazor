@@ -1,0 +1,23 @@
+﻿@inject IJSRuntime JS
+
+@code {
+    [CascadingParameter] public LeafletMap? ParentMap { get; set; }
+
+    [Parameter] public string UrlTemplate { get; set; } = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+    [Parameter] public string Attribution { get; set; } = "© OpenStreetMap contributors";
+
+    private string MapId => ParentMap?.MapId ?? throw new InvalidOperationException("BasemapLayer must be a child of LeafletMap.");
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            if (ParentMap is null || !ParentMap.TrySetBasemap())
+            {
+                throw new InvalidOperationException("Only one BasemapLayer is allowed per LeafletMap.");
+            }
+
+            await JS.InvokeVoidAsync("leafletMap.setBasemap", MapId, UrlTemplate, Attribution);
+        }
+    }
+}

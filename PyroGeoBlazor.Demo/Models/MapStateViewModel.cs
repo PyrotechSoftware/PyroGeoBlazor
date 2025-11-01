@@ -1,0 +1,13 @@
+﻿namespace PyroGeoBlazor.Demo.Models;
+
+using PyroGeoBlazor.Leaflet.Models;
+
+public class MapStateViewModel
+{
+    public double MapCentreLatitude { get; set; }
+    public double MapCentreLongitude { get; set; }
+    public int Zoom { get; set; }
+    public Point? MapContainerSize { get; set; }
+    public Bounds? MapViewPixelBounds { get; set; }
+    public Point? MapLayerPixelOrigin { get; set; }
+}

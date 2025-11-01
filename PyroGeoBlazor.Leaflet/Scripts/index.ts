@@ -1,39 +1,16 @@
-﻿import { createMap, maps, setView } from './map';
-import { ensureLeafletLoaded } from './loader';
-import { addGeoJsonLayer, removeLayer } from './layers';
-import { addMarker, clearMarkers } from './markers';
-import { addLayerControl } from './controls';
-import { setBasemap } from './baseMapLayer';
+import { Map } from './map';
+import { Layer } from './layer';
+import { Polyline } from './polyline';
+import { Polygon } from './polygon';
+import { Rectangle } from './rectangle';
+import { CircleMarker } from './circleMarker';
 
-declare global {
-    interface Window {
-        leafletMap: {
-            initMap: (elementId: string, geoJson?: any) => any;
-            addLayer: (elementId: string, layerId: string, geoJson: any) => any;
-            removeLayer: (elementId: string, layerId: string) => any;
-            addMarker: (elementId: string, lat: number, lng: number, popupText?: string) => any;
-            clearMarkers: (elementId: string) => any;
-            addLayerControl: (elementId: string) => any;
-            setBasemap: (elementId: string, urlTemplate: string, attribution: string) => any;
-            setView: (map: L.Map, lat: number, lng: number, zoom: number) => any;
-        };
-    }
+export const LeafletMap = { Map, Layer, Polyline, Polygon, Rectangle, CircleMarker };
+
+// For consumers that expect a default export or a global on window
+export default LeafletMap;
+
+// Attach to window for direct script usage in non-module contexts
+if (typeof window !== 'undefined') {
+ (window as any).LeafletMap = LeafletMap;
 }
-
-window.leafletMap = {
-    initMap: async (elementId, geoJson) => {
-        await ensureLeafletLoaded();
-        const map = createMap(elementId);
-        if (geoJson) {
-            addGeoJsonLayer(elementId, "default", geoJson);
-        }
-        return map;
-    },
-    addLayer: addGeoJsonLayer,
-    removeLayer: removeLayer,
-    addMarker: addMarker,
-    clearMarkers: clearMarkers,
-    addLayerControl: addLayerControl,
-    setBasemap: setBasemap,
-    setView: setView
-};

@@ -11,8 +11,8 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
-  <!--<Target Name="RunLeafletBuild" BeforeTargets="Build" Condition="Exists('package.json')">
+  <Target Name="RunLeafletBuild" BeforeTargets="Build" Condition="Exists('package.json')">
 	<Exec Command="npm run build" />
-  </Target>-->
+  </Target>
 	
 </Project>

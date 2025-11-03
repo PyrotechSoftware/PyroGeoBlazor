@@ -1,4 +1,4 @@
-﻿namespace PyroGeoBlazor.Leaflet.Models;
+namespace PyroGeoBlazor.Leaflet.Models;
 
 using Microsoft.JSInterop;
 
@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 /// <summary>
 /// A point with a latitude and longitude.
-/// <see href="https://leafletjs.com/reference-1.7.1.html#latlng"/>
+/// <see href="https://leafletjs.com/reference.html#latlng"/>
 /// </summary>
 /// <remarks>
 /// Constructs a LatLng

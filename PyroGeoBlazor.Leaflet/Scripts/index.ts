@@ -4,8 +4,9 @@ import { Polyline } from './polyline';
 import { Polygon } from './polygon';
 import { Rectangle } from './rectangle';
 import { CircleMarker } from './circleMarker';
+import { Popup } from './popup';
 
-export const LeafletMap = { Map, Layer, Polyline, Polygon, Rectangle, CircleMarker };
+export const LeafletMap = { Map, Layer, Polyline, Polygon, Rectangle, CircleMarker, Popup };
 
 // For consumers that expect a default export or a global on window
 export default LeafletMap;

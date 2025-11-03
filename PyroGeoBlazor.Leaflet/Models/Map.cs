@@ -2,6 +2,8 @@ namespace PyroGeoBlazor.Leaflet.Models;
 
 using Microsoft.JSInterop;
 
+using PyroGeoBlazor.Leaflet.EventArgs;
+
 using System.Threading.Tasks;
 
 /// <summary>
@@ -30,7 +32,7 @@ public class Map : InteropObject
     /// <summary>
     /// The options for interaction with the Map.
     /// </summary>
-    public InteractionOptions<Map>? InteractionOptions { get; }
+    public DomEventHandlerMapping<Map>? InteractionOptions { get; }
 
     /// <param name="elementId">The ID of the HTML element the map will be rendered in.</param>
     /// <param name="options">The <see cref="MapOptions"/> used to create the Map.</param>
@@ -41,7 +43,7 @@ public class Map : InteropObject
         if (enableEvents)
         {
             var dotNetReference = DotNetObjectReference.Create(this);
-            InteractionOptions = new InteractionOptions<Map>(dotNetReference, new Dictionary<string, string> { { "click", nameof(this.OnClick) } });
+            InteractionOptions = new DomEventHandlerMapping<Map>(dotNetReference, new Dictionary<string, string> { { "click", nameof(this.OnClick) } });
         }
     }
 

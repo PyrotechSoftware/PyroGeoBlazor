@@ -4,7 +4,7 @@ using Microsoft.JSInterop;
 
 using System.Collections.Generic;
 
-public class InteractionOptions<T>
+public class DomEventHandlerMapping<T>
     where T : class
 {
     public DotNetObjectReference<T> DotNetRef { get; }
@@ -15,7 +15,7 @@ public class InteractionOptions<T>
     /// </summary>
     public Dictionary<string, string> Events { get; } = [];
 
-    public InteractionOptions(DotNetObjectReference<T> dotNetRef, Dictionary<string, string>? events = null)
+    public DomEventHandlerMapping(DotNetObjectReference<T> dotNetRef, Dictionary<string, string>? events = null)
     {
         DotNetRef = dotNetRef;
 

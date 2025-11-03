@@ -7,14 +7,14 @@ export type DotNetObjectRefShape = {
 };
 
 /**
- * TypeScript representation of the Blazor `InteractionOptions` model.
+ * TypeScript representation of the Blazor `DomEventHandlerMapping` model.
  * Use this when passing interaction/click options into the TS API.
  */
-export class InteractionOptions {
+export class EventHandlerMapping {
     dotNetRef?: DotNetObjectRefShape;
     events?: Record<string, string>;
 
-    constructor(init?: Partial<InteractionOptions>) {
+    constructor(init?: Partial<EventHandlerMapping>) {
         if (init) {
             Object.assign(this, init);
         }
@@ -28,4 +28,4 @@ export class InteractionOptions {
     }
 }
 
-export default InteractionOptions;
+export default EventHandlerMapping;

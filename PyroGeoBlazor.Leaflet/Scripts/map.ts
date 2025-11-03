@@ -1,4 +1,4 @@
-import { InteractionOptions } from './InteractionOptions';
+import { EventHandlerMapping } from './eventHandling';
 
 declare const L: typeof import('leaflet');
 
@@ -6,37 +6,19 @@ export const Map = {
     createMap(
         elementId: string,
         options: L.MapOptions | undefined,
-        interactionOptions?: InteractionOptions
+        handlerMappings?: EventHandlerMapping
     ): L.Map {
         const map = L.map(elementId, options);
 
-        if (interactionOptions && interactionOptions.dotNetRef && interactionOptions.events) {
-            const keys = Object.keys(interactionOptions.events);
-            for (let i = 0; i < keys.length; i++) {
-                const eventName = keys[i];
-                const methodName = interactionOptions.events[eventName];
-
-                map.on(eventName, function (ev: any) {
-                    try {
-                        // create a minimal payload depending on event
-                        let payload: any = {};
-
-                        if (ev && ev.latlng) {
-                            payload = new L.LatLng(ev.latlng.lat, ev.latlng.lng);
-                        } else if (ev && ev.target && ev.target.getCenter) {
-                            // some events expose target with center
-                            const c = ev.target.getCenter();
-                            payload = { lat: c.lat, lng: c.lng };
-                        } else {
-                            payload = { event: eventName, object: ev };
-                        }
-
-                        interactionOptions.dotNetRef!.invokeMethodAsync(methodName, payload);
-                    } catch (e) {
-                        console.error(`Error invoking dotnet handler for event ${eventName}`, e);
-                    }
-                });
-            }
+        if (handlerMappings && handlerMappings.dotNetRef && handlerMappings.events) {
+            const keys = Object.keys(handlerMappings.events);
+            map.on('click', function (ev: L.LeafletMouseEvent) {
+                var methodName = handlerMappings.events['click'];
+                if (methodName) {
+                    let payload = new L.LatLng(ev.latlng.lat, ev.latlng.lng);
+                    handlerMappings.dotNetRef!.invokeMethodAsync(methodName, payload);
+                }
+            })
         }
 
         return map;

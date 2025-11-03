@@ -28,7 +28,7 @@ public partial class Home : ComponentBase, IAsyncDisposable
         {
             Center = mapCentre,
             Zoom = MapStateViewModel.Zoom,
-        });
+        }, true);
         OpenStreetMapsTileLayer = new TileLayer(
                 "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
                 new TileLayerOptions

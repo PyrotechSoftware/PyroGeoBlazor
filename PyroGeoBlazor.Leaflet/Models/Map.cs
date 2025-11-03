@@ -1,4 +1,4 @@
-﻿namespace PyroGeoBlazor.Leaflet.Models;
+namespace PyroGeoBlazor.Leaflet.Models;
 
 using Microsoft.JSInterop;
 
@@ -13,26 +13,44 @@ using System.Threading.Tasks;
 /// <remarks>
 /// Constructs a Map.
 /// </remarks>
-/// <param name="elementId">The ID of the HTML element the map will be rendered in.</param>
-/// <param name="options">The <see cref="MapOptions"/> used to create the Map.</param>
-public class Map(string elementId, MapOptions options) : InteropObject
+public class Map : InteropObject
 {
+    public event EventHandler<object>? OnMapClicked;
+
     /// <summary>
     /// The ID of the HTML element the map will be rendered in.
     /// </summary>
-    public string ElementId { get; } = elementId;
+    public string ElementId { get; }
 
     /// <summary>
     /// The <see cref="MapOptions"/> used to create the Map.
     /// </summary>
-    public MapOptions Options { get; } = options;
+    public MapOptions Options { get; }
+
+    /// <summary>
+    /// The options for interaction with the Map.
+    /// </summary>
+    public InteractionOptions<Map>? InteractionOptions { get; }
+
+    /// <param name="elementId">The ID of the HTML element the map will be rendered in.</param>
+    /// <param name="options">The <see cref="MapOptions"/> used to create the Map.</param>
+    public Map(string elementId, MapOptions options, bool enableEvents = false)
+    {
+        ElementId = elementId;
+        Options = options;
+        if (enableEvents)
+        {
+            var dotNetReference = DotNetObjectReference.Create(this);
+            InteractionOptions = new InteractionOptions<Map>(dotNetReference, new Dictionary<string, string> { { "click", nameof(this.OnClick) } });
+        }
+    }
 
     /// <inheritdoc/>
     protected override async Task<IJSObjectReference> CreateJsObjectRef()
     {
-        return JSBinder is null
-            ? throw new InvalidOperationException("Cannot create Map object. No JavaScript binding has been set up for this object.")
-            : await JSBinder.JSRuntime.InvokeAsync<IJSObjectReference>("L.map", ElementId, Options);
+        GuardAgainstNullBinding("Cannot create Map object. No JavaScript binding has been set up for this object.");
+        var module = await JSBinder!.GetLeafletMapModule();
+        return await module.InvokeAsync<IJSObjectReference>("LeafletMap.Map.createMap", ElementId, Options, InteractionOptions);
     }
 
     #region Get map state
@@ -260,6 +278,17 @@ public class Map(string elementId, MapOptions options) : InteropObject
     public async Task<Map> StopLocate()
     {
         return await JSObjectReference!.InvokeAsync<Map>("stopLocate");
+    }
+
+    #endregion
+
+    #region Events
+
+    [JSInvokable]
+    public Task OnClick(LatLng value)
+    {
+        OnMapClicked?.Invoke(this, value);
+        return Task.CompletedTask;
     }
 
     #endregion

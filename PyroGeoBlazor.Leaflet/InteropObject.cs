@@ -1,4 +1,4 @@
-﻿namespace PyroGeoBlazor.Leaflet;
+namespace PyroGeoBlazor.Leaflet;
 
 using Microsoft.JSInterop;
 
@@ -36,7 +36,14 @@ public abstract class InteropObject : IAsyncDisposable
     {
         if (JSObjectReference is not null)
         {
-            await JSObjectReference.DisposeAsync();
+            try
+            {
+                await JSObjectReference.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Swallow this. Page is being refreshed possibly.
+            }
         }
     }
 

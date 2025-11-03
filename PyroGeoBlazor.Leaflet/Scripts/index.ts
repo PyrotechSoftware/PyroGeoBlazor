@@ -12,5 +12,5 @@ export default LeafletMap;
 
 // Attach to window for direct script usage in non-module contexts
 if (typeof window !== 'undefined') {
- (window as any).LeafletMap = LeafletMap;
+    (window as any).LeafletMap = LeafletMap;
 }

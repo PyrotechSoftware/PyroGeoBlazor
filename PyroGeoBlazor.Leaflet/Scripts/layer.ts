@@ -1,4 +1,4 @@
-declare const L: typeof import("leaflet");
+declare const L: typeof import('leaflet');
 
 export const Layer = {
     addTo(layer: any, map: any): void {

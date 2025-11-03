@@ -1,4 +1,4 @@
-﻿declare const L: typeof import("leaflet");
+﻿declare const L: typeof import('leaflet');
 
 export const CircleMarker = {
     setLatLng(marker: L.CircleMarker, latLng: L.LatLng): void {

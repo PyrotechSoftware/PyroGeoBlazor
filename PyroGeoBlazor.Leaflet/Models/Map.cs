@@ -17,7 +17,6 @@ using System.Threading.Tasks;
 /// </remarks>
 public class Map : InteropObject
 {
-    public event EventHandler<object>? OnMapClicked;
 
     /// <summary>
     /// The ID of the HTML element the map will be rendered in.
@@ -43,7 +42,32 @@ public class Map : InteropObject
         if (enableEvents)
         {
             var dotNetReference = DotNetObjectReference.Create(this);
-            InteractionOptions = new DomEventHandlerMapping<Map>(dotNetReference, new Dictionary<string, string> { { "click", nameof(this.OnClick) } });
+            InteractionOptions = new DomEventHandlerMapping<Map>(dotNetReference, []);
+            if (Options.EventOptions.Click)
+            {
+                InteractionOptions.Events.Add("click", nameof(this.Click));
+            }
+            if (Options.EventOptions.DoubleClick)
+            {
+                InteractionOptions.Events.Add("dblclick", nameof(this.DoubleClick));
+            }
+            if (Options.EventOptions.Resize)
+            {
+                InteractionOptions.Events.Add("resize", nameof(this.Resize));
+            }
+            if (Options.EventOptions.ZoomLevelsChange)
+            {
+                InteractionOptions.Events.Add("zoomlevelschange", nameof(this.ZoomLevelsChange));
+            }
+            if (Options.EventOptions.ContextMenu)
+            {
+                InteractionOptions.Events.Add("contextmenu", nameof(this.ContextMenu));
+            }
+            if (Options.EventOptions.LocationEvents)
+            {
+                InteractionOptions.Events.Add("locationfound", nameof(this.LocationFound));
+                InteractionOptions.Events.Add("locationerror", nameof(this.LocationError));
+            }
         }
     }
 
@@ -286,12 +310,91 @@ public class Map : InteropObject
 
     #region Events
 
+    #region MapStateChangeEvents
+
+    /// <summary>
+    /// Fired when the map is resized.
+    /// </summary>
+    public event EventHandler<LeafletResizeEventArgs>? OnResize;
+    public event EventHandler<LeafletEventArgs>? OnZoomLevelsChange;
+
     [JSInvokable]
-    public Task OnClick(LatLng value)
+    public Task ZoomLevelsChange(LeafletEventArgs args)
     {
-        OnMapClicked?.Invoke(this, value);
+        OnZoomLevelsChange?.Invoke(this, args);
         return Task.CompletedTask;
     }
+
+    [JSInvokable]
+    public Task Resize(LeafletResizeEventArgs args)
+    {
+        OnResize?.Invoke(this, args);
+        return Task.CompletedTask;
+    }
+
+    #endregion
+
+    #region InteractionEvents
+
+    /// <summary>
+    /// Fired when the user clicks (or taps) the map.
+    /// </summary>
+    public event EventHandler<LeafletMouseEventArgs>? OnClick;
+
+    /// <summary>
+    /// Fired when the user double-clicks (or double-taps) the map.
+    /// </summary>
+    public event EventHandler<LeafletMouseEventArgs>? OnDoubleClick;
+
+    /// <summary>
+    /// Fired when the user pushes the right mouse button on the map,
+    /// prevents default browser context menu from showing if there are listeners on this event.
+    /// Also fired on mobile when the user holds a single touch for a second (also called long press).
+    /// </summary>
+    public event EventHandler<LeafletMouseEventArgs>? OnContextMenu;
+
+    [JSInvokable]
+    public Task Click(LeafletMouseEventArgs args)
+    {
+        OnClick?.Invoke(this, args);
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task DoubleClick(LeafletMouseEventArgs args)
+    {
+        OnDoubleClick?.Invoke(this, args);
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task ContextMenu(LeafletMouseEventArgs args)
+    {
+        OnContextMenu?.Invoke(this, args);
+        return Task.CompletedTask;
+    }
+    #endregion
+
+    #region LocationEvents
+
+    public event EventHandler<LeafletLocationEventArgs>? OnLocationFound;
+    public event EventHandler<LeafletErrorEventArgs>? OnLocationError;
+
+    [JSInvokable]
+    public Task LocationFound(LeafletLocationEventArgs args)
+    {
+        OnLocationFound?.Invoke(this, args);
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task LocationError(LeafletErrorEventArgs args)
+    {
+        OnLocationError?.Invoke(this, args);
+        return Task.CompletedTask;
+    }
+
+    #endregion
 
     #endregion
 }

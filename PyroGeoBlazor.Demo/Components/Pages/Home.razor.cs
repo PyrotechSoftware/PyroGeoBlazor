@@ -28,6 +28,10 @@ public partial class Home : ComponentBase, IAsyncDisposable
         {
             Center = mapCentre,
             Zoom = MapStateViewModel.Zoom,
+            EventOptions = new MapEventOptions
+            {
+                ContextMenu = true
+            }
         }, true);
         OpenStreetMapsTileLayer = new TileLayer(
                 "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",

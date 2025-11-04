@@ -81,43 +81,11 @@ export const Map = {
                 map.on('locationfound', function (ev: L.LocationEvent) {
                     var methodName = handlerMappings.events['locationfound'];
                     let payload = LeafletEvents.LeafletLocationEventArgs.fromLeaflet(ev).toDto();
-                    console.log('payload', payload);
-                    console.log('json', JSON.stringify(payload));
                     handlerMappings.dotNetRef!.invokeMethodAsync(methodName, payload);
                 });
             }
         }
 
         return map;
-    },
-
-    setView(
-        map: L.Map,
-        center: L.LatLng | any,
-        zoom: number,
-        options: L.ZoomPanOptions | undefined
-    ): void {
-        map.setView(center, zoom);
-    },
-
-    panTo(map: L.Map, center: L.LatLng, options: L.PanOptions | undefined): void {
-        map.panTo(center, options);
-    },
-
-    setMaxBounds(map: L.Map, bounds: L.LatLngBounds): void {
-        map.setMaxBounds(bounds);
-    },
-
-    flyTo(
-        map: L.Map,
-        center: L.LatLng | any,
-        zoom: number,
-        options: L.ZoomPanOptions | undefined
-    ): void {
-        map.flyTo(center, zoom, options);
-    },
-
-    locate(map: L.Map, options: L.LocateOptions | undefined): void {
-        map.locate(options);
     }
 };

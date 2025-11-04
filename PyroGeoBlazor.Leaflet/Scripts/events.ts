@@ -140,9 +140,10 @@ export namespace LeafletEvents {
         static fromLeaflet(ev: any): LeafletEventArgs {
             const dto: LeafletEventArgsDto = {
                 Type: ev?.type ?? null,
-                Target: ev?.target ?? null,
-                SourceTarget: ev?.sourceTarget ?? null,
-                PropagatedFrom: ev?.propagatedFrom ?? null
+                // Use minimalLayerInfo to avoid passing full Layer objects with circular refs
+                Target: minimalLayerInfo(ev?.target) ?? null,
+                SourceTarget: minimalLayerInfo(ev?.sourceTarget) ?? null,
+                PropagatedFrom: minimalLayerInfo(ev?.propagatedFrom) ?? null
             };
             return new LeafletEventArgs(dto);
         }
@@ -181,9 +182,10 @@ export namespace LeafletEvents {
                 ContainerPoint: ev?.containerPoint ?? null,
                 OriginalEvent: ev?.originalEvent ?? null,
                 Type: ev?.type ?? null,
-                Target: ev?.target ?? null,
-                SourceTarget: ev?.sourceTarget ?? null,
-                PropagatedFrom: ev?.propagatedFrom ?? null
+                // Use minimalLayerInfo to avoid passing full Layer objects with circular refs
+                Target: minimalLayerInfo(ev?.target) ?? null,
+                SourceTarget: minimalLayerInfo(ev?.sourceTarget) ?? null,
+                PropagatedFrom: minimalLayerInfo(ev?.propagatedFrom) ?? null
             } as Partial<LeafletMouseEventArgsDto & LeafletEventArgsDto>;
 
             return new LeafletMouseEventArgs(dto);
@@ -215,9 +217,10 @@ export namespace LeafletEvents {
                 OldSize: ev?.oldSize ?? null,
                 NewSize: ev?.newSize ?? null,
                 Type: ev?.type ?? null,
-                Target: ev?.target ?? null,
-                SourceTarget: ev?.sourceTarget ?? null,
-                PropagatedFrom: ev?.propagatedFrom ?? null
+                // Use minimalLayerInfo to avoid passing full Layer objects with circular refs
+                Target: minimalLayerInfo(ev?.target) ?? null,
+                SourceTarget: minimalLayerInfo(ev?.sourceTarget) ?? null,
+                PropagatedFrom: minimalLayerInfo(ev?.propagatedFrom) ?? null
             } as any;
             return new LeafletResizeEventArgs(dto);
         }
@@ -273,9 +276,10 @@ export namespace LeafletEvents {
             const dto: Partial<LeafletDragEndEventArgsDto> = {
                 Distance: (typeof ev?.distance === 'number') ? ev.distance : null,
                 Type: ev?.type ?? null,
-                Target: ev?.target ?? null,
-                SourceTarget: ev?.sourceTarget ?? null,
-                PropagatedFrom: ev?.propagatedFrom ?? null
+                // Use minimalLayerInfo to avoid passing full Layer objects with circular refs
+                Target: minimalLayerInfo(ev?.target) ?? null,
+                SourceTarget: minimalLayerInfo(ev?.sourceTarget) ?? null,
+                PropagatedFrom: minimalLayerInfo(ev?.propagatedFrom) ?? null
             } as any;
             return new LeafletDragEndEventArgs(dto);
         }

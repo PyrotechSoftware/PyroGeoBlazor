@@ -13,23 +13,23 @@ public abstract class DivOverlay : InteractiveLayer
 {
     public event EventHandler<LeafletEventArgs>? OnContentUpdate;
 
-    protected new readonly DomEventHandlerMapping<DivOverlay>? InteractionOptions;
+    protected new readonly DomEventHandlerMapping<DivOverlay>? EventHandlerMapping;
 
     protected DivOverlay(DivOverlayOptions? options = null)
     {
         if (options is null || options.Interactive)
         {
             var dotnetReference = DotNetObjectReference.Create(this);
-            InteractionOptions = new DomEventHandlerMapping<DivOverlay>(dotnetReference, new Dictionary<string, string>
+            EventHandlerMapping = new DomEventHandlerMapping<DivOverlay>(dotnetReference, new Dictionary<string, string>
             {
                 { "contentupdate", nameof(this.ContentUpdate) }
             });
-            if (base.InteractionOptions != null)
+            if (base.EventHandlerMapping != null)
             {
                 // Get the events from the base InteractiveLayer
-                foreach (var eventMapping in base.InteractionOptions.Events)
+                foreach (var eventMapping in base.EventHandlerMapping.Events)
                 {
-                    InteractionOptions.Events.Add(eventMapping.Key, eventMapping.Value);
+                    EventHandlerMapping.Events.Add(eventMapping.Key, eventMapping.Value);
                 }
             }
         }

@@ -17,12 +17,12 @@ public abstract class Layer : InteropObject
     /// <summary>
     /// These interaction options for the layer.
     /// </summary>
-    protected readonly DomEventHandlerMapping<Layer>? InteractionOptions;
+    protected readonly DomEventHandlerMapping<Layer>? EventHandlerMapping;
 
     protected Layer(LayerOptions? options = null)
     {
         var dotnetReference = DotNetObjectReference.Create(this);
-        InteractionOptions = new DomEventHandlerMapping<Layer>(dotnetReference, new Dictionary<string, string>()
+        EventHandlerMapping = new DomEventHandlerMapping<Layer>(dotnetReference, new Dictionary<string, string>()
         {
             { "add", nameof(this.Add) },
             { "remove", nameof(this.Remove) }

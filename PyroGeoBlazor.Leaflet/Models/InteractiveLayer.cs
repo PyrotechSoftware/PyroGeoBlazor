@@ -14,7 +14,7 @@ public abstract class InteractiveLayer : Layer
     public event EventHandler<LeafletMouseEventArgs>? OnDoubleClick;
     public event EventHandler<LeafletMouseEventArgs>? OnMouseDown;
 
-    protected new readonly DomEventHandlerMapping<InteractiveLayer>? InteractionOptions;
+    protected new readonly DomEventHandlerMapping<InteractiveLayer>? EventHandlerMapping;
 
     protected InteractiveLayer(InteractiveLayerOptions? options = null)
         : base(options)
@@ -22,17 +22,17 @@ public abstract class InteractiveLayer : Layer
         if (options is null || options.Interactive)
         {
             var dotnetReference = DotNetObjectReference.Create(this);
-            InteractionOptions = new DomEventHandlerMapping<InteractiveLayer>(dotnetReference, new Dictionary<string, string>
+            EventHandlerMapping = new DomEventHandlerMapping<InteractiveLayer>(dotnetReference, new Dictionary<string, string>
             {
                 { "click", nameof(this.Click) },
                 { "dblclick", nameof(this.DoubleClick) },
                 { "mousedown", nameof(this.MouseDown) }
             });
-            if (base.InteractionOptions != null)
+            if (base.EventHandlerMapping != null)
             {
-                foreach (var eventMapping in base.InteractionOptions.Events)
+                foreach (var eventMapping in base.EventHandlerMapping.Events)
                 {
-                    InteractionOptions.Events.Add(eventMapping.Key, eventMapping.Value);
+                    EventHandlerMapping.Events.Add(eventMapping.Key, eventMapping.Value);
                 }
             }
         }
@@ -40,19 +40,22 @@ public abstract class InteractiveLayer : Layer
 
     #region Events
 
-    public Task Click(LeafletMouseEventArgs args)
+    [JSInvokable]
+    public virtual Task Click(LeafletMouseEventArgs args)
     {
         OnClick?.Invoke(this, args);
         return Task.CompletedTask;
     }
 
-    public Task DoubleClick(LeafletMouseEventArgs args)
+    [JSInvokable]
+    public virtual Task DoubleClick(LeafletMouseEventArgs args)
     {
         OnDoubleClick?.Invoke(this, args);
         return Task.CompletedTask;
     }
 
-    public Task MouseDown(LeafletMouseEventArgs args)
+    [JSInvokable]
+    public virtual Task MouseDown(LeafletMouseEventArgs args)
     {
         OnMouseDown?.Invoke(this, args);
         return Task.CompletedTask;

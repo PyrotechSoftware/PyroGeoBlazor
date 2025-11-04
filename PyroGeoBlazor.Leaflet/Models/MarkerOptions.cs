@@ -1,4 +1,4 @@
-﻿namespace PyroGeoBlazor.Leaflet.Models;
+namespace PyroGeoBlazor.Leaflet.Models;
 
 using System.Text.Json.Serialization;
 
@@ -65,4 +65,34 @@ public class MarkerOptions
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool? BubblingMouseEvents { get; set; }
+
+    /// <summary>
+    /// Whether the marker is draggable with mouse/touch or not.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool Draggable { get; set; } = false;
+
+    /// <summary>
+    /// Whether to pan the map when dragging this marker near its edge.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool AutoPan { get; set; } = false;
+
+    /// <summary>
+    /// Distance in pixels from the edge of the map where the panning will start.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Point AutoPanPadding { get; set; } = new Point(50, 50);
+
+    /// <summary>
+    /// Number of pixels to pan by.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public int AutoPanSpeed { get; set; } = 10;
+
+    /// <summary>
+    /// Whether event handling is enabled for this marker.
+    /// </summary>
+    [JsonIgnore]
+    public bool EnableEvents { get; set; } = true;
 }

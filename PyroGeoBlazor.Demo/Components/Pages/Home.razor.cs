@@ -1,6 +1,7 @@
 namespace PyroGeoBlazor.Demo.Components.Pages;
 
 using Microsoft.AspNetCore.Components;
+using Microsoft.AspNetCore.Components.Web;
 
 using PyroGeoBlazor.Demo.Models;
 using PyroGeoBlazor.Leaflet.Models;
@@ -99,6 +100,50 @@ public partial class Home : ComponentBase, IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await OpenStreetMapsTileLayer.DisposeAsync();
-        await PositionMap.DisposeAsync();
+        if (PositionMap != null)
+        {
+            await PositionMap.DisposeAsync();
+        }
+    }
+    private async Task Locate()
+    {
+        if (PositionMap == null)
+        {
+            return;
+        }
+
+        PositionMap.OnLocationFound += OnUserLocationFound;
+        PositionMap.OnLocationError += OnUserLocationError;
+        await PositionMap.Locate();
+    }
+
+    private void OnUserLocationError(object? sender, Leaflet.EventArgs.LeafletErrorEventArgs e)
+    {
+        PositionMap!.OnLocationFound -= OnUserLocationFound;
+        PositionMap!.OnLocationError -= OnUserLocationError;
+    }
+
+    private async void OnUserLocationFound(object? sender, Leaflet.EventArgs.LeafletLocationEventArgs e)
+    {
+        if (PositionMap is null)
+        {
+            return;
+        }
+
+        if (e.LatLng is not null)
+        {
+            await PositionMap.FlyTo(e.LatLng, 18);
+            var marker = new Marker(e.LatLng, new MarkerOptions()
+            {
+                Title = "Detected User location",
+                Draggable = true,
+                AutoPan = true,
+                RiseOnHover = true, RiseOffset = 10
+            });
+            await marker.AddTo(PositionMap);
+        }
+
+        PositionMap!.OnLocationFound -= OnUserLocationFound;
+        PositionMap!.OnLocationError -= OnUserLocationError;
     }
 }

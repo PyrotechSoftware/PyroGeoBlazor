@@ -1,6 +1,7 @@
 declare const L: typeof import('leaflet');
 
 import { EventHandlerMapping } from './eventHandling';
+import { LeafletEvents } from './events';
 
 export const Popup = {
     createPopup(
@@ -13,15 +14,15 @@ export const Popup = {
         // Attach event handlers if provided
         if (handlerMappings && handlerMappings.dotNetRef && handlerMappings.events) {
             const keys = Object.keys(handlerMappings.events);
-            for (let i = 0; i < keys.length; i++) {
-                const eventName = keys[i];
-                const methodName = handlerMappings.events[eventName];
 
-                popup.on(eventName, function (ev: any) {
+            if (keys.indexOf('click') > -1) {
+                var methodName = handlerMappings.events['click'];
+                popup.on('click', function (ev: L.LeafletMouseEvent) {
                     try {
-                        handlerMappings.dotNetRef!.invokeMethodAsync(methodName, ev);
+                        let payload = LeafletEvents.LeafletMouseEventArgs.fromLeaflet(ev).toDto();
+                        handlerMappings.dotNetRef!.invokeMethodAsync(methodName, payload);
                     } catch (e) {
-                        console.error(`Error invoking dotnet handler for event ${eventName}`, e);
+                        console.error(`Error invoking dotnet handler for popup click event`, e);
                     }
                 });
             }

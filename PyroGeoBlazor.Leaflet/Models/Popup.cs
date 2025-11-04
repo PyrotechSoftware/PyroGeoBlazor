@@ -4,9 +4,15 @@ using Microsoft.JSInterop;
 
 using System.Threading.Tasks;
 
-public sealed class Popup : DivOverlay
+/// <summary>
+/// Used to open popups in certain places of the map.
+/// Use Map.openPopup to open popups while making sure that only one popup is open at one time (recommended for usability),
+/// or use Map.addLayer to open as many as you want.
+/// <see href="https://leafletjs.com/reference.html#popup"/>
+/// </summary>
+public class Popup : DivOverlay
 {
-    private new readonly DomEventHandlerMapping<Popup>? InteractionOptions;
+    protected new readonly DomEventHandlerMapping<Popup>? EventHandlerMapping;
 
     public LatLng LatLng { get; }
     public PopupOptions? Options { get; }
@@ -19,15 +25,15 @@ public sealed class Popup : DivOverlay
         if (options is null || options.Interactive)
         {
             var dotnetReference = DotNetObjectReference.Create(this);
-            InteractionOptions = new DomEventHandlerMapping<Popup>(dotnetReference, new Dictionary<string, string>
+            EventHandlerMapping = new DomEventHandlerMapping<Popup>(dotnetReference, new Dictionary<string, string>
             {
                 { "click", nameof(this.Click) }
             });
-            if (base.InteractionOptions != null)
+            if (base.EventHandlerMapping != null)
             {
-                foreach (var eventMapping in base.InteractionOptions.Events)
+                foreach (var eventMapping in base.EventHandlerMapping.Events)
                 {
-                    InteractionOptions.Events.Add(eventMapping.Key, eventMapping.Value);
+                    EventHandlerMapping.Events.Add(eventMapping.Key, eventMapping.Value);
                 }
             }
         }
@@ -37,7 +43,7 @@ public sealed class Popup : DivOverlay
     {
         GuardAgainstNullBinding("Cannot create popup. JavaScript is not setup yet.");
         var module = await JSBinder!.GetLeafletMapModule();
-        return await module.InvokeAsync<IJSObjectReference>("Popup.createPopup", LatLng, Options, InteractionOptions);
+        return await module.InvokeAsync<IJSObjectReference>("LeafletMap.Popup.createPopup", LatLng, Options, EventHandlerMapping);
     }
 
     #region Methods
@@ -50,11 +56,13 @@ public sealed class Popup : DivOverlay
     /// <returns>The popup</returns>
     public async Task<Popup> OpenOn(Map map)
     {
-        GuardAgainstNullBinding("Cannot open popup. JavaScript object reference is null.");
-        await JSObjectReference!.InvokeVoidAsync("L.openOn", map.JSObjectReference);
+        if (JSBinder is null)
+        {
+            await BindJsObjectReference(map.JSBinder!);
+        }
+        await JSObjectReference!.InvokeVoidAsync("openOn", map);
         return this;
     }
 
     #endregion
-
 }

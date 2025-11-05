@@ -536,6 +536,10 @@ public class Map : InteropObject
     public async Task<Map> AddLayer(Layer layer)
     {
         GuardAgainstNullBinding("Cannot add layer to map. No JavaScript binding has been set up for this Map object.");
+        if (layer.JSBinder is null)
+        {
+            await layer.BindJsObjectReference(JSBinder!);
+        }
         await JSObjectReference!.InvokeVoidAsync("addLayer", layer);
         return this;
     }

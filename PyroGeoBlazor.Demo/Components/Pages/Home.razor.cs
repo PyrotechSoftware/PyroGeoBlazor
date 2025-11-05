@@ -12,6 +12,8 @@ public partial class Home : ComponentBase, IAsyncDisposable
 {
     protected Map? PositionMap;
     protected TileLayer OpenStreetMapsTileLayer;
+    protected WmsTileLayer? TownshipsLayer;
+    protected WmsTileLayer? ExtensionsLayer;
 
     protected MapStateViewModel MapStateViewModel;
     protected MarkerViewModel MarkerViewModel;
@@ -43,8 +45,42 @@ public partial class Home : ComponentBase, IAsyncDisposable
                 }
             );
 
+        TownshipsLayer = new WmsTileLayer(
+            "https://lims.koleta.co.mz/geoserver/ows",
+            new WmsTileLayerOptions
+            {
+                Layers = "PlannerSpatial:Township",
+                Format = "image/png",
+                Transparent = true,
+                Attribution = "",
+                Version = "1.3.0",
+                Opacity = 0.6
+            }
+        );
+
+        ExtensionsLayer = new WmsTileLayer(
+            "https://lims.koleta.co.mz/geoserver/ows",
+            new WmsTileLayerOptions
+            {
+                Layers = "PlannerSpatial:TownshipExtensionOrFarm",
+                Format = "image/png",
+                Transparent = true,
+                Attribution = "",
+                Version = "1.3.0",
+                Opacity = 0.6,
+            }
+        );
+
 
         MarkerViewModel = new MarkerViewModel();
+    }
+
+    protected override Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+        }
+        return base.OnAfterRenderAsync(firstRender);
     }
 
     protected async void GetMapState()
@@ -97,6 +133,26 @@ public partial class Home : ComponentBase, IAsyncDisposable
         await marker.AddTo(PositionMap);
     }
 
+    public async Task AddTownshipsLayer()
+    {
+        if (PositionMap == null)
+        {
+            return;
+        }
+
+        if (TownshipsLayer == null)
+        {
+            return;
+        }
+
+        await TownshipsLayer.AddTo(PositionMap);
+
+        if (ExtensionsLayer != null)
+        {
+            await ExtensionsLayer.AddTo(PositionMap);
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         await OpenStreetMapsTileLayer.DisposeAsync();
@@ -104,7 +160,10 @@ public partial class Home : ComponentBase, IAsyncDisposable
         {
             await PositionMap.DisposeAsync();
         }
+
+        GC.SuppressFinalize(this);
     }
+
     private async Task Locate()
     {
         if (PositionMap == null)

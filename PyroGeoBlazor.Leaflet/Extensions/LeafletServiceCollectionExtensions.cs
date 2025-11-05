@@ -1,6 +1,8 @@
-﻿namespace PyroGeoBlazor.Leaflet;
+namespace PyroGeoBlazor.Leaflet;
 
 using Microsoft.Extensions.DependencyInjection;
+
+using PyroGeoBlazor.Leaflet.Services;
 
 public static class LeafletServiceCollectionExtensions
 {
@@ -8,6 +10,8 @@ public static class LeafletServiceCollectionExtensions
     {
         services.AddRazorComponents()
                 .AddInteractiveServerComponents();
+
+        services.AddScoped<ILeafletCrs, LeafletCrs>();
 
         return services;
     }

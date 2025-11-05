@@ -42,7 +42,7 @@ public abstract class Layer : InteropObject
         }
         GuardAgainstNullBinding("Cannot add layer to map. No JavaScript binding has been set up.");
         var module = await JSBinder!.GetLeafletMapModule();
-        await module.InvokeVoidAsync("LeafletMap.Layer.addTo", JSObjectReference, map.JSObjectReference);
+        await module.InvokeVoidAsync("LeafletMap.Layer.addTo", JSObjectReference, map.JSObjectReference, EventHandlerMapping);
         return this;
     }
 

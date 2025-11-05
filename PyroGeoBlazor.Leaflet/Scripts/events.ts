@@ -247,9 +247,10 @@ export namespace LeafletEvents {
             const dto: Partial<LeafletPopupEventArgsDto> = {
                 Popup: ev?.popup ?? ev?.layer ?? ev?.target ?? null,
                 Type: ev?.type ?? null,
-                Target: ev?.target ?? null,
-                SourceTarget: ev?.sourceTarget ?? null,
-                PropagatedFrom: ev?.propagatedFrom ?? null
+                // Use minimalLayerInfo to avoid passing full Layer objects with circular refs
+                Target: minimalLayerInfo(ev?.target) ?? null,
+                SourceTarget: minimalLayerInfo(ev?.sourceTarget) ?? null,
+                PropagatedFrom: minimalLayerInfo(ev?.propagatedFrom) ?? null
             } as any;
             return new LeafletPopupEventArgs(dto);
         }
@@ -314,9 +315,10 @@ export namespace LeafletEvents {
                 Message: msg,
                 Code: code,
                 Type: ev?.type ?? null,
-                Target: ev?.target ?? null,
-                SourceTarget: ev?.sourceTarget ?? null,
-                PropagatedFrom: ev?.propagatedFrom ?? null
+                // Use minimalLayerInfo to avoid passing full Layer objects with circular refs
+                Target: minimalLayerInfo(ev?.target) ?? null,
+                SourceTarget: minimalLayerInfo(ev?.sourceTarget) ?? null,
+                PropagatedFrom: minimalLayerInfo(ev?.propagatedFrom) ?? null
             } as any;
             return new LeafletErrorEventArgs(dto);
         }
@@ -360,9 +362,10 @@ export namespace LeafletEvents {
                 GeometryType: geometryType,
                 Id: id,
                 Type: ev?.type ?? null,
-                Target: ev?.target ?? null,
-                SourceTarget: ev?.sourceTarget ?? null,
-                PropagatedFrom: ev?.propagatedFrom ?? null
+                // Use minimalLayerInfo to avoid passing full Layer objects with circular refs
+                Target: minimalLayerInfo(ev?.target) ?? null,
+                SourceTarget: minimalLayerInfo(ev?.sourceTarget) ?? null,
+                PropagatedFrom: minimalLayerInfo(ev?.propagatedFrom) ?? null
             } as any;
 
             return new LeafletGeoJsonEventArgs(dto);
@@ -390,9 +393,10 @@ export namespace LeafletEvents {
             const dto: Partial<LeafletKeyboardEventArgsDto> = {
                 OriginalEvent: ev?.originalEvent ?? null,
                 Type: ev?.type ?? null,
-                Target: ev?.target ?? null,
-                SourceTarget: ev?.sourceTarget ?? null,
-                PropagatedFrom: ev?.propagatedFrom ?? null
+                // Use minimalLayerInfo to avoid passing full Layer objects with circular refs
+                Target: minimalLayerInfo(ev?.target) ?? null,
+                SourceTarget: minimalLayerInfo(ev?.sourceTarget) ?? null,
+                PropagatedFrom: minimalLayerInfo(ev?.propagatedFrom) ?? null
             } as any;
             return new LeafletKeyboardEventArgs(dto);
         }
@@ -419,9 +423,10 @@ export namespace LeafletEvents {
             const dto: Partial<LeafletLayerEventArgsDto> = {
                 Layer: ev?.layer ?? ev?.target ?? null,
                 Type: ev?.type ?? null,
-                Target: ev?.target ?? null,
-                SourceTarget: ev?.sourceTarget ?? null,
-                PropagatedFrom: ev?.propagatedFrom ?? null
+                // Use minimalLayerInfo to avoid passing full Layer objects with circular refs
+                Target: minimalLayerInfo(ev?.target) ?? null,
+                SourceTarget: minimalLayerInfo(ev?.sourceTarget) ?? null,
+                PropagatedFrom: minimalLayerInfo(ev?.propagatedFrom) ?? null
             } as any;
             return new LeafletLayerEventArgs(dto);
         }
@@ -452,9 +457,10 @@ export namespace LeafletEvents {
                 Layer: ev?.layer ?? ev?.target ?? null,
                 Name: ev?.name ?? ev?.layer?.options?.name ?? null,
                 Type: ev?.type ?? null,
-                Target: ev?.target ?? null,
-                SourceTarget: ev?.sourceTarget ?? null,
-                PropagatedFrom: ev?.propagatedFrom ?? null
+                // Use minimalLayerInfo to avoid passing full Layer objects with circular refs
+                Target: minimalLayerInfo(ev?.target) ?? null,
+                SourceTarget: minimalLayerInfo(ev?.sourceTarget) ?? null,
+                PropagatedFrom: minimalLayerInfo(ev?.propagatedFrom) ?? null
             } as any;
             return new LeafletLayersControlEventArgs(dto);
         }
@@ -555,9 +561,10 @@ export namespace LeafletEvents {
                 Coords: ev?.coords ?? ev?.coord ?? null,
                 Error: ev?.error ?? ev?.message ?? null,
                 Type: ev?.type ?? null,
-                Target: ev?.target ?? null,
-                SourceTarget: ev?.sourceTarget ?? null,
-                PropagatedFrom: ev?.propagatedFrom ?? null
+                // Use minimalLayerInfo to avoid passing full Layer objects with circular refs
+                Target: minimalLayerInfo(ev?.target) ?? null,
+                SourceTarget: minimalLayerInfo(ev?.sourceTarget) ?? null,
+                PropagatedFrom: minimalLayerInfo(ev?.propagatedFrom) ?? null
             } as any;
             return new LeafletTileErrorEventArgs(dto);
         }
@@ -588,9 +595,10 @@ export namespace LeafletEvents {
                 Tile: ev?.tile ?? ev?.tile ?? null,
                 Coords: ev?.coords ?? ev?.coord ?? null,
                 Type: ev?.type ?? null,
-                Target: ev?.target ?? null,
-                SourceTarget: ev?.sourceTarget ?? null,
-                PropagatedFrom: ev?.propagatedFrom ?? null
+                // Use minimalLayerInfo to avoid passing full Layer objects with circular refs
+                Target: minimalLayerInfo(ev?.target) ?? null,
+                SourceTarget: minimalLayerInfo(ev?.sourceTarget) ?? null,
+                PropagatedFrom: minimalLayerInfo(ev?.propagatedFrom) ?? null
             } as any;
             return new LeafletTileEventArgs(dto);
         }
@@ -617,9 +625,10 @@ export namespace LeafletEvents {
             const dto: Partial<LeafletTooltipEventArgsDto> = {
                 Tooltip: ev?.tooltip ?? ev?.layer ?? ev?.target ?? null,
                 Type: ev?.type ?? null,
-                Target: ev?.target ?? null,
-                SourceTarget: ev?.sourceTarget ?? null,
-                PropagatedFrom: ev?.propagatedFrom ?? null
+                // Use minimalLayerInfo to avoid passing full Layer objects with circular refs
+                Target: minimalLayerInfo(ev?.target) ?? null,
+                SourceTarget: minimalLayerInfo(ev?.sourceTarget) ?? null,
+                PropagatedFrom: minimalLayerInfo(ev?.propagatedFrom) ?? null
             } as any;
             return new LeafletTooltipEventArgs(dto);
         }
@@ -658,9 +667,10 @@ export namespace LeafletEvents {
                 Zoom: zoom,
                 NoUpdate: noUpdate,
                 Type: ev?.type ?? null,
-                Target: ev?.target ?? null,
-                SourceTarget: ev?.sourceTarget ?? null,
-                PropagatedFrom: ev?.propagatedFrom ?? null
+                // Use minimalLayerInfo to avoid passing full Layer objects with circular refs
+                Target: minimalLayerInfo(ev?.target) ?? null,
+                SourceTarget: minimalLayerInfo(ev?.sourceTarget) ?? null,
+                PropagatedFrom: minimalLayerInfo(ev?.propagatedFrom) ?? null
             } as any;
 
             return new LeafletZoomAnimEventArgs(dto);

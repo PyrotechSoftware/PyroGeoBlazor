@@ -1,4 +1,5 @@
 declare const L: typeof import('leaflet');
+declare const Mvt: typeof import('leaflet-vectortile-mapbox');
 
 export namespace LeafletEvents {
     // DTO shapes sent to .NET using Leaflet classes directly, matching C# EventArgs properties
@@ -103,6 +104,12 @@ export namespace LeafletEvents {
         Center?: L.LatLng | null;
         Zoom?: number | null;
         NoUpdate?: boolean | null;
+    }
+
+    // Matches C# LeafletFeatureMouseEventArgs
+    export interface LeafletFeatureMouseEventArgsDto extends LeafletMouseEventArgsDto {
+        LayerName?: string | null;
+        Feature?: any | null;
     }
 
     function minimalLayerInfo(obj: any): any {
@@ -674,6 +681,48 @@ export namespace LeafletEvents {
             } as any;
 
             return new LeafletZoomAnimEventArgs(dto);
+        }
+    }
+
+    export class LeafletFeatureMouseEventArgs extends LeafletMouseEventArgs {
+        LayerName?: string | null;
+        Feature?: any | null;
+
+        constructor(init?: Partial<LeafletFeatureMouseEventArgsDto>) {
+            super(init);
+            if (init) {
+                this.LayerName = init.LayerName ?? null;
+                this.Feature = init.Feature ?? null;
+            }
+        }
+
+        toDto(): LeafletFeatureMouseEventArgsDto {
+            const base = super.toDto();
+            return Object.assign({}, base, {
+                LayerName: this.LayerName ?? null,
+                Feature: this.Feature ?? null
+            });
+        }
+
+        static fromLeaflet(ev: any): LeafletFeatureMouseEventArgs {
+            const layerName = ev?.layerName ?? null;
+            const feature = ev?.feature ?? null;
+
+            const dto: Partial<LeafletFeatureMouseEventArgsDto> = {
+                LayerName: layerName,
+                Feature: feature,
+                LatLng: ev?.latlng ?? null,
+                LayerPoint: ev?.layerPoint ?? null,
+                ContainerPoint: ev?.containerPoint ?? null,
+                OriginalEvent: ev?.originalEvent ?? null,
+                Type: ev?.type ?? null,
+                // Use minimalLayerInfo to avoid passing full Layer objects with circular refs
+                Target: minimalLayerInfo(ev?.target) ?? null,
+                SourceTarget: minimalLayerInfo(ev?.sourceTarget) ?? null,
+                PropagatedFrom: minimalLayerInfo(ev?.propagatedFrom) ?? null
+            } as any;
+
+            return new LeafletFeatureMouseEventArgs(dto);
         }
     }
 }

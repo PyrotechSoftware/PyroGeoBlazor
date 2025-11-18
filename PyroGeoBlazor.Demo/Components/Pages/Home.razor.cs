@@ -1,7 +1,6 @@
 namespace PyroGeoBlazor.Demo.Components.Pages;
 
 using Microsoft.AspNetCore.Components;
-using Microsoft.AspNetCore.Components.Web;
 
 using PyroGeoBlazor.Demo.Models;
 using PyroGeoBlazor.Leaflet.Models;
@@ -12,8 +11,8 @@ public partial class Home : ComponentBase, IAsyncDisposable
 {
     protected Map? PositionMap;
     protected TileLayer OpenStreetMapsTileLayer;
-    protected WmsTileLayer? TownshipsLayer;
-    protected WmsTileLayer? ExtensionsLayer;
+    protected MapboxVectorTileLayer? TownshipsLayer;
+    protected MapboxVectorTileLayer? ExtensionsLayer;
 
     protected MapStateViewModel MapStateViewModel;
     protected MarkerViewModel MarkerViewModel;
@@ -45,32 +44,39 @@ public partial class Home : ComponentBase, IAsyncDisposable
                 }
             );
 
-        TownshipsLayer = new WmsTileLayer(
-            "https://lims.koleta.co.mz/geoserver/ows",
-            new WmsTileLayerOptions
+        TownshipsLayer = new MapboxVectorTileLayer(
+            "https://lims.koleta.co.mz/geoserver/PlannerSpatial/gwc/service/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&LAYER=PlannerSpatial:Township&STYLE=&TILEMATRIX=EPSG:900913:{z}&TILEMATRIXSET=EPSG:900913&FORMAT=application/vnd.mapbox-vector-tile&TILECOL={x}&TILEROW={y}",
+            new MapboxVectorTileLayerOptions
             {
-                Layers = "PlannerSpatial:Township",
-                Format = "image/png",
-                Transparent = true,
+                Format = "MVT",
                 Attribution = "",
-                Version = "1.3.0",
-                Opacity = 0.6
-            }
-        );
-
-        ExtensionsLayer = new WmsTileLayer(
-            "https://lims.koleta.co.mz/geoserver/ows",
-            new WmsTileLayerOptions
-            {
-                Layers = "PlannerSpatial:TownshipExtensionOrFarm",
-                Format = "image/png",
-                Transparent = true,
-                Attribution = "",
-                Version = "1.3.0",
+                TileSize = 256,
                 Opacity = 0.6,
+                SelectedFeatureStyle = new FeatureStyle
+                {
+                    Fill = "rgba(50,150,250,0.25)",
+                    LineWidth = 2,
+                    Stroke = "rgba(50,150,250,0.9)"
+                }
             }
         );
 
+        ExtensionsLayer = new MapboxVectorTileLayer(
+            "https://lims.koleta.co.mz/geoserver/PlannerSpatial/gwc/service/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&LAYER=PlannerSpatial:TownshipExtensionOrFarm&STYLE=&TILEMATRIX=EPSG:900913:{z}&TILEMATRIXSET=EPSG:900913&FORMAT=application/vnd.mapbox-vector-tile&TILECOL={x}&TILEROW={y}",
+            new MapboxVectorTileLayerOptions
+            {
+                Format = "MVT",
+                Attribution = "",
+                Opacity = 0.6,
+                TileSize = 256,
+                SelectedFeatureStyle = new FeatureStyle
+                {
+                    Fill = "rgba(50,150,250,0.25)",
+                    LineWidth = 2,
+                    Stroke = "rgba(50,150,250,0.9)"
+                }
+            }
+        );
 
         MarkerViewModel = new MarkerViewModel();
     }
@@ -149,7 +155,7 @@ public partial class Home : ComponentBase, IAsyncDisposable
 
         if (ExtensionsLayer != null)
         {
-            await ExtensionsLayer.AddTo(PositionMap);
+            //await ExtensionsLayer.AddTo(PositionMap);
         }
     }
 

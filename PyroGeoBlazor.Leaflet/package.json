@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "build": "esbuild Scripts/index.ts --bundle --outfile=wwwroot/leafletMap.js --minify --format=esm --platform=browser --external:leaflet"
+    "build": "esbuild Scripts/index.ts --bundle --outfile=wwwroot/leafletMap.js --minify --format=esm --platform=browser --external:leaflet --external:leaflet-vectortile-mapbox"
   },
   "devDependencies": {
     "esbuild": "^0.25.11"

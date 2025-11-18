@@ -3,6 +3,7 @@ import { Layer } from './layer';
 import { GridLayer } from './gridLayer';
 import { TileLayer } from './tileLayer';
 import { WmsTileLayer } from './wmsTileLayer';
+import { MapboxVectorTileLayer } from './mapboxVectorTileLayer';
 import { Polyline } from './polyline';
 import { Polygon } from './polygon';
 import { Rectangle } from './rectangle';
@@ -13,7 +14,7 @@ import { Tooltip } from './tooltip';
 import { getCrs } from './crs';
 
 export const LeafletMap = {
-    Map, Layer, GridLayer, TileLayer, WmsTileLayer, Polyline, Polygon, Rectangle, Marker, CircleMarker, Popup, Tooltip, getCrs
+    Map, Layer, GridLayer, TileLayer, WmsTileLayer, MapboxVectorTileLayer, Polyline, Polygon, Rectangle, Marker, CircleMarker, Popup, Tooltip, getCrs
 };
 
 // For consumers that expect a default export or a global on window

@@ -513,7 +513,12 @@ public class Map : InteropObject
     public async Task<Map> AddControl(Control control)
     {
         GuardAgainstNullBinding("Cannot add control to map. No JavaScript binding has been set up for this Map object.");
-        await JSObjectReference!.InvokeVoidAsync("addControl", control);
+        if (control.JSObjectReference is null)
+        {
+            await control.BindJsObjectReference(JSBinder!);
+        }
+
+        await JSObjectReference!.InvokeVoidAsync("addControl", control.JSObjectReference);
         return this;
     }
 

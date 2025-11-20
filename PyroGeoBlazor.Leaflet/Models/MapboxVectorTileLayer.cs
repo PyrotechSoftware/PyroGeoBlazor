@@ -31,6 +31,7 @@ public class MapboxVectorTileLayer : GridLayer
                 { "featurecontextmenu", nameof(this.FeatureContextMenu) },
                 { "featuremouseover", nameof(this.FeatureMouseOver) },
                 { "featuremouseout", nameof(this.FeatureMouseOut) },
+                { "tilefetcherror", nameof(this.TileFetchError) }
             });
             if (base.EventHandlerMapping != null)
             {
@@ -113,6 +114,7 @@ public class MapboxVectorTileLayer : GridLayer
     public event EventHandler<LeafletFeatureMouseEventArgs?>? OnFeatureContextMenu;
     public event EventHandler<LeafletFeatureMouseEventArgs?>? OnFeatureMouseOver;
     public event EventHandler<LeafletFeatureMouseEventArgs?>? OnFeatureMouseOut;
+    public event EventHandler<LeafletTileFetchErrorEventArgs?>? OnTileFetchError;
 
     [JSInvokable]
     public async Task FeatureSelectedAsync(LeafletFeatureMouseEventArgs? args)
@@ -169,6 +171,12 @@ public class MapboxVectorTileLayer : GridLayer
     public void FeatureMouseOut(LeafletFeatureMouseEventArgs? args)
     {
         OnFeatureMouseOut?.Invoke(this, args);
+    }
+
+    [JSInvokable]
+    public void TileFetchError(LeafletTileFetchErrorEventArgs? args)
+    {
+        OnTileFetchError?.Invoke(this, args);
     }
 
     #endregion

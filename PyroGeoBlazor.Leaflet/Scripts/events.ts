@@ -112,6 +112,14 @@ export namespace LeafletEvents {
         Feature?: any | null;
     }
 
+    // Matches C# LeafletTileFetchErrorEventArgs
+    export interface LeafletTileFetchErrorEventArgsDto extends LeafletTileErrorEventArgsDto {
+        Url?: string | null;
+        z?: number | null;
+        x?: number | null;
+        y?: number | null;
+    }
+
     function minimalLayerInfo(obj: any): any {
         if (!obj) return null;
         const info: any = {};
@@ -723,6 +731,46 @@ export namespace LeafletEvents {
             } as any;
 
             return new LeafletFeatureMouseEventArgs(dto);
+        }
+    }
+
+    export class LeafletTileFetchErrorEventArgs extends LeafletTileErrorEventArgs {
+        Url?: string | null;
+        z?: number | null
+        x?: number | null;
+        y?: number | null;
+
+        constructor(init?: Partial<LeafletTileFetchErrorEventArgsDto>) {
+            super(init);
+            if (init) {
+                this.Url = init.Url ?? null;
+                this.z = init.z ?? null;
+                this.x = init.x ?? null;
+                this.y = init.y ?? null;
+            }
+        }
+
+        toDto(): LeafletTileFetchErrorEventArgsDto {
+            const base = super.toDto();
+            return Object.assign({}, base, {
+                Url: this.Url ?? null,
+                z: this.z ?? null,
+                x: this.x ?? null,
+                y: this.y ?? null
+            });
+        }
+
+        static fromLeaflet(ev: any): LeafletTileFetchErrorEventArgs {
+            const dto: Partial<LeafletTileFetchErrorEventArgsDto> = {
+                Url: ev?.url ?? null,
+                z: (typeof ev?.z === 'number') ? ev.z : null,
+                x: (typeof ev?.x === 'number') ? ev.x : null,
+                y: (typeof ev?.y === 'number') ? ev.y : null,
+                Tile: ev?.tile ?? ev?.tile ?? null,
+                Coords: (typeof ev?.coords === 'object') ? ev.coords : null,
+                Error: ev?.error ?? null
+            };
+            return new LeafletTileFetchErrorEventArgs(dto);
         }
     }
 }

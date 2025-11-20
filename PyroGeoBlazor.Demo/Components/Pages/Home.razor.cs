@@ -13,9 +13,13 @@ public partial class Home : ComponentBase, IAsyncDisposable
     protected TileLayer OpenStreetMapsTileLayer;
     protected MapboxVectorTileLayer? TownshipsLayer;
     protected MapboxVectorTileLayer? ExtensionsLayer;
+    protected MapboxVectorTileLayer? ParcelsLayer;
+    protected LayersControl LayersControl;
 
     protected MapStateViewModel MapStateViewModel;
     protected MarkerViewModel MarkerViewModel;
+
+    protected List<Control> MapControls = [];
 
     public Home()
     {
@@ -35,6 +39,7 @@ public partial class Home : ComponentBase, IAsyncDisposable
                 ContextMenu = true
             }
         }, true);
+
         OpenStreetMapsTileLayer = new TileLayer(
                 "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
                 new TileLayerOptions
@@ -45,13 +50,15 @@ public partial class Home : ComponentBase, IAsyncDisposable
             );
 
         TownshipsLayer = new MapboxVectorTileLayer(
-            "https://lims.koleta.co.mz/geoserver/PlannerSpatial/gwc/service/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&LAYER=PlannerSpatial:Township&STYLE=&TILEMATRIX=EPSG:900913:{z}&TILEMATRIXSET=EPSG:900913&FORMAT=application/vnd.mapbox-vector-tile&TILECOL={x}&TILEROW={y}",
+            "https://lims.koleta.co.mz/geoserver/PlannerSpatial/gwc/service/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&LAYER={LayerName}&STYLE=&TILEMATRIX=EPSG:900913:{z}&TILEMATRIXSET=EPSG:900913&FORMAT=application/vnd.mapbox-vector-tile&TILECOL={x}&TILEROW={y}",
             new MapboxVectorTileLayerOptions
             {
                 Format = "MVT",
                 Attribution = "",
                 TileSize = 256,
                 Opacity = 0.6,
+                MinZoom = 1,
+                LayerName = "PlannerSpatial:Township",
                 SelectedFeatureStyle = new FeatureStyle
                 {
                     Fill = "rgba(50,150,250,0.25)",
@@ -69,6 +76,7 @@ public partial class Home : ComponentBase, IAsyncDisposable
                 Attribution = "",
                 Opacity = 0.6,
                 TileSize = 256,
+                MinZoom = 1,
                 SelectedFeatureStyle = new FeatureStyle
                 {
                     Fill = "rgba(50,150,250,0.25)",
@@ -78,15 +86,48 @@ public partial class Home : ComponentBase, IAsyncDisposable
             }
         );
 
+        ParcelsLayer = new MapboxVectorTileLayer(
+            "https://lims.koleta.co.mz/geoserver/PlannerSpatial/gwc/service/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&LAYER=PlannerSpatial:vwParcelsLayer&STYLE=&TILEMATRIX=EPSG:900913:{z}&TILEMATRIXSET=EPSG:900913&FORMAT=application/vnd.mapbox-vector-tile&TILECOL={x}&TILEROW={y}",
+            new MapboxVectorTileLayerOptions
+            {
+                Format = "MVT",
+                Attribution = "",
+                Opacity = 0.6,
+                TileSize = 256,
+                MinZoom = 1,
+                SelectedFeatureStyle = new FeatureStyle
+                {
+                    Fill = "rgba(150,150,250,0.25)",
+                    LineWidth = 2,
+                    Stroke = "rgba(150,150,250,0.9)"
+                }
+            }
+        );
+
         MarkerViewModel = new MarkerViewModel();
+        LayersControl = new LayersControl(
+            baseLayers: [],
+            overlays: [],
+            options: new LayersControlOptions()
+            {
+                Collapsed = false,
+                Position = "topright",
+                HideSingleBase = false,
+                AutoZIndex = true,
+                SortLayers = false
+            }
+        );
+
+        MapControls.Add(LayersControl);
     }
 
-    protected override Task OnAfterRenderAsync(bool firstRender)
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
         }
-        return base.OnAfterRenderAsync(firstRender);
+
+        await base.OnAfterRenderAsync(firstRender);
     }
 
     protected async void GetMapState()
@@ -152,10 +193,18 @@ public partial class Home : ComponentBase, IAsyncDisposable
         }
 
         await TownshipsLayer.AddTo(PositionMap);
+        await LayersControl.AddOverlay(TownshipsLayer, "Townships");
 
         if (ExtensionsLayer != null)
         {
-            //await ExtensionsLayer.AddTo(PositionMap);
+            await ExtensionsLayer.AddTo(PositionMap);
+            await LayersControl.AddOverlay(ExtensionsLayer, "Extensions");
+        }
+
+        if (ParcelsLayer != null)
+        {
+            await ParcelsLayer.AddTo(PositionMap);
+            await LayersControl.AddOverlay(ParcelsLayer, "Parcels");
         }
     }
 

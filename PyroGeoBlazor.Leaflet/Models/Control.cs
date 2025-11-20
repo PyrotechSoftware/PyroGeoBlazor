@@ -48,7 +48,11 @@ public abstract class Control(ControlOptions? options = null) : InteropObject
     /// <param name="map">The map to add the control to.</param>
     public async Task<Control> AddTo(Map map)
     {
-        GuardAgainstNullBinding("Cannot add control to map. JavaScript object reference is null.");
+        if (JSObjectReference is null)
+        {
+            await BindJsObjectReference(map.JSBinder!);
+        }
+
         await JSObjectReference!.InvokeVoidAsync("addTo", map.JSObjectReference);
         return this;
     }

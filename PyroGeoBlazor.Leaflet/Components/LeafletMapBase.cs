@@ -1,4 +1,4 @@
-﻿namespace PyroGeoBlazor.Leaflet.Components;
+namespace PyroGeoBlazor.Leaflet.Components;
 
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
@@ -27,6 +27,11 @@ public class LeafletMapBase : ComponentBase
     /// </summary>
     [Parameter] public TileLayer? TileLayer { get; set; }
 
+    /// <summary>
+    /// The controls to be added to the map.
+    /// </summary>
+    [Parameter] public List<Control> Controls { get; set; } = [];
+
     /// <inheritdoc/>
     protected async override Task OnAfterRenderAsync(bool firstRender)
     {
@@ -35,9 +40,17 @@ public class LeafletMapBase : ComponentBase
             if (Map is not null)
             {
                 await Map.BindJsObjectReference(new LeafletMapJSBinder(JSRuntime));
-                if (TileLayer is not null)
+
+                foreach (var control in Controls)
+                {
+                    await Map.AddControl(control);
+                }
+
+                var layersControl = Controls.OfType<LayersControl>().FirstOrDefault();
+                if (TileLayer is not null && layersControl is not null)
                 {
                     await TileLayer.AddTo(Map);
+                    await layersControl.AddBaseLayer(TileLayer, "Base Layer");
                 }
             }
         }

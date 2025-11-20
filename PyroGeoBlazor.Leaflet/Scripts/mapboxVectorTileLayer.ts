@@ -92,6 +92,17 @@ export const MapboxVectorTileLayer = {
                     console.error('Error invoking featuremouseout handler:', e);
                 }
             }
+            if (keys.indexOf('tilefetcherror') > -1) {
+                try {
+                    mvt.on('tilefetcherror', (e: any) => {
+                        var methodName = handlerMappings.events['tilefetcherror'];
+                        let payload = LeafletEvents.LeafletTileFetchErrorEventArgs.fromLeaflet(e).toDto();
+                        handlerMappings.dotNetRef.invokeMethodAsync(methodName, payload);
+                    });
+                } catch (e) {
+                    console.error('Error invoking tilefetcherror handler:', e);
+                }
+            }
 
             // Events from GridLayer base class
             if (keys.indexOf('loading') > -1) {

@@ -21,4 +21,6 @@ public class MapboxVectorTileLayerOptions : GridLayerOptions
 
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public FeatureStyle? SelectedFeatureStyle { get; set; }
+
+    public string? LayerName { get; set; }
 }

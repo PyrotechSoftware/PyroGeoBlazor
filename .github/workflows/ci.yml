@@ -1,10 +1,8 @@
 name: CI
 
 on:
-  push:
-    branches: [ main, master, 'upgrade-to-NET10-1', 'upgrade-to-NET10' ]
   pull_request:
-    branches: [ main, master, 'upgrade-to-NET10' ]
+    branches: [ dev ]
 
 jobs:
   build:

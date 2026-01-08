@@ -1,6 +1,6 @@
-using Microsoft.AspNetCore.Mvc;
-
 namespace PyroGeoBlazor.Demo.Controllers;
+
+using Microsoft.AspNetCore.Mvc;
 
 [ApiController]
 public class ErrorTestController : ControllerBase

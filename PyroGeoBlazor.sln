@@ -1,11 +1,16 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 17
-VisualStudioVersion = 17.14.36623.8
+# Visual Studio Version 18
+VisualStudioVersion = 18.1.11312.151 d18.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PyroGeoBlazor.Demo", "PyroGeoBlazor.Demo\PyroGeoBlazor.Demo.csproj", "{904D45D8-66F0-4245-98DE-6D8F6920C749}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PyroGeoBlazor.Leaflet", "PyroGeoBlazor.Leaflet\PyroGeoBlazor.Leaflet.csproj", "{0B9020B0-C0C5-4D36-B57E-34549DD24E90}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{9A5B4E5A-1426-463D-B1C6-B2CCEF591C82}"
+	ProjectSection(SolutionItems) = preProject
+		README.md = README.md
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

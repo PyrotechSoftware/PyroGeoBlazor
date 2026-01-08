@@ -6,6 +6,8 @@ using PyroGeoBlazor.Demo.Models;
 using PyroGeoBlazor.Leaflet.Models;
 
 using System.Threading.Tasks;
+using System.IO;
+using System.Text.Json;
 
 public partial class Home : ComponentBase, IAsyncDisposable
 {
@@ -14,6 +16,7 @@ public partial class Home : ComponentBase, IAsyncDisposable
     protected MapboxVectorTileLayer? TownshipsLayer;
     protected MapboxVectorTileLayer? ExtensionsLayer;
     protected MapboxVectorTileLayer? ParcelsLayer;
+    protected GeoJsonLayer? GeoJsonLayer;
     protected LayersControl LayersControl;
 
     protected MapStateViewModel MapStateViewModel;
@@ -217,6 +220,26 @@ public partial class Home : ComponentBase, IAsyncDisposable
         }
 
         GC.SuppressFinalize(this);
+    }
+
+    private async Task AddGeoJson()
+    {
+        if (PositionMap == null)
+        {
+            return;
+        }
+
+        var text = File.ReadAllText("./Township.json");
+        // Deserialize the GeoJSON text into a CLR object so it is passed as JSON to the JS runtime
+        var geoJsonObject = JsonSerializer.Deserialize<object>(text);
+
+        GeoJsonLayer = new GeoJsonLayer(null, null);
+        await GeoJsonLayer.AddTo(PositionMap);
+        await LayersControl.AddOverlay(GeoJsonLayer, "GeoJson");
+        if (geoJsonObject != null)
+        {
+            await GeoJsonLayer.AddData(geoJsonObject);
+        }
     }
 
     private async Task Locate()

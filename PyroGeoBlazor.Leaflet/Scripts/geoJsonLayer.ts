@@ -76,7 +76,7 @@ export const GeoJsonLayer = {
             };
         }
 
-        const geoJsonLayer = L.geoJSON(geoJsonData, leafletOptions);
+        const geoJsonLayer = L.geoJSON(null, leafletOptions); // Always start with null data
 
         // Store selection state
         // For single selection mode
@@ -775,6 +775,14 @@ export const GeoJsonLayer = {
             });
             selectedLayers.clear();
         };
+
+        // If initial data was provided, add it through our custom addData method
+        if (geoJsonData) {
+            // Use setTimeout to ensure this happens after the layer is returned and ready
+            setTimeout(() => {
+                (geoJsonLayer as any).addData(geoJsonData);
+            }, 0);
+        }
 
         return geoJsonLayer;
     }

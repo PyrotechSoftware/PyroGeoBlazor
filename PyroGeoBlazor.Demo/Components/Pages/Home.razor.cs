@@ -236,17 +236,19 @@ public partial class Home : ComponentBase, IAsyncDisposable
         var options = new GeoJsonLayerOptions(OnEachFeatureCreated, OnPointToLayer, OnStyle, OnFeatureFilter, OnCoordsToLatLng)
         {
             DebugLogging = false, // Set to true when debugging, false for production
-            MultipleFeatureSelection = true // Enable multiple feature selection
+            MultipleFeatureSelection = true, // Enable multiple feature selection
             // SelectedFeatureStyle can be omitted to use the default blue highlight style
             // Uncomment below to customize the selection style:
-            // SelectedFeatureStyle = new PathOptions
-            // {
-            //     Color = "yellow",
-            //     Weight = 3,
-            //     FillOpacity = 0.7
-            // }
+            //SelectedFeatureStyle = new PathOptions
+            //{
+            //    Color = "yellow",
+            //    Weight = 3,
+            //    FillOpacity = 0.7
+            //}
         };
-        GeoJsonLayer = new GeoJsonLayer(null, options);
+        
+        // Now you can pass data in the constructor and it will use our custom addData
+        GeoJsonLayer = new GeoJsonLayer(geoJsonObject, options);
         
         // Subscribe to selection events
         GeoJsonLayer.OnFeatureSelected += (sender, args) =>
@@ -289,10 +291,8 @@ public partial class Home : ComponentBase, IAsyncDisposable
         
         await GeoJsonLayer.AddTo(PositionMap);
         await LayersControl.AddOverlay(GeoJsonLayer, "GeoJson");
-        if (geoJsonObject != null)
-        {
-            await GeoJsonLayer.AddData(geoJsonObject);
-        }
+        
+        // No need to call AddData separately anymore when data is passed to constructor
     }
 
     private async Task Locate()

@@ -35,6 +35,25 @@ public class GeoJsonLayerOptions : InteractiveLayerOptions
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool DebugLogging { get; set; } = false;
 
+    /// <summary>
+    /// Enable feature selection when clicking on features. Enabled by default.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool EnableFeatureSelection { get; set; } = true;
+
+    /// <summary>
+    /// Allow multiple features to be selected simultaneously. When false, selecting a new feature will deselect the previous one.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool MultipleFeatureSelection { get; set; } = false;
+
+    /// <summary>
+    /// Style to apply to selected features.
+    /// If not specified, a default blue highlight style will be used (color: #3388ff, weight: 3, opacity: 1, fillOpacity: 0.5).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PathOptions? SelectedFeatureStyle { get; set; }
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DotNetObjectReference<GeoJsonLayerInterop>? Interop { get; set; }
 

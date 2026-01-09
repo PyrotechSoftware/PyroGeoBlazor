@@ -78,6 +78,14 @@ export const GeoJsonLayer = {
 
         const geoJsonLayer = L.geoJSON(geoJsonData, leafletOptions);
 
+        // Store selection state
+        // For single selection mode
+        let selectedLayer: any = null;
+        let originalStyle: any = null;
+        
+        // For multiple selection mode
+        const selectedLayers: Map<any, any> = new Map(); // Map of layer -> original style
+
         // Helper function to create a lightweight version of a feature for C# callbacks
         // This strips geometry coordinates from large features to avoid serialization issues
         // while preserving properties and metadata needed for filtering/styling
@@ -267,9 +275,11 @@ export const GeoJsonLayer = {
                                 console.log(`Calling filter for feature ${idx}:`, feature?.id || feature?.properties?.id || 'no-id', 'type:', feature?.geometry?.type);
                             }
                             
+
                             // Create lightweight version for callback if needed
                             const featureToFilter = createCallbackFeature(feature, 50000, debug);
                             
+
                             const result = await interop.invokeMethodAsync('Filter', featureToFilter, null);
                             if (debug) {
                                 console.log(`Filter result for feature ${idx}:`, result);
@@ -446,6 +456,7 @@ export const GeoJsonLayer = {
                             // Create lightweight feature for callback if needed
                             const featureToSend = (geoJsonLayer as any).createCallbackFeature(feature, 50000, false);
                             
+
                             const payload = {
                                 ...LeafletEvents.LeafletEventArgs.fromLeaflet(ev).toDto(),
                                 layer: LeafletEvents.minimalLayerInfo(layer),
@@ -458,6 +469,147 @@ export const GeoJsonLayer = {
                     }
                 });
             }
+
+            // Feature selection handling (enabled by default)
+            if (options?.enableFeatureSelection !== false) {
+                geoJsonLayer.on('click', function (ev: any) {
+                    try {
+                        const feature = ev.layer?.feature || ev.propagatedFrom?.feature;
+                        const layer = ev.layer || ev.propagatedFrom;
+                        
+                        if (!feature || !layer) {
+                            return;
+                        }
+
+                        // Create lightweight feature for callback
+                        const featureToSend = (geoJsonLayer as any).createCallbackFeature(feature, 50000, false);
+                        
+                        const payload = {
+                            ...LeafletEvents.LeafletEventArgs.fromLeaflet(ev).toDto(),
+                            layer: LeafletEvents.minimalLayerInfo(layer),
+                            feature: featureToSend
+                        };
+
+                        const multipleSelection = options?.multipleFeatureSelection === true;
+
+                        if (multipleSelection) {
+                            // Multiple selection mode
+                            if (selectedLayers.has(layer)) {
+                                // Unselect this feature
+                                const originalStyle = selectedLayers.get(layer);
+                                if (originalStyle && layer.setStyle) {
+                                    layer.setStyle(originalStyle);
+                                }
+                                selectedLayers.delete(layer);
+                                
+                                // Notify C# of unselection
+                                if (handlerMappings?.events['featureunselected']) {
+                                    handlerMappings.dotNetRef!.invokeMethodAsync(
+                                        handlerMappings.events['featureunselected'],
+                                        payload
+                                    );
+                                }
+                            } else {
+                                // Select this feature
+                                // Store original style
+                                if (layer.options) {
+                                    const originalStyle = {
+                                        color: layer.options.color,
+                                        weight: layer.options.weight,
+                                        opacity: layer.options.opacity,
+                                        fillColor: layer.options.fillColor,
+                                        fillOpacity: layer.options.fillOpacity,
+                                        dashArray: layer.options.dashArray
+                                    };
+                                    selectedLayers.set(layer, originalStyle);
+                                }
+                                
+                                // Apply selected style (use provided or default)
+                                if (layer.setStyle) {
+                                    const selectionStyle = options?.selectedFeatureStyle || {
+                                        color: '#3388ff',
+                                        weight: 3,
+                                        opacity: 1,
+                                        fillOpacity: 0.5,
+                                        fillColor: '#3388ff'
+                                    };
+                                    layer.setStyle(selectionStyle);
+                                }
+                                
+                                // Notify C# of selection
+                                if (handlerMappings?.events['featureselected']) {
+                                    handlerMappings.dotNetRef!.invokeMethodAsync(
+                                        handlerMappings.events['featureselected'],
+                                        payload
+                                    );
+                                }
+                            }
+                        } else {
+                            // Single selection mode
+                            // Check if this is the currently selected layer
+                            if (selectedLayer === layer) {
+                                // Unselect
+                                if (originalStyle && layer.setStyle) {
+                                    layer.setStyle(originalStyle);
+                                }
+                                selectedLayer = null;
+                                originalStyle = null;
+                                
+                                // Notify C# of unselection
+                                if (handlerMappings?.events['featureunselected']) {
+                                    handlerMappings.dotNetRef!.invokeMethodAsync(
+                                        handlerMappings.events['featureunselected'],
+                                        payload
+                                    );
+                                }
+                            } else {
+                                // Unselect previous selection if any
+                                if (selectedLayer && originalStyle && selectedLayer.setStyle) {
+                                    selectedLayer.setStyle(originalStyle);
+                                }
+                                
+                                // Select new feature
+                                selectedLayer = layer;
+                                
+                                // Store original style
+                                if (layer.options) {
+                                    originalStyle = {
+                                        color: layer.options.color,
+                                        weight: layer.options.weight,
+                                        opacity: layer.options.opacity,
+                                        fillColor: layer.options.fillColor,
+                                        fillOpacity: layer.options.fillOpacity,
+                                        dashArray: layer.options.dashArray
+                                    };
+                                }
+                                
+                                // Apply selected style (use provided or default)
+                                if (layer.setStyle) {
+                                    const selectionStyle = options?.selectedFeatureStyle || {
+                                        color: '#3388ff',
+                                        weight: 3,
+                                        opacity: 1,
+                                        fillOpacity: 0.5,
+                                        fillColor: '#3388ff'
+                                    };
+                                    layer.setStyle(selectionStyle);
+                                }
+                                
+                                // Notify C# of selection
+                                if (handlerMappings?.events['featureselected']) {
+                                    handlerMappings.dotNetRef!.invokeMethodAsync(
+                                        handlerMappings.events['featureselected'],
+                                        payload
+                                    );
+                                }
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Error handling feature selection:', e);
+                    }
+                });
+            }
+
             // Mouse Events from Interactive Layer
             if (keys.indexOf('click') > -1) {
                 geoJsonLayer.on('click', function (ev: any) {
@@ -605,6 +757,24 @@ export const GeoJsonLayer = {
                 });
             }
         }
+
+        // Add clearSelection method
+        (geoJsonLayer as any).clearSelection = function() {
+            // Clear single selection
+            if (selectedLayer && originalStyle && selectedLayer.setStyle) {
+                selectedLayer.setStyle(originalStyle);
+            }
+            selectedLayer = null;
+            originalStyle = null;
+            
+            // Clear multiple selections
+            selectedLayers.forEach((originalStyle, layer) => {
+                if (originalStyle && layer.setStyle) {
+                    layer.setStyle(originalStyle);
+                }
+            });
+            selectedLayers.clear();
+        };
 
         return geoJsonLayer;
     }

@@ -235,9 +235,58 @@ public partial class Home : ComponentBase, IAsyncDisposable
 
         var options = new GeoJsonLayerOptions(OnEachFeatureCreated, OnPointToLayer, OnStyle, OnFeatureFilter, OnCoordsToLatLng)
         {
-            DebugLogging = false // Set to true when debugging, false for production
+            DebugLogging = false, // Set to true when debugging, false for production
+            MultipleFeatureSelection = true // Enable multiple feature selection
+            // SelectedFeatureStyle can be omitted to use the default blue highlight style
+            // Uncomment below to customize the selection style:
+            // SelectedFeatureStyle = new PathOptions
+            // {
+            //     Color = "yellow",
+            //     Weight = 3,
+            //     FillOpacity = 0.7
+            // }
         };
         GeoJsonLayer = new GeoJsonLayer(null, options);
+        
+        // Subscribe to selection events
+        GeoJsonLayer.OnFeatureSelected += (sender, args) =>
+        {
+            if (args?.Feature != null && GeoJsonLayer != null)
+            {
+                Console.WriteLine($"Feature selected. Total selected: {GeoJsonLayer.GetSelectedFeaturesCount()}");
+                
+                // Example: Get all selected feature IDs
+                var selectedIds = GeoJsonLayer.GetSelectedFeatureIds();
+                Console.WriteLine($"Selected IDs: {string.Join(", ", selectedIds.Where(id => id != null))}");
+                
+                // Example: Check if a specific feature is selected
+                if (args.Feature.Id != null)
+                {
+                    var isSelected = GeoJsonLayer.IsFeatureSelected(args.Feature.Id);
+                    Console.WriteLine($"Feature {args.Feature.Id} is selected: {isSelected}");
+                }
+            }
+        };
+        
+        GeoJsonLayer.OnFeatureUnselected += (sender, args) =>
+        {
+            if (GeoJsonLayer != null)
+            {
+                Console.WriteLine($"Feature unselected. Total selected: {GeoJsonLayer.GetSelectedFeaturesCount()}");
+                
+                // Example: Check if any features are still selected
+                if (GeoJsonLayer.HasSelectedFeatures())
+                {
+                    var selectedFeatures = GeoJsonLayer.GetSelectedFeatures();
+                    Console.WriteLine($"Remaining features: {selectedFeatures.Count}");
+                }
+                else
+                {
+                    Console.WriteLine("No features selected");
+                }
+            }
+        };
+        
         await GeoJsonLayer.AddTo(PositionMap);
         await LayersControl.AddOverlay(GeoJsonLayer, "GeoJson");
         if (geoJsonObject != null)

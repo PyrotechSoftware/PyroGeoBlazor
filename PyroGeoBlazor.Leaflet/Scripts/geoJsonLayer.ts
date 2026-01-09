@@ -6,10 +6,19 @@ import { LeafletEvents } from './events';
 export const GeoJsonLayer = {
     createGeoJsonLayer(
         geoJsonData: any,
-        options?: L.GeoJSONOptions,
+        options?: any,
         handlerMappings?: EventHandlerMapping
     ): L.GeoJSON {
-        const geoJsonLayer = L.geoJSON(geoJsonData, options);
+        const geoJsonLayer = L.geoJSON(geoJsonData, {
+            onEachFeature: function (feature, layer) {
+                // If a .NET reference is provided, we can invoke a method to notify about each feature
+                if (options.interop) {
+                    // Pass feature and layer ID as JSON strings
+                    options.interop.invokeMethodAsync('OnEachFeature', feature, layer);
+                }
+            },
+            markersInheritOptions: options.markersInheritOptions ?? false,
+        });
 
         // Attach event handlers if provided
         if (handlerMappings && handlerMappings.dotNetRef && handlerMappings.events) {

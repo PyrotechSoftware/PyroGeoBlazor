@@ -233,7 +233,8 @@ public partial class Home : ComponentBase, IAsyncDisposable
         // Deserialize the GeoJSON text into a CLR object so it is passed as JSON to the JS runtime
         var geoJsonObject = JsonSerializer.Deserialize<object>(text);
 
-        GeoJsonLayer = new GeoJsonLayer(null, null);
+        var options = new GeoJsonLayerOptions(OnEachFeatureCreated);
+        GeoJsonLayer = new GeoJsonLayer(null, options);
         await GeoJsonLayer.AddTo(PositionMap);
         await LayersControl.AddOverlay(GeoJsonLayer, "GeoJson");
         if (geoJsonObject != null)
@@ -282,5 +283,10 @@ public partial class Home : ComponentBase, IAsyncDisposable
 
         PositionMap!.OnLocationFound -= OnUserLocationFound;
         PositionMap!.OnLocationError -= OnUserLocationError;
+    }
+
+    private void OnEachFeatureCreated(object feature, object layer)
+    {
+        // Handle each feature as it is created
     }
 }

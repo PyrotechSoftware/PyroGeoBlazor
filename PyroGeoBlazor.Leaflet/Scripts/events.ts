@@ -120,7 +120,7 @@ export namespace LeafletEvents {
         y?: number | null;
     }
 
-    function minimalLayerInfo(obj: any): any {
+    export function minimalLayerInfo(obj: any): any {
         if (!obj) return null;
         const info: any = {};
         if ('_leaflet_id' in obj) info.LeafletId = obj._leaflet_id;
@@ -366,16 +366,11 @@ export namespace LeafletEvents {
         }
 
         static fromLeaflet(ev: any): LeafletGeoJsonEventArgs {
-            const layer = ev?.layer ?? ev?.target ?? null;
-            const properties = ev?.properties ?? ev?.layer?.feature?.properties ?? null;
-            const geometryType = ev?.geometryType ?? ev?.layer?.feature?.geometry?.type ?? null;
-            const id = ev?.id ?? ev?.layer?.feature?.id ?? null;
-
             const dto: Partial<LeafletGeoJsonEventArgsDto> = {
-                Layer: layer,
-                Properties: properties,
-                GeometryType: geometryType,
-                Id: id,
+                Layer: minimalLayerInfo(ev?.layer) ?? minimalLayerInfo(ev?.target) ?? null,
+                Properties: ev?.properties ?? ev?.layer?.feature?.properties ?? null,
+                GeometryType: ev?.geometryType ?? ev?.layer?.feature?.geometry?.type ?? null,
+                Id: ev?.id ?? ev?.layer?.feature?.id ?? null,
                 Type: ev?.type ?? null,
                 // Use minimalLayerInfo to avoid passing full Layer objects with circular refs
                 Target: minimalLayerInfo(ev?.target) ?? null,
@@ -436,7 +431,7 @@ export namespace LeafletEvents {
 
         static fromLeaflet(ev: any): LeafletLayerEventArgs {
             const dto: Partial<LeafletLayerEventArgsDto> = {
-                Layer: ev?.layer ?? ev?.target ?? null,
+                Layer: minimalLayerInfo(ev?.layer) ?? minimalLayerInfo(ev?.target) ?? null,
                 Type: ev?.type ?? null,
                 // Use minimalLayerInfo to avoid passing full Layer objects with circular refs
                 Target: minimalLayerInfo(ev?.target) ?? null,
@@ -469,7 +464,7 @@ export namespace LeafletEvents {
 
         static fromLeaflet(ev: any): LeafletLayersControlEventArgs {
             const dto: Partial<LeafletLayersControlEventArgsDto> = {
-                Layer: ev?.layer ?? ev?.target ?? null,
+                Layer: minimalLayerInfo(ev?.layer) ?? minimalLayerInfo(ev?.target) ?? null,
                 Name: ev?.name ?? ev?.layer?.options?.name ?? null,
                 Type: ev?.type ?? null,
                 // Use minimalLayerInfo to avoid passing full Layer objects with circular refs

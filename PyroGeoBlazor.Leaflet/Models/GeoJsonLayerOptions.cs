@@ -6,13 +6,21 @@ using System.Text.Json.Serialization;
 
 public class GeoJsonLayerOptions : InteractiveLayerOptions
 {
-    private readonly Action<object, object>? _onEachFeature;
+    private readonly GeoJsonLayerInterop _interop;
 
-    public GeoJsonLayerOptions(Action<object, object>? onEachFeature = null)
+    public GeoJsonLayerOptions(
+        Action<GeoJsonFeature, LayerInfo>? onEachFeature = null,
+        Func<GeoJsonFeature, LatLng, Marker>? pointToLayer = null,
+        Func<GeoJsonFeature, PathOptions>? style = null,
+        Func<GeoJsonFeature, bool>? filter = null,
+        Func<double[], LatLng>? coordsToLatLng = null)
     {
-        _onEachFeature = onEachFeature;
-        var interop = new GeoJsonLayerInterop(_onEachFeature);
-        Interop = DotNetObjectReference.Create(interop);
+        _interop = new GeoJsonLayerInterop(onEachFeature, pointToLayer, style, filter, coordsToLatLng);
+
+        if (onEachFeature != null || pointToLayer != null || style != null || filter != null || coordsToLatLng != null)
+        {
+            Interop = DotNetObjectReference.Create(_interop);
+        }
     }
 
     /// <summary>
@@ -21,6 +29,18 @@ public class GeoJsonLayerOptions : InteractiveLayerOptions
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool MarkersInheritOptions { get; set; } = false;
 
+    /// <summary>
+    /// Enable verbose console logging for debugging GeoJSON operations.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool DebugLogging { get; set; } = false;
+
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public DotNetObjectReference<GeoJsonLayerInterop>? Interop { get; set; }
+
+    public bool OnEachFeatureEnabled => _interop.OnEachFeatureAction != null;
+    public bool PointToLayerEnabled => _interop.PointToLayerFunc != null;
+    public bool StyleEnabled => _interop.StyleFunc != null;
+    public bool FilterEnabled => _interop.FilterFunc != null;
+    public bool CoordsToLatLngEnabled => _interop.CoordsToLatLngFunc != null;
 }

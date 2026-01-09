@@ -233,7 +233,10 @@ public partial class Home : ComponentBase, IAsyncDisposable
         // Deserialize the GeoJSON text into a CLR object so it is passed as JSON to the JS runtime
         var geoJsonObject = JsonSerializer.Deserialize<object>(text);
 
-        var options = new GeoJsonLayerOptions(OnEachFeatureCreated);
+        var options = new GeoJsonLayerOptions(OnEachFeatureCreated, OnPointToLayer, OnStyle, OnFeatureFilter, OnCoordsToLatLng)
+        {
+            DebugLogging = false // Set to true when debugging, false for production
+        };
         GeoJsonLayer = new GeoJsonLayer(null, options);
         await GeoJsonLayer.AddTo(PositionMap);
         await LayersControl.AddOverlay(GeoJsonLayer, "GeoJson");
@@ -285,8 +288,69 @@ public partial class Home : ComponentBase, IAsyncDisposable
         PositionMap!.OnLocationError -= OnUserLocationError;
     }
 
-    private void OnEachFeatureCreated(object feature, object layer)
+    private void OnEachFeatureCreated(GeoJsonFeature feature, LayerInfo layer)
     {
         // Handle each feature as it is created
+        // Now you have strongly-typed access to:
+        // - feature.Id
+        // - feature.Properties (Dictionary<string, object?>)
+        // - feature.Geometry (with Type and Coordinates)
+        // - layer.LeafletId
+        // - layer.Type (e.g., "Marker", "Polyline", etc.)
+    }
+
+    private bool OnFeatureFilter(GeoJsonFeature feature)
+    {
+        // Example: Only include features with a specific property value
+        //if (feature.Properties != null)
+        //{
+        //    if (feature.Properties.TryGetValue("TownCode", out var includeValue))
+        //    {
+        //        return includeValue?.ToString() == "010"; // Replace with your actual condition
+        //    }
+        //}
+
+        return true; // Default to including the feature
+    }
+
+    private Marker OnPointToLayer(GeoJsonFeature feature, LatLng latlng)
+    {
+        // Example: Create a custom marker based on feature properties
+        var markerOptions = new MarkerOptions
+        {
+            Title = feature.Properties != null && feature.Properties.TryGetValue("name", out var nameValue) ? nameValue?.ToString() : "Unnamed Feature"
+        };
+        return new Marker(latlng, markerOptions);
+    }
+
+    private PathOptions OnStyle(GeoJsonFeature feature)
+    {
+        // Example: Style features based on a property
+        var pathOptions = new PathOptions();
+        if (feature.Properties != null &&
+            feature.Properties.TryGetValue("TownCode", out var importantValue) &&
+            importantValue?.ToString() == "010")
+        {
+            pathOptions.Color = "red";
+            pathOptions.FillColor = "red";
+            pathOptions.FillOpacity = 0.5;
+            pathOptions.Weight = 3;
+        }
+        else
+        {
+            pathOptions.Color = "blue";
+            pathOptions.Weight = 1;
+        }
+        return pathOptions;
+    }
+
+    private LatLng OnCoordsToLatLng(double[] coords)
+    {
+        // Assuming coords are in [longitude, latitude] order
+        if (coords.Length >= 2)
+        {
+            return new LatLng(coords[1], coords[0]);
+        }
+        return new LatLng(0, 0); // Default fallback
     }
 }

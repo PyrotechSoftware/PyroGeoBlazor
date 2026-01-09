@@ -2,10 +2,17 @@ namespace PyroGeoBlazor.Leaflet.Models;
 
 using Microsoft.JSInterop;
 
+using PyroGeoBlazor.Leaflet.EventArgs;
+
 using System.Threading.Tasks;
 
 public class GeoJsonLayer : FeatureGroup
 {
+    /// <summary>
+    /// Fired when a GeoJSON feature is clicked.
+    /// </summary>
+    public event EventHandler<EventArgs.GeoJsonFeatureClickEventArgs?>? OnFeatureClicked;
+
     protected new readonly DomEventHandlerMapping<GeoJsonLayer>? EventHandlerMapping;
     protected new GeoJsonLayerOptions? Options { get; }
     protected object? Data { get; }
@@ -18,7 +25,10 @@ public class GeoJsonLayer : FeatureGroup
         if (Options is null || Options.EventsEnabled)
         {
             var dotNetObjectRef = DotNetObjectReference.Create(this);
-            EventHandlerMapping = new DomEventHandlerMapping<GeoJsonLayer>(dotNetObjectRef, []);
+            EventHandlerMapping = new DomEventHandlerMapping<GeoJsonLayer>(dotNetObjectRef, new Dictionary<string, string>
+            {
+                { "featureclicked", nameof(this.FeatureClicked) }
+            });
             if (base.EventHandlerMapping != null)
             {
                 foreach (var eventMapping in base.EventHandlerMapping.Events)
@@ -47,13 +57,16 @@ public class GeoJsonLayer : FeatureGroup
     /// Adds a GeoJSON object to the layer.
     /// </summary>
     /// <param name="data">The data to add</param>
-    public async Task<GeoJsonLayer> AddData(object data)
+    /// <param name="timeoutMs">Optional timeout in milliseconds for the operation (default: 60000ms). Use when adding large GeoJSON datasets that may trigger many callbacks.</param>
+    public async Task<GeoJsonLayer> AddData(object data, int timeoutMs = 60000)
     {
         if (JSObjectReference == null)
         {
             throw new InvalidOperationException("JavaScript object reference is not set.");
         }
-        await JSObjectReference.InvokeVoidAsync("addData", data);
+        
+        using var cts = new CancellationTokenSource(timeoutMs);
+        await JSObjectReference.InvokeAsync<IJSObjectReference>("addData", cts.Token, data);
         return this;
     }
 
@@ -62,19 +75,22 @@ public class GeoJsonLayer : FeatureGroup
     /// If layer is omitted, the style of all features in the current layer is reset.
     /// </summary>
     /// <param name="layer">(Optionally) the layer to reset styles for.</param>
-    public async Task<GeoJsonLayer> ResetStyle(object? layer = null)
+    /// <param name="timeoutMs">Optional timeout in milliseconds for the operation (default: 10000ms).</param>
+    public async Task<GeoJsonLayer> ResetStyle(object? layer = null, int timeoutMs = 10000)
     {
         if (JSObjectReference == null)
         {
             throw new InvalidOperationException("JavaScript object reference is not set.");
         }
+        
+        using var cts = new CancellationTokenSource(timeoutMs);
         if (layer != null)
         {
-            await JSObjectReference.InvokeVoidAsync("resetStyle", layer);
+            await JSObjectReference.InvokeVoidAsync("resetStyle", cts.Token, layer);
         }
         else
         {
-            await JSObjectReference.InvokeVoidAsync("resetStyle");
+            await JSObjectReference.InvokeVoidAsync("resetStyle", cts.Token);
         }
         return this;
     }
@@ -83,14 +99,27 @@ public class GeoJsonLayer : FeatureGroup
     /// Changes styles of GeoJSON vector layers with the given style function.
     /// </summary>
     /// <param name="style">The style to apply</param>
-    public async Task<GeoJsonLayer> SetStyle(object style)
+    /// <param name="timeoutMs">Optional timeout in milliseconds for the operation (default: 10000ms).</param>
+    public async Task<GeoJsonLayer> SetStyle(object style, int timeoutMs = 10000)
     {
         if (JSObjectReference == null)
         {
             throw new InvalidOperationException("JavaScript object reference is not set.");
         }
-        await JSObjectReference.InvokeVoidAsync("setStyle", style);
+        
+        using var cts = new CancellationTokenSource(timeoutMs);
+        await JSObjectReference.InvokeVoidAsync("setStyle", cts.Token, style);
         return this;
+    }
+
+    #endregion
+
+    #region Events
+
+    [JSInvokable]
+    public void FeatureClicked(GeoJsonFeatureClickEventArgs? args)
+    {
+        OnFeatureClicked?.Invoke(this, args);
     }
 
     #endregion

@@ -68,9 +68,10 @@ public class PathOptions : InteractiveLayerOptions
 
     /// <summary>
     /// Whether to fill the path with color. Set it to false to disable filling on polygons or circles.
+    /// Defaults to true for polygons, false for polylines.
     /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool Fill { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public bool? Fill { get; set; }
 
     /// <summary>
     /// Fill color. Defaults to the value of the color option

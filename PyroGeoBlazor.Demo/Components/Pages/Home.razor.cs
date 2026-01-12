@@ -13,9 +13,9 @@ public partial class Home : ComponentBase, IAsyncDisposable
 {
     protected Map? PositionMap;
     protected TileLayer OpenStreetMapsTileLayer;
-    protected MapboxVectorTileLayer? TownshipsLayer;
-    protected MapboxVectorTileLayer? ExtensionsLayer;
-    protected MapboxVectorTileLayer? ParcelsLayer;
+    protected ProtobufVectorTileLayer? TownshipsLayer;
+    protected ProtobufVectorTileLayer? ExtensionsLayer;
+    protected ProtobufVectorTileLayer? ParcelsLayer;
     protected GeoJsonLayer? GeoJsonLayer;
     protected LayersControl LayersControl;
 
@@ -52,60 +52,137 @@ public partial class Home : ComponentBase, IAsyncDisposable
                 }
             );
 
-        TownshipsLayer = new MapboxVectorTileLayer(
+        TownshipsLayer = new ProtobufVectorTileLayer(
             "https://lims.koleta.co.mz/geoserver/PlannerSpatial/gwc/service/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&LAYER={LayerName}&STYLE=&TILEMATRIX=EPSG:900913:{z}&TILEMATRIXSET=EPSG:900913&FORMAT=application/vnd.mapbox-vector-tile&TILECOL={x}&TILEROW={y}",
-            new MapboxVectorTileLayerOptions
+            new ProtobufVectorTileLayerOptions
             {
-                Format = "MVT",
                 Attribution = "",
                 TileSize = 256,
                 Opacity = 0.6,
                 MinZoom = 1,
+                Interactive = true,
                 LayerName = "PlannerSpatial:Township",
-                SelectedFeatureStyle = new FeatureStyle
+                VectorTileLayerStyles = new Dictionary<string, PathOptions>
                 {
-                    Fill = "rgba(50,150,250,0.25)",
-                    LineWidth = 2,
-                    Stroke = "rgba(50,150,250,0.9)"
+                    ["PlannerSpatial:Township"] = new PathOptions
+                    {
+                        Fill = true,
+                        FillColor = "#88cc88",
+                        FillOpacity = 0.4,
+                        Stroke = true,
+                        Color = "#44aa44",
+                        Weight = 2,
+                        Opacity = 1.0
+                    }
+                },
+                SelectedFeatureStyle = new PathOptions
+                {
+                    Fill = true,
+                    FillColor = "rgba(50,150,250,0.5)",
+                    FillOpacity = 0.5,
+                    Stroke = true,
+                    Weight = 3,
+                    Color = "rgba(50,150,250,0.9)",
+                    Opacity = 1.0
                 }
             }
         );
 
-        ExtensionsLayer = new MapboxVectorTileLayer(
+        ExtensionsLayer = new ProtobufVectorTileLayer(
             "https://lims.koleta.co.mz/geoserver/PlannerSpatial/gwc/service/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&LAYER=PlannerSpatial:TownshipExtensionOrFarm&STYLE=&TILEMATRIX=EPSG:900913:{z}&TILEMATRIXSET=EPSG:900913&FORMAT=application/vnd.mapbox-vector-tile&TILECOL={x}&TILEROW={y}",
-            new MapboxVectorTileLayerOptions
+            new ProtobufVectorTileLayerOptions
             {
-                Format = "MVT",
                 Attribution = "",
                 Opacity = 0.6,
                 TileSize = 256,
                 MinZoom = 1,
-                SelectedFeatureStyle = new FeatureStyle
+                Interactive = true,
+                VectorTileLayerStyles = new Dictionary<string, PathOptions>
                 {
-                    Fill = "rgba(50,150,250,0.25)",
-                    LineWidth = 2,
-                    Stroke = "rgba(50,150,250,0.9)"
+                    ["PlannerSpatial:TownshipExtensionOrFarm"] = new PathOptions
+                    {
+                        Fill = true,
+                        FillColor = "#ffcc88",
+                        FillOpacity = 0.4,
+                        Stroke = true,
+                        Color = "#ff8844",
+                        Weight = 2,
+                        Opacity = 1.0
+                    }
+                },
+                SelectedFeatureStyle = new PathOptions
+                {
+                    Fill = true,
+                    FillColor = "rgba(50,150,250,0.5)",
+                    FillOpacity = 0.5,
+                    Stroke = true,
+                    Weight = 3,
+                    Color = "rgba(50,150,250,0.9)",
+                    Opacity = 1.0
                 }
             }
         );
 
-        ParcelsLayer = new MapboxVectorTileLayer(
+        ParcelsLayer = new ProtobufVectorTileLayer(
             "https://lims.koleta.co.mz/geoserver/PlannerSpatial/gwc/service/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&LAYER=PlannerSpatial:vwParcelsLayer&STYLE=&TILEMATRIX=EPSG:900913:{z}&TILEMATRIXSET=EPSG:900913&FORMAT=application/vnd.mapbox-vector-tile&TILECOL={x}&TILEROW={y}",
-            new MapboxVectorTileLayerOptions
+            new ProtobufVectorTileLayerOptions
             {
-                Format = "MVT",
                 Attribution = "",
                 Opacity = 0.6,
                 TileSize = 256,
                 MinZoom = 1,
-                SelectedFeatureStyle = new FeatureStyle
+                Interactive = true,
+                EnableFeatureSelection = true,
+                VectorTileLayerStyles = new Dictionary<string, PathOptions>
                 {
-                    Fill = "rgba(150,150,250,0.25)",
-                    LineWidth = 2,
-                    Stroke = "rgba(150,150,250,0.9)"
+                    ["vwParcelsLayer"] = new PathOptions
+                    {
+                        Fill = true,
+                        FillColor = "#ccccff",
+                        FillOpacity = 0.3,
+                        Stroke = true,
+                        Color = "#8888ff",
+                        Weight = 1,
+                        Opacity = 0.8
+                    }
+                },
+                SelectedFeatureStyle = new PathOptions
+                {
+                    Fill = true,
+                    FillColor = "rgba(150,150,250,0.5)",
+                    FillOpacity = 0.5,
+                    Stroke = true,
+                    Weight = 3,
+                    Color = "rgba(150,150,250,0.9)",
+                    Opacity = 1.0
                 }
             }
         );
+
+        // Subscribe to interactive events
+        ParcelsLayer.OnMouseOver += (sender, args) =>
+        {
+            if (args?.Feature?.Properties != null)
+            {
+                Console.WriteLine($"Mouse over feature with properties: {System.Text.Json.JsonSerializer.Serialize(args.Feature.Properties)}");
+            }
+        };
+
+        ParcelsLayer.OnMouseOut += (sender, args) =>
+        {
+            if (args?.Feature != null)
+            {
+                Console.WriteLine("Mouse left feature");
+            }
+        };
+
+        ParcelsLayer.OnFeatureClicked += (sender, args) =>
+        {
+            if (args?.Feature?.Properties != null)
+            {
+                Console.WriteLine($"Feature clicked: {System.Text.Json.JsonSerializer.Serialize(args.Feature.Properties)}");
+            }
+        };
 
         MarkerViewModel = new MarkerViewModel();
         LayersControl = new LayersControl(

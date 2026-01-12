@@ -7,7 +7,6 @@
     <base href="/" />
     <link rel="stylesheet" href="@Assets["app.css"]" />
     <link rel="stylesheet" href="@Assets["_content/PyroGeoBlazor.Leaflet/leaflet.css"]" />
-    <link rel="stylesheet" href="dist/Leaflet.DynamicServiceLoader.min.css" />
     <link rel="stylesheet" href="@Assets["PyroGeoBlazor.Demo.styles.css"]" />
     <ImportMap />
     <HeadOutlet @rendermode="InteractiveServer" />
@@ -17,9 +16,7 @@
     <Routes @rendermode="InteractiveServer" />
     <script src="_framework/blazor.web.js"></script>
     <script src="@Assets["_content/PyroGeoBlazor.Leaflet/leaflet-src.js"]"></script>
-    <script src="@Assets["_content/PyroGeoBlazor.Leaflet/leaflet-vectortile-mapbox-src.js"]"></script>
-    <script src="@Assets["_content/PyroGeoBlazor.Leaflet/leaflet-tilelayer-wmts.js"]"></script>
-    <script src="dist/Leaflet.DynamicServiceLoader.min.js"></script>
+    <script src="@Assets["_content/PyroGeoBlazor.Leaflet/Leaflet.VectorGrid.bundled.js"]"></script>
     <script src="@Assets["_content/PyroGeoBlazor.Leaflet/leafletInterop.js"]"></script>
 </body>
 

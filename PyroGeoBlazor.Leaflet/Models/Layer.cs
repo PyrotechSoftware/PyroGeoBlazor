@@ -34,7 +34,7 @@ public abstract class Layer : InteropObject
     /// </summary>
     /// <param name="map">The <see cref="Map"/> to add the Layer to.</param>
     /// <returns>The Layer.</returns>
-    public async Task<Layer> AddTo(Map map)
+    public virtual async Task<Layer> AddTo(Map map)
     {
         if (JSBinder is null)
         {
@@ -50,7 +50,7 @@ public abstract class Layer : InteropObject
     /// Removes the Layer from the <see cref="Map"/> it's currently active on.
     /// </summary>
     /// <returns>The Layer.</returns>
-    public async Task<Layer> RemoveLayer()
+    public virtual async Task<Layer> RemoveLayer()
     {
         GuardAgainstNullBinding("Cannot remove layer from map. No JavaScript binding has been set up.");
         var module = await JSBinder!.GetLeafletMapModule();

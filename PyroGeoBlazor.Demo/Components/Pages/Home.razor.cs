@@ -17,13 +17,14 @@ public partial class Home : ComponentBase, IAsyncDisposable
     protected ProtobufVectorTileLayer? ExtensionsLayer;
     protected ProtobufVectorTileLayer? ParcelsLayer;
     protected GeoJsonLayer? GeoJsonLayer;
+    protected WfsLayer? WfsLayer;
     protected LayersControl LayersControl;
 
     protected MapStateViewModel MapStateViewModel;
     protected MarkerViewModel MarkerViewModel;
 
     protected List<Control> MapControls = [];
-
+    
     public Home()
     {
         var mapCentre = new LatLng(-42, 175); // Centred on New Zealand
@@ -205,6 +206,8 @@ public partial class Home : ComponentBase, IAsyncDisposable
     {
         if (firstRender)
         {
+            // No need to subscribe to map events manually anymore
+            // WfsLayer handles this automatically when added to the map
         }
 
         await base.OnAfterRenderAsync(firstRender);
@@ -285,6 +288,225 @@ public partial class Home : ComponentBase, IAsyncDisposable
         {
             await ParcelsLayer.AddTo(PositionMap);
             await LayersControl.AddOverlay(ParcelsLayer, "Parcels");
+        }
+    }
+
+    public async Task AddWfsLayer()
+    {
+        if (PositionMap is null)
+        {
+            Console.WriteLine("Cannot add WFS layer: Map not initialized");
+            return;
+        }
+
+        try
+        {
+            // Get current map bounds
+            var bounds = await PositionMap.GetBounds();
+            
+            // Check if bounds are valid
+            if (bounds?.SouthWest is null || bounds?.NorthEast is null)
+            {
+                Console.WriteLine("Map bounds not available. Please wait for map to fully initialize and try again.");
+                return;
+            }
+
+            Console.WriteLine($"Loading WFS features for bounds: SW({bounds.SouthWest.Lat}, {bounds.SouthWest.Lng}) NE({bounds.NorthEast.Lat}, {bounds.NorthEast.Lng})");
+            Console.WriteLine($"Raw bounds - SW.Lng={bounds.SouthWest.Lng}, NE.Lng={bounds.NorthEast.Lng}, SW.Lat={bounds.SouthWest.Lat}, NE.Lat={bounds.NorthEast.Lat}");
+
+            // Determine the actual min/max values for longitude and latitude
+            var westLng = Math.Min(bounds.SouthWest.Lng, bounds.NorthEast.Lng);
+            var eastLng = Math.Max(bounds.SouthWest.Lng, bounds.NorthEast.Lng);
+            var southLat = Math.Min(bounds.SouthWest.Lat, bounds.NorthEast.Lat);
+            var northLat = Math.Max(bounds.SouthWest.Lat, bounds.NorthEast.Lat);
+            
+            Console.WriteLine($"Normalized: West={westLng}, East={eastLng}, South={southLat}, North={northLat}");
+
+            // Create WFS layer with options
+            WfsLayer = new WfsLayer(
+                wfsUrl: "https://lims.koleta.co.mz/geoserver/PlannerSpatial/ows",
+                options: new WfsLayerOptions
+                {
+                    RequestParameters = new WfsRequestParameters
+                    {
+                        TypeName = "PlannerSpatial:vwParcelsLayer",
+                        MaxFeatures = 5000,
+                        SrsName = "EPSG:4326",
+                        BBox = new WfsBoundingBox
+                        {
+                            MinX = westLng,   // Westernmost longitude (smaller value)
+                            MinY = southLat,  // Southernmost latitude (smaller value)
+                            MaxX = eastLng,   // Easternmost longitude (larger value)
+                            MaxY = northLat   // Northernmost latitude (larger value)
+                        }
+                    },
+                    // GeoJSON layer options
+                    MultipleFeatureSelection = true,
+                    SelectedFeatureStyle = new PathOptions
+                    {
+                        Fill = true,
+                        FillColor = "rgba(255,165,0,0.6)",
+                        FillOpacity = 0.6,
+                        Stroke = true,
+                        Weight = 3,
+                        Color = "rgba(255,140,0,1)",
+                        Opacity = 1.0
+                    },
+                    // WFS-specific options
+                    AutoRefresh = true,           // Automatically refresh on pan/zoom
+                    IncrementalRefresh = true,    // Only add new features (default)
+                    RefreshDebounceMs = 1000
+                }
+            );
+
+            // Subscribe to events
+            WfsLayer.OnFeatureClicked += (sender, args) =>
+            {
+                if (args?.Feature?.Properties is not null)
+                {
+                    Console.WriteLine($"WFS Feature clicked: {JsonSerializer.Serialize(args.Feature.Properties)}");
+                }
+            };
+
+            WfsLayer.OnFeatureSelected += (sender, args) =>
+            {
+                if (args?.Feature?.Properties is not null)
+                {
+                    Console.WriteLine($"WFS Feature selected: {JsonSerializer.Serialize(args.Feature.Properties)}");
+                    Console.WriteLine($"Total selected: {WfsLayer?.GetSelectedFeaturesCount()}");
+                }
+            };
+
+            WfsLayer.OnFeatureUnselected += (sender, args) =>
+            {
+                Console.WriteLine($"WFS Feature unselected. Remaining: {WfsLayer?.GetSelectedFeaturesCount()}");
+            };
+
+            // Add to map (auto-refresh is automatically enabled)
+            await WfsLayer.AddTo(PositionMap);
+            
+            // Load features from WFS
+            Console.WriteLine("Loading WFS features for current map bounds...");
+            await WfsLayer.LoadFeaturesAsync();
+            Console.WriteLine($"WFS features loaded successfully! (within bounds)");
+
+            // Add to layer control
+            await LayersControl.AddOverlay(WfsLayer, "WFS Parcels (Auto-Refresh)");
+            
+            StateHasChanged();
+        }
+        catch (HttpRequestException ex)
+        {
+            Console.WriteLine($"Failed to load WFS data: {ex.Message}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error adding WFS layer: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+        }
+    }
+
+    /// <summary>
+    /// Completely reloads the WFS layer, clearing all existing features first.
+    /// </summary>
+    public async Task ReloadWfsLayer()
+    {
+        if (PositionMap is null || WfsLayer is null)
+        {
+            return;
+        }
+
+        try
+        {
+            Console.WriteLine("WFS: Completely reloading layer...");
+            
+            // Clear the feature cache
+            WfsLayer.ClearLoadedFeatureCache();
+            
+            // Remove the old layer from the map
+            await WfsLayer.RemoveLayer();
+            
+            // Get current bounds
+            var bounds = await PositionMap.GetBounds();
+            if (bounds?.SouthWest is null || bounds?.NorthEast is null)
+            {
+                Console.WriteLine("WFS: Cannot reload - bounds not available");
+                return;
+            }
+
+            // Normalize coordinates
+            var westLng = Math.Min(bounds.SouthWest.Lng, bounds.NorthEast.Lng);
+            var eastLng = Math.Max(bounds.SouthWest.Lng, bounds.NorthEast.Lng);
+            var southLat = Math.Min(bounds.SouthWest.Lat, bounds.NorthEast.Lat);
+            var northLat = Math.Max(bounds.SouthWest.Lat, bounds.NorthEast.Lat);
+
+            // Create new layer with options
+            WfsLayer = new WfsLayer(
+                wfsUrl: "https://lims.koleta.co.mz/geoserver/PlannerSpatial/ows",
+                options: new WfsLayerOptions
+                {
+                    RequestParameters = new WfsRequestParameters
+                    {
+                        TypeName = "PlannerSpatial:vwParcelsLayer",
+                        MaxFeatures = 5000,
+                        SrsName = "EPSG:4326",
+                        BBox = new WfsBoundingBox
+                        {
+                            MinX = westLng,
+                            MinY = southLat,
+                            MaxX = eastLng,
+                            MaxY = northLat
+                        }
+                    },
+                    MultipleFeatureSelection = true,
+                    SelectedFeatureStyle = new PathOptions
+                    {
+                        Fill = true,
+                        FillColor = "rgba(255,165,0,0.6)",
+                        FillOpacity = 0.6,
+                        Stroke = true,
+                        Weight = 3,
+                        Color = "rgba(255,140,0,1)",
+                        Opacity = 1.0
+                    },
+                    AutoRefresh = true,
+                    IncrementalRefresh = true,
+                    RefreshDebounceMs = 1000
+                }
+            );
+
+            // Re-subscribe to events
+            WfsLayer.OnFeatureClicked += (sender, args) =>
+            {
+                if (args?.Feature?.Properties is not null)
+                {
+                    Console.WriteLine($"WFS Feature clicked: {JsonSerializer.Serialize(args.Feature.Properties)}");
+                }
+            };
+
+            WfsLayer.OnFeatureSelected += (sender, args) =>
+            {
+                if (args?.Feature?.Properties is not null)
+                {
+                    Console.WriteLine($"WFS Feature selected: {JsonSerializer.Serialize(args.Feature.Properties)}");
+                    Console.WriteLine($"Total selected: {WfsLayer?.GetSelectedFeaturesCount()}");
+                }
+            };
+
+            WfsLayer.OnFeatureUnselected += (sender, args) =>
+            {
+                Console.WriteLine($"WFS Feature unselected. Remaining: {WfsLayer?.GetSelectedFeaturesCount()}");
+            };
+
+            // Add to map and load with full reload
+            await WfsLayer.AddTo(PositionMap);
+            await WfsLayer.LoadFeaturesAsync(clearExisting: true);
+            
+            Console.WriteLine("WFS: Complete reload finished!");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"WFS: Error during complete reload - {ex.Message}");
         }
     }
 

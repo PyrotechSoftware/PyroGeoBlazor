@@ -8,7 +8,7 @@ export const Map = {
         elementId: string,
         options: L.MapOptions | undefined,
         handlerMappings?: EventHandlerMapping
-    ): L.Map {
+    ): any {
         const map = L.map(elementId, options);
 
         if (handlerMappings && handlerMappings.dotNetRef && handlerMappings.events) {
@@ -30,6 +30,20 @@ export const Map = {
             if (keys.indexOf('zoomlevelschange') > -1) {
                 map.on('zoomlevelschange', function (ev: any) {
                     var methodName = handlerMappings.events['zoomlevelschange'];
+                    let payload = LeafletEvents.LeafletEventArgs.fromLeaflet(ev).toDto();
+                    handlerMappings.dotNetRef!.invokeMethodAsync(methodName, payload);
+                });
+            }
+            if (keys.indexOf('zoomend') > -1) {
+                map.on('zoomend', function (ev: any) {
+                    var methodName = handlerMappings.events['zoomend'];
+                    let payload = LeafletEvents.LeafletEventArgs.fromLeaflet(ev).toDto();
+                    handlerMappings.dotNetRef!.invokeMethodAsync(methodName, payload);
+                });
+            }
+            if (keys.indexOf('moveend') > -1) {
+                map.on('moveend', function (ev: any) {
+                    var methodName = handlerMappings.events['moveend'];
                     let payload = LeafletEvents.LeafletEventArgs.fromLeaflet(ev).toDto();
                     handlerMappings.dotNetRef!.invokeMethodAsync(methodName, payload);
                 });
@@ -86,6 +100,27 @@ export const Map = {
             }
         }
 
-        return map;
+        // Create a wrapper object that properly serializes getBounds()
+        const mapWrapper = Object.create(map);
+        
+        // Override getBounds to return a properly formatted object for C# serialization
+        mapWrapper.getBounds = function() {
+            const bounds = map.getBounds();
+            const sw = bounds.getSouthWest();
+            const ne = bounds.getNorthEast();
+            
+            return {
+                SouthWest: {
+                    Lat: sw.lat,
+                    Lng: sw.lng
+                },
+                NorthEast: {
+                    Lat: ne.lat,
+                    Lng: ne.lng
+                }
+            };
+        };
+
+        return mapWrapper;
     }
 };

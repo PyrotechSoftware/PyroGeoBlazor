@@ -67,6 +67,9 @@ public class Map : InteropObject
                 EventHandlerMapping.Events.Add("locationfound", nameof(this.LocationFound));
                 EventHandlerMapping.Events.Add("locationerror", nameof(this.LocationError));
             }
+            // Always subscribe to zoomend and moveend for WFS auto-refresh and other features
+            EventHandlerMapping.Events.Add("zoomend", nameof(this.ZoomEnd));
+            EventHandlerMapping.Events.Add("moveend", nameof(this.MoveEnd));
         }
     }
 
@@ -446,7 +449,7 @@ public class Map : InteropObject
     /// <returns></returns>
     public async Task<Map> InvalidateSize(ZoomPanOptions options)
     {
-        GuardAgainstNullBinding("Cannot invalidate size. No JavaScript binding has been setup for this Map object.");
+        GuardAgainstNullBinding("Cannot invalidate size. No JavaScript binding has been set up for this Map object.");
         await JSObjectReference!.InvokeVoidAsync("invalidateSize", options);
         return this;
     }
@@ -458,7 +461,7 @@ public class Map : InteropObject
     /// <param name="animate">Whether to animate or not.</param>
     public async Task<Map> InvalidateSize(bool animate = true)
     {
-        GuardAgainstNullBinding("Cannot invalidate size. No JavaScript binding has been setup for this Map object.");
+        GuardAgainstNullBinding("Cannot invalidate size. No JavaScript binding has been set up for this Map object.");
         await JSObjectReference!.InvokeVoidAsync("invalidateSize", animate);
         return this;
     }
@@ -638,7 +641,7 @@ public class Map : InteropObject
     /// </summary>
     public async Task Remove()
     {
-        GuardAgainstNullBinding("Cannot remove the map. No JavaScript binding has been setup for this Map object");
+        GuardAgainstNullBinding("Cannot remove the map. No JavaScript binding has been set up for this Map object");
         await JSObjectReference!.InvokeVoidAsync("remove");
         await DisposeAsync();
     }
@@ -651,7 +654,7 @@ public class Map : InteropObject
     /// <param name="container">The (Optional) container to create it in.</param>
     public async Task<object> CreatePane(string name, object? container)
     {
-        GuardAgainstNullBinding("Cannot create pane. No JavaScript binding has been setup for this Map object");
+        GuardAgainstNullBinding("Cannot create pane. No JavaScript binding has been set up for this Map object");
         return await JSObjectReference!.InvokeAsync<object>("createPane", name, container);
     }
 
@@ -661,7 +664,7 @@ public class Map : InteropObject
     /// <param name="name">The name of the map pane to get.</param>
     public async Task<object> GetPane(string name)
     {
-        GuardAgainstNullBinding("Cannot get pane. No JavaScript binding has been setup for this Map object");
+        GuardAgainstNullBinding("Cannot get pane. No JavaScript binding has been set up for this Map object");
         return await JSObjectReference!.InvokeAsync<object>("getPane", name);
     }
 
@@ -670,7 +673,7 @@ public class Map : InteropObject
     /// </summary>
     public async Task<object> GetPanes()
     {
-        GuardAgainstNullBinding("Cannot get pane. No JavaScript binding has been setup for this Map object");
+        GuardAgainstNullBinding("Cannot get pane. No JavaScript binding has been set up for this Map object");
         return await JSObjectReference!.InvokeAsync<object>("getPanes");
     }
 
@@ -679,7 +682,7 @@ public class Map : InteropObject
     /// </summary>
     public async Task<object> GetContainer()
     {
-        GuardAgainstNullBinding("Cannot get pane. No JavaScript binding has been setup for this Map object");
+        GuardAgainstNullBinding("Cannot get pane. No JavaScript binding has been set up for this Map object");
         return await JSObjectReference!.InvokeAsync<object>("getContainer");
     }
 
@@ -701,6 +704,16 @@ public class Map : InteropObject
     /// </summary>
     public event EventHandler<LeafletResizeEventArgs>? OnResize;
     public event EventHandler<LeafletEventArgs>? OnZoomLevelsChange;
+    
+    /// <summary>
+    /// Fired when the map zoom animation ended.
+    /// </summary>
+    public event EventHandler<LeafletEventArgs>? OnZoomEnd;
+    
+    /// <summary>
+    /// Fired when the center of the map stops changing (e.g. user stopped dragging the map).
+    /// </summary>
+    public event EventHandler<LeafletEventArgs>? OnMoveEnd;
 
     [JSInvokable]
     public Task ZoomLevelsChange(LeafletEventArgs args)
@@ -713,6 +726,20 @@ public class Map : InteropObject
     public Task Resize(LeafletResizeEventArgs args)
     {
         OnResize?.Invoke(this, args);
+        return Task.CompletedTask;
+    }
+    
+    [JSInvokable]
+    public Task ZoomEnd(LeafletEventArgs args)
+    {
+        OnZoomEnd?.Invoke(this, args);
+        return Task.CompletedTask;
+    }
+    
+    [JSInvokable]
+    public Task MoveEnd(LeafletEventArgs args)
+    {
+        OnMoveEnd?.Invoke(this, args);
         return Task.CompletedTask;
     }
 

@@ -34,7 +34,10 @@ const VectorTileHelpers = {
     ): void {
         // Selection state management
         const selectedFeatures: Map<any, any> = new Map();
-        const selectedLayers: Map<any, any> = new Map();
+        const selectedLayers: Map<any, any[]> = new Map();
+        
+        // Track all layers by feature ID as they're added
+        const layersByFeatureId: Map<string, any[]> = new Map();
 
         // Default selected feature style using Leaflet Path style properties
         const defaultSelectedStyle = {
@@ -50,7 +53,6 @@ const VectorTileHelpers = {
         // Helper to apply selected style
         const applySelectedStyle = (layer: any) => {
             if (layer && layer.setStyle) {
-                // Map VectorTileStyle properties to Leaflet Path style
                 const leafletStyle: any = {};
                 
                 if (selectedFeatureStyle.color) leafletStyle.color = selectedFeatureStyle.color;
@@ -81,6 +83,52 @@ const VectorTileHelpers = {
                 properties?.objectid ?? properties?.OBJECTID ?? JSON.stringify(properties);
         };
 
+        // Track layers as they're created by VectorGrid
+        vectorTileLayer.on('click', function(e: any) {
+            if (e.layer && e.layer.properties) {
+                const featureId = getFeatureIdentifier(e.layer.properties);
+                
+                // Add this layer to our tracking map
+                if (!layersByFeatureId.has(featureId)) {
+                    layersByFeatureId.set(featureId, []);
+                }
+                const layers = layersByFeatureId.get(featureId)!;
+                if (!layers.includes(e.layer)) {
+                    layers.push(e.layer);
+                }
+            }
+        });
+
+        // Helper to find and style all layers with the same feature ID
+        const selectAllSegments = (featureId: string) => {
+            const layers = layersByFeatureId.get(featureId) || [];
+            
+            layers.forEach(layer => {
+                // Store original style if not already stored
+                if (!layer.options.originalStyle) {
+                    layer.options.originalStyle = {
+                        fillColor: layer.options.fillColor,
+                        color: layer.options.color,
+                        weight: layer.options.weight,
+                        fillOpacity: layer.options.fillOpacity,
+                        fill: layer.options.fill
+                    };
+                }
+                
+                applySelectedStyle(layer);
+            });
+            
+            return layers;
+        };
+
+        // Helper to reset all segments of a feature
+        const unselectAllSegments = (featureId: string) => {
+            const layers = selectedLayers.get(featureId);
+            if (layers) {
+                layers.forEach(layer => resetStyle(layer));
+            }
+        };
+
         // Add click handler for feature selection
         if (options?.enableFeatureSelection !== false) {
             vectorTileLayer.on('click', function (e: any) {
@@ -93,26 +141,13 @@ const VectorTileHelpers = {
                         properties: e.layer.properties
                     };
 
-                    // Store original style if not already stored
-                    if (!e.layer.options.originalStyle) {
-                        e.layer.options.originalStyle = {
-                            fillColor: e.layer.options.fillColor,
-                            color: e.layer.options.color,
-                            weight: e.layer.options.weight,
-                            fillOpacity: e.layer.options.fillOpacity
-                        };
-                    }
-
                     const isSelected = selectedFeatures.has(featureId);
 
                     if (isSelected) {
-                        // Unselect feature
+                        // Unselect all segments of this feature
+                        unselectAllSegments(featureId);
                         selectedFeatures.delete(featureId);
-                        const selectedLayer = selectedLayers.get(featureId);
-                        if (selectedLayer) {
-                            resetStyle(selectedLayer);
-                            selectedLayers.delete(featureId);
-                        }
+                        selectedLayers.delete(featureId);
 
                         // Notify C# of unselection
                         if (handlerMappings?.dotNetRef && handlerMappings.events['featureunselected']) {
@@ -129,15 +164,16 @@ const VectorTileHelpers = {
                     } else {
                         // Handle multiple selection
                         if (!options?.multipleFeatureSelection) {
-                            selectedLayers.forEach((layer) => resetStyle(layer));
+                            // Unselect all previously selected features
+                            selectedFeatures.forEach((_, id) => unselectAllSegments(id));
                             selectedFeatures.clear();
                             selectedLayers.clear();
                         }
 
-                        // Select feature
+                        // Select all segments of this feature across all tiles
+                        const layers = selectAllSegments(featureId);
                         selectedFeatures.set(featureId, feature);
-                        selectedLayers.set(featureId, e.layer);
-                        applySelectedStyle(e.layer);
+                        selectedLayers.set(featureId, layers);
 
                         // Notify C# of selection
                         if (handlerMappings?.dotNetRef && handlerMappings.events['featureselected']) {
@@ -168,6 +204,13 @@ const VectorTileHelpers = {
                 }
             });
         }
+
+        // Add clearSelection method
+        (vectorTileLayer as any).clearSelection = function () {
+            selectedFeatures.forEach((_, id) => unselectAllSegments(id));
+            selectedFeatures.clear();
+            selectedLayers.clear();
+        };
     },
 
     attachGridLayerEvents(vectorTileLayer: any, handlerMappings?: EventHandlerMapping): void {

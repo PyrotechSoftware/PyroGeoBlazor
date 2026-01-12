@@ -149,11 +149,11 @@ public partial class Home : ComponentBase, IAsyncDisposable
                 SelectedFeatureStyle = new PathOptions
                 {
                     Fill = true,
-                    FillColor = "rgba(150,150,250,0.5)",
+                    FillColor = "red",
                     FillOpacity = 0.5,
                     Stroke = true,
                     Weight = 3,
-                    Color = "rgba(150,150,250,0.9)",
+                    Color = "red",
                     Opacity = 1.0
                 }
             }

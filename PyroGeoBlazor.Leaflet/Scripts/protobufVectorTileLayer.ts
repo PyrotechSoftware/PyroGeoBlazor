@@ -167,8 +167,6 @@ const VectorTileHelpers = {
                     }
                 }
             });
-        } else {
-            console.log('Feature selection is disabled');
         }
     },
 
@@ -270,26 +268,17 @@ export const ProtobufVectorTileLayer = {
         // Build VectorGrid options with default fill style
         let vectorTileLayerStyles = options?.vectorTileLayerStyles;
         
-        console.log('VectorTileLayerStyles received:', vectorTileLayerStyles);
-        console.log('VectorTileLayerStyles type:', typeof vectorTileLayerStyles);
-        console.log('VectorTileLayerStyles keys:', vectorTileLayerStyles ? Object.keys(vectorTileLayerStyles) : 'null');
-        
         // VectorGrid expects vectorTileLayerStyles to be an object where:
         // - Keys are layer names (must match exactly what's in the MVT)
         // - Values can be objects OR functions that return style objects
         
         if (vectorTileLayerStyles && typeof vectorTileLayerStyles === 'object' && Object.keys(vectorTileLayerStyles).length > 0) {
-            console.log('Using custom styles from options');
-            
             // Log each style and create a default catchall
             const enhancedStyles: any = {};
             
             for (const [layerName, style] of Object.entries(vectorTileLayerStyles)) {
-                console.log(`Registering style for layer "${layerName}":`, style);
-                
                 // Wrap each style in a function that VectorGrid will call per-feature
                 enhancedStyles[layerName] = function(properties: any) {
-                    console.log(`✓ VectorGrid applying style for layer "${layerName}"`);
                     return style;
                 };
             }
@@ -300,23 +289,18 @@ export const ProtobufVectorTileLayer = {
             
             // Try common variations of the layer names
             for (const key of layerKeys) {
-                // Add version without workspace prefix
+                // Add version without workspace prefix (e.g., "PlannerSpatial:Township" -> "Township")
                 const simpleName = key.split(':').pop();
                 if (simpleName && !enhancedStyles[simpleName]) {
-                    console.log(`Adding fallback style for simplified name "${simpleName}"`);
                     enhancedStyles[simpleName] = function(properties: any) {
-                        console.log(`✓ VectorGrid applying fallback style for "${simpleName}"`);
                         return firstStyle;
                     };
                 }
             }
             
             vectorTileLayerStyles = enhancedStyles;
-            console.log('Enhanced styles with layer name variations:', Object.keys(enhancedStyles));
             
         } else if (!vectorTileLayerStyles || Object.keys(vectorTileLayerStyles).length === 0) {
-            console.log('No custom styles provided, using default style for all layers');
-            
             // Create a default style function for unspecified layers
             vectorTileLayerStyles = {
                 '': function() {
@@ -354,8 +338,6 @@ export const ProtobufVectorTileLayer = {
             keepBuffer: options?.keepBuffer ?? 2,
             attribution: options?.attribution ?? ''
         };
-        
-        console.log('Final vectorGridOptions created. Style keys:', Object.keys(vectorTileLayerStyles));
 
         // Only add subdomains if provided, otherwise VectorGrid uses its default
         if (options?.subdomains !== undefined && options.subdomains !== null) {

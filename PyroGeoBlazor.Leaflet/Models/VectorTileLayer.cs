@@ -183,6 +183,57 @@ public abstract class VectorTileLayer : GridLayer
     }
 
     /// <summary>
+    /// Sets whether feature selection is enabled on click.
+    /// When disabled, clicking features will not select them, but other interactions may still work if Interactive is true.
+    /// </summary>
+    /// <param name="enableFeatureSelection">True to enable feature selection, false to disable</param>
+    /// <param name="timeoutMs">Optional timeout in milliseconds for the operation (default: 10000ms)</param>
+    public async Task<VectorTileLayer> SetEnableFeatureSelection(bool enableFeatureSelection, int timeoutMs = 10000)
+    {
+        if (JSObjectReference is null)
+        {
+            throw new InvalidOperationException("Cannot call SetEnableFeatureSelection. The JavaScript object reference has not been set up for this object.");
+        }
+
+        using var cts = new CancellationTokenSource(timeoutMs);
+        await JSObjectReference.InvokeVoidAsync("setEnableFeatureSelection", cts.Token, enableFeatureSelection);
+        
+        // Update the options if they exist
+        if (Options is not null)
+        {
+            Options.EnableFeatureSelection = enableFeatureSelection;
+        }
+        
+        return this;
+    }
+
+    /// <summary>
+    /// Sets whether multiple feature selection is enabled.
+    /// When false, selecting a new feature will deselect the previously selected feature.
+    /// When true, multiple features can be selected simultaneously.
+    /// </summary>
+    /// <param name="multipleFeatureSelection">True to enable multiple selection, false for single selection</param>
+    /// <param name="timeoutMs">Optional timeout in milliseconds for the operation (default: 10000ms)</param>
+    public async Task<VectorTileLayer> SetMultipleFeatureSelection(bool multipleFeatureSelection, int timeoutMs = 10000)
+    {
+        if (JSObjectReference is null)
+        {
+            throw new InvalidOperationException("Cannot call SetMultipleFeatureSelection. The JavaScript object reference has not been set up for this object.");
+        }
+
+        using var cts = new CancellationTokenSource(timeoutMs);
+        await JSObjectReference.InvokeVoidAsync("setMultipleFeatureSelection", cts.Token, multipleFeatureSelection);
+        
+        // Update the options if they exist
+        if (Options is not null)
+        {
+            Options.MultipleFeatureSelection = multipleFeatureSelection;
+        }
+        
+        return this;
+    }
+
+    /// <summary>
     /// Gets a read-only list of all currently selected features.
     /// </summary>
     /// <returns>A read-only list of selected features.</returns>

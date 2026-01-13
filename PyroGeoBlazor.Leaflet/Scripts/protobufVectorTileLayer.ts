@@ -142,6 +142,12 @@ const VectorTileHelpers = {
         if (options?.enableFeatureSelection !== false) {
             vectorTileLayer.on('click', function (e: any) {
                 if (e.layer && e.layer.properties) {
+                    // Check current enableFeatureSelection state
+                    const currentOptions = vectorTileLayer._pyroOptions || options;
+                    if (currentOptions?.enableFeatureSelection === false) {
+                        return; // Selection disabled
+                    }
+                    
                     const featureId = getFeatureIdentifier(e.layer.properties);
                     const feature = {
                         id: featureId,
@@ -167,7 +173,7 @@ const VectorTileHelpers = {
                             
                             if (isCurrentlyHovered) {
                                 // Reapply hover style to all segments
-                                const hoverStyle = options?.hoverStyle || DEFAULT_HOVER_STYLE;
+                                const hoverStyle = currentOptions?.hoverStyle || DEFAULT_HOVER_STYLE;
                                 layers.forEach(layer => {
                                     if (layer.setStyle) {
                                         const currentStyle = {
@@ -197,8 +203,10 @@ const VectorTileHelpers = {
                             );
                         }
                     } else {
-                        // Handle multiple selection
-                        if (!options?.multipleFeatureSelection) {
+                        // Handle multiple selection based on current state
+                        const allowMultiple = currentOptions?.multipleFeatureSelection === true;
+                        
+                        if (!allowMultiple) {
                             // Unselect all previously selected features
                             selectedFeatures.forEach((_, id) => unselectAllSegments(id));
                             selectedFeatures.clear();
@@ -456,6 +464,32 @@ const VectorTileHelpers = {
         if (vectorTileLayer.redraw) {
             vectorTileLayer.redraw();
         }
+    },
+
+    setEnableFeatureSelection(vectorTileLayer: any, enableFeatureSelection: boolean): void {
+        // Update the enableFeatureSelection option
+        if (vectorTileLayer._pyroOptions) {
+            vectorTileLayer._pyroOptions.enableFeatureSelection = enableFeatureSelection;
+        }
+        
+        // If disabling selection, clear any current selections
+        if (!enableFeatureSelection && vectorTileLayer.clearSelection) {
+            vectorTileLayer.clearSelection();
+        }
+    },
+
+    setMultipleFeatureSelection(vectorTileLayer: any, multipleFeatureSelection: boolean): void {
+        // Update the multipleFeatureSelection option
+        if (vectorTileLayer._pyroOptions) {
+            vectorTileLayer._pyroOptions.multipleFeatureSelection = multipleFeatureSelection;
+        }
+        
+        // If switching from multiple to single selection and multiple features are selected,
+        // keep only the most recently selected feature
+        if (!multipleFeatureSelection && vectorTileLayer.clearSelection) {
+            // Note: We don't clear here - the next selection will handle it
+            // The selection logic checks the multipleFeatureSelection flag
+        }
     }
 };
 
@@ -564,6 +598,16 @@ export const ProtobufVectorTileLayer = {
         // Create the VectorGrid Protobuf layer
         const vectorTileLayer = (L as any).vectorGrid.protobuf(urlTemplate, vectorGridOptions);
 
+        // Store options for dynamic updates
+        (vectorTileLayer as any)._pyroOptions = {
+            interactive: options?.interactive ?? false,
+            enableFeatureSelection: options?.enableFeatureSelection !== false,
+            multipleFeatureSelection: options?.multipleFeatureSelection === true,
+            enableHoverStyle: options?.enableHoverStyle !== false,
+            selectedFeatureStyle: options?.selectedFeatureStyle,
+            hoverStyle: options?.hoverStyle
+        };
+
         // Setup feature selection
         VectorTileHelpers.setupFeatureSelection(vectorTileLayer, options, handlerMappings);
 
@@ -576,6 +620,16 @@ export const ProtobufVectorTileLayer = {
         // Expose setInteractive method
         (vectorTileLayer as any).setInteractive = function (interactive: boolean) {
             VectorTileHelpers.setInteractive(vectorTileLayer, interactive);
+        };
+
+        // Expose setEnableFeatureSelection method
+        (vectorTileLayer as any).setEnableFeatureSelection = function (enableFeatureSelection: boolean) {
+            VectorTileHelpers.setEnableFeatureSelection(vectorTileLayer, enableFeatureSelection);
+        };
+
+        // Expose setMultipleFeatureSelection method
+        (vectorTileLayer as any).setMultipleFeatureSelection = function (multipleFeatureSelection: boolean) {
+            VectorTileHelpers.setMultipleFeatureSelection(vectorTileLayer, multipleFeatureSelection);
         };
 
         return vectorTileLayer;

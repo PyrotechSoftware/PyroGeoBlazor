@@ -37,12 +37,6 @@ public class VectorTileLayerOptions : GridLayerOptions
     public string? GetFeatureId { get; set; }
 
     /// <summary>
-    /// Attribution text to display for this layer.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public string? Attribution { get; set; }
-
-    /// <summary>
     /// Style to apply to selected features (used for client-side selection highlighting).
     /// This is a custom feature added by PyroGeoBlazor and not part of the VectorGrid API.
     /// Uses standard Leaflet <see cref="PathOptions"/> for styling.

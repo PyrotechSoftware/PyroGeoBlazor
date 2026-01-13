@@ -90,6 +90,16 @@ export const SlicerVectorTileLayer = {
         // Create the VectorGrid Slicer layer
         const vectorTileLayer = (L as any).vectorGrid.slicer(geoJsonData, vectorGridOptions);
 
+        // Store options for dynamic updates
+        (vectorTileLayer as any)._pyroOptions = {
+            interactive: options?.interactive ?? false,
+            enableFeatureSelection: options?.enableFeatureSelection !== false,
+            multipleFeatureSelection: options?.multipleFeatureSelection === true,
+            enableHoverStyle: options?.enableHoverStyle !== false,
+            selectedFeatureStyle: options?.selectedFeatureStyle,
+            hoverStyle: options?.hoverStyle
+        };
+
         // Default styles (DRY - single source of truth)
         const DEFAULT_SELECTION_STYLE = {
             color: '#368ce1',
@@ -192,6 +202,12 @@ export const SlicerVectorTileLayer = {
         if (options?.enableFeatureSelection !== false) {
             vectorTileLayer.on('click', function (e: any) {
                 if (e.layer && e.layer.properties) {
+                    // Check current enableFeatureSelection state
+                    const currentOptions = vectorTileLayer._pyroOptions || options;
+                    if (currentOptions?.enableFeatureSelection === false) {
+                        return; // Selection disabled
+                    }
+                    
                     // Track this layer
                     trackLayer(e.layer);
                     
@@ -220,7 +236,7 @@ export const SlicerVectorTileLayer = {
                             
                             if (isCurrentlyHovered) {
                                 // Reapply hover style to all segments
-                                const hoverStyle = options?.hoverStyle || DEFAULT_HOVER_STYLE;
+                                const hoverStyle = currentOptions?.hoverStyle || DEFAULT_HOVER_STYLE;
                                 layers.forEach(layer => {
                                     if (layer.setStyle) {
                                         const currentStyle = {
@@ -249,7 +265,10 @@ export const SlicerVectorTileLayer = {
                             );
                         }
                     } else {
-                        if (!options?.multipleFeatureSelection) {
+                        // Handle multiple selection based on current state
+                        const allowMultiple = currentOptions?.multipleFeatureSelection === true;
+                        
+                        if (!allowMultiple) {
                             selectedFeatures.forEach((_, id) => unselectAllSegments(id));
                             selectedFeatures.clear();
                             selectedLayers.clear();
@@ -484,6 +503,27 @@ export const SlicerVectorTileLayer = {
             // Redraw the layer to apply changes
             if (vectorTileLayer.redraw) {
                 vectorTileLayer.redraw();
+            }
+        };
+
+        // Expose setEnableFeatureSelection method
+        (vectorTileLayer as any).setEnableFeatureSelection = function (enableFeatureSelection: boolean) {
+            // Update the enableFeatureSelection option
+            if (vectorTileLayer._pyroOptions) {
+                vectorTileLayer._pyroOptions.enableFeatureSelection = enableFeatureSelection;
+            }
+            
+            // If disabling selection, clear any current selections
+            if (!enableFeatureSelection && vectorTileLayer.clearSelection) {
+                vectorTileLayer.clearSelection();
+            }
+        };
+
+        // Expose setMultipleFeatureSelection method
+        (vectorTileLayer as any).setMultipleFeatureSelection = function (multipleFeatureSelection: boolean) {
+            // Update the multipleFeatureSelection option
+            if (vectorTileLayer._pyroOptions) {
+                vectorTileLayer._pyroOptions.multipleFeatureSelection = multipleFeatureSelection;
             }
         };
 

@@ -201,6 +201,17 @@ public partial class EditableGeoJson : ComponentBase, IAsyncDisposable
                 await InvokeAsync(StateHasChanged);
             };
 
+            EditableLayer.OnFeatureDeleting += (sender, args) =>
+            {
+                // This runs synchronously, so we need to avoid .Result
+                // For now, just set a flag - the actual confirmation should be done differently
+                // Users can implement their own confirmation logic here
+                Console.WriteLine($"Feature deleting - count: {args.Features?.Count}");
+                
+                // Example: Simple cancellation without dialog
+                // args.Cancel = true;
+            };
+
             await EditableLayer.AddTo(PositionMap);
             await LayersControl.AddOverlay(EditableLayer, "Editable Layer");
         }
@@ -363,7 +374,20 @@ public partial class EditableGeoJson : ComponentBase, IAsyncDisposable
     {
         if (EditableLayer != null && editingControl != null)
         {
+            // Show confirmation BEFORE calling delete
+            var featureCount = EditableLayer.GetSelectedFeaturesCount();
+            var confirmed = await JS.InvokeAsync<bool>("confirm", 
+                $"Are you sure you want to delete {featureCount} feature(s)?");
+            
+            if (!confirmed)
+            {
+                Console.WriteLine("Delete cancelled by user");
+                return; // Don't proceed with delete
+            }
+            
+            // Only delete if confirmed
             await EditableLayer.DeleteSelectedFeatures();
+            
             // Update the selected count after deletion (should be 0)
             selectedCount = EditableLayer.GetSelectedFeaturesCount();
             if (editingControl != null)

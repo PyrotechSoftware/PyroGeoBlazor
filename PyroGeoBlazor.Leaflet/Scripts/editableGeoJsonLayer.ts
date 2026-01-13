@@ -529,13 +529,35 @@ export const EditableGeoJsonLayer = {
         };
 
         // Delete selected features
-        (geoJsonLayer as any).deleteSelectedFeatures = function() {
+        (geoJsonLayer as any).deleteSelectedFeatures = async function() {
             const selectedFeatures = (geoJsonLayer as any).SelectedFeatures || [];
             
             if (selectedFeatures.length === 0) return;
 
             const map = getMap();
             if (!map) return;
+
+            // Raise the deleting event with cancellation support
+            if (handlerMappings?.dotNetRef && handlerMappings.events['featuredeleting']) {
+                try {
+                    const result = await handlerMappings.dotNetRef.invokeMethodAsync(
+                        handlerMappings.events['featuredeleting'],
+                        { 
+                            features: selectedFeatures,
+                            cancel: false
+                        }
+                    );
+                    
+                    // Check if the operation was cancelled
+                    // Check both camelCase and PascalCase since C# might return PascalCase
+                    if (result && (result.cancel === true || result.Cancel === true)) {
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Error calling featuredeleting event:', error);
+                    return;
+                }
+            }
 
             (geoJsonLayer as any).disableEditingFeatures();
 

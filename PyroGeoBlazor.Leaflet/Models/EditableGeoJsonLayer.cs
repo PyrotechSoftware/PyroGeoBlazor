@@ -27,6 +27,11 @@ public class EditableGeoJsonLayer : GeoJsonLayer
     public event EventHandler<GeoJsonFeatureEventArgs>? OnFeatureModified;
 
     /// <summary>
+    /// Fired before a feature is deleted. Set Cancel property to true to prevent deletion.
+    /// </summary>
+    public event EventHandler<FeatureDeletingEventArgs>? OnFeatureDeleting;
+
+    /// <summary>
     /// Fired when a feature is deleted.
     /// </summary>
     public event EventHandler<GeoJsonFeatureEventArgs>? OnFeatureDeleted;
@@ -47,6 +52,7 @@ public class EditableGeoJsonLayer : GeoJsonLayer
             {
                 { "featurecreated", nameof(this.FeatureCreatedAsync) },
                 { "featuremodified", nameof(this.FeatureModifiedAsync) },
+                { "featuredeleting", nameof(this.FeatureDeletingAsync) },
                 { "featuredeleted", nameof(this.FeatureDeletedAsync) },
                 { "drawingcancelled", nameof(this.DrawingCancelledAsync) }
             });
@@ -301,6 +307,15 @@ public class EditableGeoJsonLayer : GeoJsonLayer
     {
         OnFeatureModified?.Invoke(this, args ?? new GeoJsonFeatureEventArgs());
         await Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public async Task<FeatureDeletingEventArgs> FeatureDeletingAsync(FeatureDeletingEventArgs? args)
+    {
+        var eventArgs = args ?? new FeatureDeletingEventArgs();
+        OnFeatureDeleting?.Invoke(this, eventArgs);
+        await Task.CompletedTask;
+        return eventArgs;
     }
 
     [JSInvokable]

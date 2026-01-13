@@ -32,15 +32,8 @@ const VectorTileHelpers = {
         options: any,
         handlerMappings?: EventHandlerMapping
     ): void {
-        // Selection state management
-        const selectedFeatures: Map<any, any> = new Map();
-        const selectedLayers: Map<any, any[]> = new Map();
-        
-        // Track all layers by feature ID as they're added
-        const layersByFeatureId: Map<string, any[]> = new Map();
-
-        // Default selected feature style using Leaflet Path style properties
-        const defaultSelectedStyle = {
+        // Default styles (DRY - single source of truth)
+        const DEFAULT_SELECTION_STYLE = {
             color: '#368ce1',
             weight: 3,
             fillColor: '#368ce1',
@@ -48,7 +41,23 @@ const VectorTileHelpers = {
             opacity: 1
         };
 
-        const selectedFeatureStyle = options?.selectedFeatureStyle ?? defaultSelectedStyle;
+        const DEFAULT_HOVER_STYLE = {
+            color: 'red',
+            weight: 2,
+            opacity: 1.0
+        };
+
+        // Selection state management
+        const selectedFeatures: Map<any, any> = new Map();
+        const selectedLayers: Map<any, any[]> = new Map();
+        
+        // Hover state management
+        const hoveredLayers: Map<any, any> = new Map(); // Map of layer -> original style (for hover)
+        
+        // Track all layers by feature ID as they're added
+        const layersByFeatureId: Map<string, any[]> = new Map();
+
+        const selectedFeatureStyle = options?.selectedFeatureStyle ?? DEFAULT_SELECTION_STYLE;
 
         // Helper to apply selected style
         const applySelectedStyle = (layer: any) => {
@@ -145,9 +154,35 @@ const VectorTileHelpers = {
 
                     if (isSelected) {
                         // Unselect all segments of this feature
+                        const layers = selectedLayers.get(featureId);
+                        
                         unselectAllSegments(featureId);
                         selectedFeatures.delete(featureId);
                         selectedLayers.delete(featureId);
+                        
+                        // Check if any segment is currently being hovered
+                        // If so, reapply hover style instead of original
+                        if (layers) {
+                            const isCurrentlyHovered = layers.some(layer => hoveredLayers.has(layer));
+                            
+                            if (isCurrentlyHovered) {
+                                // Reapply hover style to all segments
+                                const hoverStyle = options?.hoverStyle || DEFAULT_HOVER_STYLE;
+                                layers.forEach(layer => {
+                                    if (layer.setStyle) {
+                                        const currentStyle = {
+                                            color: layer.options.originalStyle?.color || layer.options.color,
+                                            weight: layer.options.originalStyle?.weight || layer.options.weight,
+                                            opacity: layer.options.originalStyle?.opacity || layer.options.opacity,
+                                            fillColor: layer.options.originalStyle?.fillColor || layer.options.fillColor,
+                                            fillOpacity: layer.options.originalStyle?.fillOpacity || layer.options.fillOpacity
+                                        };
+                                        const mergedStyle = { ...currentStyle, ...hoverStyle };
+                                        layer.setStyle(mergedStyle);
+                                    }
+                                });
+                            }
+                        }
 
                         // Notify C# of unselection
                         if (handlerMappings?.dotNetRef && handlerMappings.events['featureunselected']) {
@@ -172,6 +207,16 @@ const VectorTileHelpers = {
 
                         // Select all segments of this feature across all tiles
                         const layers = selectAllSegments(featureId);
+                        
+                        // Bring all selected segments to front
+                        layers.forEach(layer => {
+                            if (layer.bringToFront) {
+                                layer.bringToFront();
+                            }
+                            // Note: Don't clear hover state - keep it for proper restoration
+                            // The selection style will override the hover style visually
+                        });
+                        
                         selectedFeatures.set(featureId, feature);
                         selectedLayers.set(featureId, layers);
 
@@ -210,7 +255,103 @@ const VectorTileHelpers = {
             selectedFeatures.forEach((_, id) => unselectAllSegments(id));
             selectedFeatures.clear();
             selectedLayers.clear();
+            
+            // Clear any hover states
+            hoveredLayers.forEach((originalStyle, layer) => {
+                if (layer && layer.setStyle && originalStyle) {
+                    layer.setStyle(originalStyle);
+                }
+            });
+            hoveredLayers.clear();
         };
+
+        // Hover styling (controlled by enableHoverStyle flag and interactive mode)
+        if (options?.interactive === true && options?.enableHoverStyle !== false) {
+            const hoverStyle = options?.hoverStyle || DEFAULT_HOVER_STYLE;
+            
+            vectorTileLayer.on('mouseover', function (e: any) {
+                if (e.layer && e.layer.properties) {
+                    const featureId = getFeatureIdentifier(e.layer.properties);
+                    
+                    // Track this layer for selection (even if just hovering)
+                    if (!layersByFeatureId.has(featureId)) {
+                        layersByFeatureId.set(featureId, []);
+                    }
+                    const layers = layersByFeatureId.get(featureId)!;
+                    if (!layers.includes(e.layer)) {
+                        layers.push(e.layer);
+                    }
+                    
+                    // Don't apply hover if feature is selected
+                    if (!selectedFeatures.has(featureId)) {
+                        // Get all segments of this feature
+                        const allSegments = layersByFeatureId.get(featureId) || [];
+                        
+                        // Apply hover to ALL segments
+                        allSegments.forEach(layer => {
+                            // Bring to front if possible
+                            if (layer.bringToFront) {
+                                layer.bringToFront();
+                            }
+                            
+                            // Store original style if not already hovering
+                            if (!hoveredLayers.has(layer)) {
+                                hoveredLayers.set(layer, {
+                                    color: layer.options.color,
+                                    weight: layer.options.weight,
+                                    opacity: layer.options.opacity,
+                                    fillColor: layer.options.fillColor,
+                                    fillOpacity: layer.options.fillOpacity
+                                });
+                                
+                                // Apply hover style (merge with current to preserve fill)
+                                const currentStyle = {
+                                    color: layer.options.color,
+                                    weight: layer.options.weight,
+                                    opacity: layer.options.opacity,
+                                    fillColor: layer.options.fillColor,
+                                    fillOpacity: layer.options.fillOpacity
+                                };
+                                
+                                const mergedStyle = { ...currentStyle, ...hoverStyle };
+                                if (layer.setStyle) {
+                                    layer.setStyle(mergedStyle);
+                                }
+                            }
+                        });
+                    }
+                }
+            });
+
+            vectorTileLayer.on('mouseout', function (e: any) {
+                if (e.layer && e.layer.properties) {
+                    const featureId = getFeatureIdentifier(e.layer.properties);
+                    
+                    // Get all segments that were hovered
+                    const allSegments = layersByFeatureId.get(featureId) || [];
+                    
+                    // Restore ALL segments
+                    allSegments.forEach(layer => {
+                        if (hoveredLayers.has(layer)) {
+                            const originalStyle = hoveredLayers.get(layer);
+                            
+                            // Check if feature is selected
+                            const isSelected = selectedFeatures.has(featureId);
+                            
+                            if (isSelected) {
+                                // Don't restore - reapply selection style instead
+                                applySelectedStyle(layer);
+                            } else if (originalStyle && layer.setStyle) {
+                                // Restore original style
+                                layer.setStyle(originalStyle);
+                            }
+                            
+                            hoveredLayers.delete(layer);
+                        }
+                    });
+                }
+            });
+        }
     },
 
     attachGridLayerEvents(vectorTileLayer: any, handlerMappings?: EventHandlerMapping): void {
@@ -287,6 +428,33 @@ const VectorTileHelpers = {
                     }
                 });
             }
+        }
+    },
+
+    setInteractive(vectorTileLayer: any, interactive: boolean): void {
+        // Update the interactive option
+        if (vectorTileLayer.options) {
+            vectorTileLayer.options.interactive = interactive;
+        }
+        
+        // VectorGrid stores interactivity at the layer level
+        // We need to update the actual layer's interactive state
+        if ((vectorTileLayer as any)._vectorTiles) {
+            // Iterate through all loaded tiles and update their interactive state
+            Object.values((vectorTileLayer as any)._vectorTiles).forEach((tile: any) => {
+                if (tile && tile._features) {
+                    Object.values(tile._features).forEach((feature: any) => {
+                        if (feature) {
+                            feature.options.interactive = interactive;
+                        }
+                    });
+                }
+            });
+        }
+        
+        // Redraw the layer to apply changes
+        if (vectorTileLayer.redraw) {
+            vectorTileLayer.redraw();
         }
     }
 };
@@ -404,6 +572,11 @@ export const ProtobufVectorTileLayer = {
 
         // Attach standard event handlers
         VectorTileHelpers.attachGridLayerEvents(vectorTileLayer, handlerMappings);
+
+        // Expose setInteractive method
+        (vectorTileLayer as any).setInteractive = function (interactive: boolean) {
+            VectorTileHelpers.setInteractive(vectorTileLayer, interactive);
+        };
 
         return vectorTileLayer;
     }

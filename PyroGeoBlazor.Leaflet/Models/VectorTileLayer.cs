@@ -157,6 +157,32 @@ public abstract class VectorTileLayer : GridLayer
     }
 
     /// <summary>
+    /// Sets whether the layer should be interactive (respond to mouse/touch events).
+    /// When set to false, disables all mouse interactions including selection and hover.
+    /// </summary>
+    /// <param name="interactive">True to enable interactions, false to disable them</param>
+    /// <param name="timeoutMs">Optional timeout in milliseconds for the operation (default: 10000ms)</param>
+    public async Task<VectorTileLayer> SetInteractive(bool interactive, int timeoutMs = 10000)
+    {
+        if (JSObjectReference is null)
+        {
+            throw new InvalidOperationException("Cannot call SetInteractive. The JavaScript object reference has not been set up for this object.");
+        }
+
+        using var cts = new CancellationTokenSource(timeoutMs);
+        await JSObjectReference.InvokeVoidAsync("setInteractive", cts.Token, interactive);
+        
+        // Update the options if they exist
+        if (Options is not null)
+        {
+            // Note: This updates the C# object but the actual interactive state is managed in JavaScript
+            Options.Interactive = interactive;
+        }
+        
+        return this;
+    }
+
+    /// <summary>
     /// Gets a read-only list of all currently selected features.
     /// </summary>
     /// <returns>A read-only list of selected features.</returns>

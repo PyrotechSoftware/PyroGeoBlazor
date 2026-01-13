@@ -63,4 +63,20 @@ public class VectorTileLayerOptions : GridLayerOptions
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool MultipleFeatureSelection { get; set; } = false;
+
+    /// <summary>
+    /// Style to apply when hovering over a feature.
+    /// If not specified, a default red stroke style will be used (color: red, weight: 2, opacity: 1.0).
+    /// Only applies when EnableHoverStyle is true and Interactive is true.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public PathOptions? HoverStyle { get; set; }
+
+    /// <summary>
+    /// If true, applies hover styling to features when the mouse hovers over them.
+    /// Default is true. Set to false to disable hover effects.
+    /// When enabled without a custom HoverStyle, a default red stroke will be applied.
+    /// Only works when Interactive is true.
+    /// </summary>
+    public bool EnableHoverStyle { get; set; } = true;
 }

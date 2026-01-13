@@ -1,0 +1,349 @@
+namespace PyroGeoBlazor.Demo.Components.Pages;
+
+using Microsoft.AspNetCore.Components;
+using PyroGeoBlazor.Demo.Models;
+using PyroGeoBlazor.Leaflet.Models;
+using System.IO;
+using System.Text.Json;
+
+public partial class GeoJsonLayers : ComponentBase, IAsyncDisposable
+{
+    protected Map? PositionMap;
+    protected TileLayer OpenStreetMapsTileLayer;
+    protected GeoJsonLayer? GeoJsonLayer;
+    protected LayersControl LayersControl;
+    protected MapStateViewModel MapStateViewModel;
+    protected List<Control> MapControls = [];
+
+    private bool geoJsonLayerAdded = false;
+    private bool selectionEnabled = true;
+    private bool multiSelectEnabled = true;
+    private int selectedCount = 0;
+
+    public GeoJsonLayers()
+    {
+        var mapCentre = new LatLng(-42, 175); // Centred on New Zealand
+        MapStateViewModel = new MapStateViewModel
+        {
+            MapCentreLatitude = mapCentre.Lat,
+            MapCentreLongitude = mapCentre.Lng,
+            Zoom = 6
+        };
+
+        PositionMap = new Map("geoJsonMap", new MapOptions
+        {
+            Center = mapCentre,
+            Zoom = MapStateViewModel.Zoom,
+            EventOptions = new MapEventOptions
+            {
+                ContextMenu = true
+            }
+        }, true);
+
+        OpenStreetMapsTileLayer = new TileLayer(
+            "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+            new TileLayerOptions
+            {
+                Attribution = @"Map data &copy; <a href=""https://www.openstreetmap.org/"">OpenStreetMap</a> contributors, " +
+                    @"<a href=""https://creativecommons.org/licenses/by-sa/2.0/"">CC-BY-SA</a>"
+            }
+        );
+
+        LayersControl = new LayersControl(
+            baseLayers: [],
+            overlays: [],
+            options: new LayersControlOptions()
+            {
+                Collapsed = false,
+                Position = "topright",
+                HideSingleBase = false,
+                AutoZIndex = true,
+                SortLayers = false
+            }
+        );
+
+        MapControls.Add(LayersControl);
+    }
+
+    private async Task AddGeoJsonLayer()
+    {
+        if (PositionMap == null)
+        {
+            return;
+        }
+
+        try
+        {
+            var text = File.ReadAllText("./Township.json");
+            var geoJsonObject = JsonSerializer.Deserialize<object>(text);
+
+            var options = new GeoJsonLayerOptions(
+                OnEachFeatureCreated, 
+                OnPointToLayer, 
+                OnStyle, 
+                OnFeatureFilter, 
+                OnCoordsToLatLng)
+            {
+                DebugLogging = false,
+                MultipleFeatureSelection = multiSelectEnabled,
+                EnableHoverStyle = true,
+                HoverStyle = new PathOptions
+                {
+                    Color = "orange",
+                    Weight = 3,
+                    Opacity = 1.0
+                },
+                SelectedFeatureStyle = new PathOptions
+                {
+                    Color = "purple",
+                    Weight = 4,
+                    FillColor = "purple",
+                    FillOpacity = 0.6,
+                    Opacity = 1.0
+                }
+            };
+
+            GeoJsonLayer = new GeoJsonLayer(geoJsonObject, options);
+
+            // Subscribe to selection events
+            GeoJsonLayer.OnFeatureSelected += (sender, args) =>
+            {
+                if (args?.Feature != null && GeoJsonLayer != null)
+                {
+                    selectedCount = GeoJsonLayer.GetSelectedFeaturesCount();
+                    Console.WriteLine($"Feature selected. Total selected: {selectedCount}");
+
+                    // Log selected feature IDs
+                    var selectedIds = GeoJsonLayer.GetSelectedFeatureIds();
+                    Console.WriteLine($"Selected IDs: {string.Join(", ", selectedIds.Where(id => id != null))}");
+
+                    // Check if specific feature is selected
+                    if (args.Feature.Id != null)
+                    {
+                        var isSelected = GeoJsonLayer.IsFeatureSelected(args.Feature.Id);
+                        Console.WriteLine($"Feature {args.Feature.Id} is selected: {isSelected}");
+                    }
+
+                    StateHasChanged();
+                }
+            };
+
+            GeoJsonLayer.OnFeatureUnselected += (sender, args) =>
+            {
+                if (GeoJsonLayer != null)
+                {
+                    selectedCount = GeoJsonLayer.GetSelectedFeaturesCount();
+                    Console.WriteLine($"Feature unselected. Total selected: {selectedCount}");
+
+                    if (GeoJsonLayer.HasSelectedFeatures())
+                    {
+                        var selectedFeatures = GeoJsonLayer.GetSelectedFeatures();
+                        Console.WriteLine($"Remaining features: {selectedFeatures.Count}");
+                    }
+                    else
+                    {
+                        Console.WriteLine("No features selected");
+                    }
+
+                    StateHasChanged();
+                }
+            };
+
+            GeoJsonLayer.OnFeatureClicked += (sender, args) =>
+            {
+                if (args?.Feature?.Properties != null)
+                {
+                    Console.WriteLine($"Feature clicked: {JsonSerializer.Serialize(args.Feature.Properties)}");
+                }
+            };
+
+            await GeoJsonLayer.AddTo(PositionMap);
+            await LayersControl.AddOverlay(GeoJsonLayer, "GeoJSON (Townships)");
+
+            geoJsonLayerAdded = true;
+            Console.WriteLine("GeoJSON layer loaded successfully");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error loading GeoJSON: {ex.Message}");
+        }
+    }
+
+    private async Task ToggleSelection(ChangeEventArgs e)
+    {
+        selectionEnabled = (bool)(e.Value ?? false);
+
+        if (GeoJsonLayer != null)
+        {
+            // Note: GeoJsonLayer doesn't have SetEnableFeatureSelection yet
+            // For now, we just track the state
+            if (!selectionEnabled)
+            {
+                await GeoJsonLayer.ClearSelection();
+                selectedCount = 0;
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task ToggleMultiSelect(ChangeEventArgs e)
+    {
+        multiSelectEnabled = (bool)(e.Value ?? false);
+
+        if (GeoJsonLayer != null)
+        {
+            // Note: GeoJsonLayer doesn't have SetMultipleFeatureSelection yet
+            // For now, we just track the state and inform the user
+            Console.WriteLine($"Multi-select mode changed to: {multiSelectEnabled}");
+            Console.WriteLine("Note: Changing this setting requires reloading the layer");
+
+            // Clear current selection when switching modes
+            await GeoJsonLayer.ClearSelection();
+            selectedCount = 0;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task ClearSelection()
+    {
+        if (GeoJsonLayer != null)
+        {
+            await GeoJsonLayer.ClearSelection();
+            selectedCount = 0;
+            StateHasChanged();
+        }
+    }
+
+    #region GeoJSON Callbacks
+
+    private void OnEachFeatureCreated(GeoJsonFeature feature, LayerInfo layer)
+    {
+        // This callback is invoked for each feature as it is created
+        // You have access to:
+        // - feature.Id
+        // - feature.Properties (Dictionary<string, object?>)
+        // - feature.Geometry (with Type and Coordinates)
+        // - layer.LeafletId
+        // - layer.Type (e.g., "Marker", "Polyline", "Polygon", etc.)
+
+        if (feature.Properties != null && feature.Properties.TryGetValue("TownCode", out var townCode))
+        {
+            Console.WriteLine($"Created feature with TownCode: {townCode}");
+        }
+    }
+
+    private bool OnFeatureFilter(GeoJsonFeature feature)
+    {
+        // Filter features before adding to the map
+        // Return true to include the feature, false to exclude it
+
+        // Example: Only include features with a specific property value
+        //if (feature.Properties != null)
+        //{
+        //    if (feature.Properties.TryGetValue("TownCode", out var townCode))
+        //    {
+        //        return townCode?.ToString() == "010"; // Only include specific town
+        //    }
+        //}
+
+        return true; // Include all features by default
+    }
+
+    private Marker OnPointToLayer(GeoJsonFeature feature, LatLng latlng)
+    {
+        // Customize how point features are rendered
+        // Create custom markers based on feature properties
+
+        var markerOptions = new MarkerOptions
+        {
+            Title = "Feature Point",
+            RiseOnHover = true,
+            RiseOffset = 10
+        };
+
+        if (feature.Properties != null && feature.Properties.TryGetValue("name", out var nameValue))
+        {
+            markerOptions.Title = nameValue?.ToString() ?? "Unnamed Feature";
+        }
+
+        return new Marker(latlng, markerOptions);
+    }
+
+    private PathOptions OnStyle(GeoJsonFeature feature)
+    {
+        // Customize the style of each feature based on its properties
+        var pathOptions = new PathOptions();
+
+        if (feature.Properties != null &&
+            feature.Properties.TryGetValue("TownCode", out var townCodeValue))
+        {
+            var townCode = townCodeValue?.ToString();
+
+            // Style based on TownCode
+            if (townCode == "010")
+            {
+                // Highlight specific township in red
+                pathOptions.Color = "red";
+                pathOptions.FillColor = "red";
+                pathOptions.FillOpacity = 0.5;
+                pathOptions.Weight = 3;
+            }
+            else if (townCode?.StartsWith("01") == true)
+            {
+                // Other townships in the same region in yellow
+                pathOptions.Color = "yellow";
+                pathOptions.FillColor = "yellow";
+                pathOptions.FillOpacity = 0.3;
+                pathOptions.Weight = 2;
+            }
+            else
+            {
+                // Default style for other townships
+                pathOptions.Color = "blue";
+                pathOptions.FillColor = "lightblue";
+                pathOptions.FillOpacity = 0.2;
+                pathOptions.Weight = 1;
+            }
+        }
+        else
+        {
+            // Default style when no TownCode property
+            pathOptions.Color = "blue";
+            pathOptions.FillColor = "lightblue";
+            pathOptions.FillOpacity = 0.2;
+            pathOptions.Weight = 1;
+        }
+
+        return pathOptions;
+    }
+
+    private LatLng OnCoordsToLatLng(double[] coords)
+    {
+        // Convert coordinate array to LatLng
+        // GeoJSON uses [longitude, latitude] order (X, Y)
+        // Leaflet uses (latitude, longitude) order
+
+        if (coords.Length >= 2)
+        {
+            return new LatLng(coords[1], coords[0]); // lat, lng
+        }
+
+        return new LatLng(0, 0); // Fallback
+    }
+
+    #endregion
+
+    public async ValueTask DisposeAsync()
+    {
+        await OpenStreetMapsTileLayer.DisposeAsync();
+        if (PositionMap != null)
+        {
+            await PositionMap.DisposeAsync();
+        }
+
+        GC.SuppressFinalize(this);
+    }
+}

@@ -3,14 +3,11 @@ namespace PyroGeoBlazor.Demo.Components.Pages;
 using Microsoft.AspNetCore.Components;
 using PyroGeoBlazor.Demo.Models;
 using PyroGeoBlazor.Leaflet.Models;
-using System.IO;
-using System.Text.Json;
 
 public partial class BasicMap : ComponentBase, IAsyncDisposable
 {
     protected Map? PositionMap;
     protected TileLayer OpenStreetMapsTileLayer;
-    protected GeoJsonLayer? GeoJsonLayer;
     protected LayersControl LayersControl;
     protected MapStateViewModel MapStateViewModel;
     protected MarkerViewModel MarkerViewModel;

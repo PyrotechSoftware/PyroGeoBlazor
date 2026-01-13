@@ -1,14 +1,23 @@
-﻿@namespace PyroGeoBlazor.Leaflet.Components
+@namespace PyroGeoBlazor.Leaflet.Components
 
 @inherits LeafletMapBase
 
-@if (Map is not null)
-{
-    <div class="leafletMap" id="@Map.ElementId" style="@MapStyle"></div>
-}
+<div style="position: relative;">
+    @if (Map is not null)
+    {
+        <div class="leafletMap" id="@Map.ElementId" style="@MapStyle"></div>
+    }
+    
+    @ChildContent
+</div>
 
 @code {
     [Parameter] public int Height { get; set; } = 400;
+    
+    /// <summary>
+    /// Optional child content to render within the map container (e.g., custom controls).
+    /// </summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
 
-    private string MapStyle => $"height: {Height}px; width: 100%;";
+    private string MapStyle => $"height: {Height}px; width: 100%; position: relative; z-index: 0;";
 }

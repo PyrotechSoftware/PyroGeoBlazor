@@ -1,0 +1,24 @@
+@page "/editable-geojson"
+@using PyroGeoBlazor.Demo.Models
+@using PyroGeoBlazor.Leaflet.Components
+@using PyroGeoBlazor.Leaflet.Models
+
+<PageTitle>Editable GeoJSON Layer - PyroGeoBlazor Demo</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-3">Editable GeoJSON Layer</h2>
+            <p class="text-muted">Draw and edit polygons and polylines on the map using the control at the bottom-left</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <LeafletMap Height="600" 
+                        Map="PositionMap" 
+                        Controls="MapControls"
+                        OnMapReady="HandleMapReady" />
+        </div>
+    </div>
+</div>

@@ -212,6 +212,8 @@ public class GeoJsonLayer : FeatureGroup
     [JSInvokable]
     public async Task FeatureSelectedAsync(GeoJsonFeatureClickEventArgs? args)
     {
+        Console.WriteLine($"FeatureSelectedAsync called with feature Id: {args?.Feature?.Id}");
+        
         if (args?.Feature != null)
         {
             SelectedFeature = args.Feature;
@@ -221,7 +223,13 @@ public class GeoJsonLayer : FeatureGroup
                 (f.Id != null && f.Id.Equals(args.Feature.Id)) || 
                 (f.Id == null && args.Feature.Id == null && f.Properties == args.Feature.Properties)))
             {
+                Console.WriteLine($"Adding feature with Id: {args.Feature.Id} to SelectedFeatures");
                 SelectedFeatures.Add(args.Feature);
+                Console.WriteLine($"SelectedFeatures count after add: {SelectedFeatures.Count}");
+            }
+            else
+            {
+                Console.WriteLine($"Feature with Id: {args.Feature.Id} is already in SelectedFeatures");
             }
         }
         
@@ -232,18 +240,67 @@ public class GeoJsonLayer : FeatureGroup
     [JSInvokable]
     public async Task FeatureUnselectedAsync(GeoJsonFeatureClickEventArgs? args)
     {
+        Console.WriteLine($"FeatureUnselectedAsync called with feature: {args?.Feature?.Id}");
+        Console.WriteLine($"Current SelectedFeatures count BEFORE removal: {SelectedFeatures.Count}");
+        
         if (args?.Feature != null)
         {
-            // Remove from selected features list
-            SelectedFeatures.RemoveAll(f => 
-                (f.Id != null && f.Id.Equals(args.Feature.Id)) || 
-                (f.Id == null && args.Feature.Id == null && f.Properties == args.Feature.Properties));
+            // Log what we're trying to match
+            Console.WriteLine($"Trying to remove feature with Id: '{args.Feature.Id}'");
             
-            // Update SelectedFeature to the last item in the list, or null if empty
-            SelectedFeature = SelectedFeatures.LastOrDefault();
+            // For features without IDs (like drawn features), we need a different approach
+            // In single-selection mode, just clear the list since only one can be selected
+            bool isSingleSelectMode = Options?.MultipleFeatureSelection != true;
+            
+            if (isSingleSelectMode && SelectedFeatures.Count > 0)
+            {
+                Console.WriteLine("Single-select mode: clearing all selections");
+                SelectedFeatures.Clear();
+                SelectedFeature = null;
+            }
+            else
+            {
+                // Multiple selection mode or need to find specific feature
+                int removedCount = SelectedFeatures.RemoveAll(f => 
+                {
+                    // Try to match by ID if both have IDs
+                    if (f.Id != null && args.Feature.Id != null)
+                    {
+                        bool idMatch = f.Id.Equals(args.Feature.Id);
+                        if (idMatch)
+                        {
+                            Console.WriteLine($"Removing feature by ID match: {f.Id}");
+                        }
+                        return idMatch;
+                    }
+                    
+                    // For features without IDs, try matching by geometry coordinates
+                    if (f.Geometry != null && args.Feature.Geometry != null)
+                    {
+                        // Compare geometry types
+                        if (f.Geometry.Type == args.Feature.Geometry.Type)
+                        {
+                            // For simplicity, if they're the same type and both have no ID, assume it's the same feature
+                            // This works for drawn features where there's typically only one being manipulated at a time
+                            Console.WriteLine($"Removing feature by geometry type match: {f.Geometry.Type}");
+                            return true;
+                        }
+                    }
+                    
+                    return false;
+                });
+                
+                Console.WriteLine($"Removed {removedCount} features");
+                
+                // Update SelectedFeature to the last item in the list, or null if empty
+                SelectedFeature = SelectedFeatures.LastOrDefault();
+            }
+            
+            Console.WriteLine($"SelectedFeatures count AFTER removal: {SelectedFeatures.Count}");
         }
         else
         {
+            Console.WriteLine("Feature is null, clearing all selections");
             // Clear all if no specific feature provided
             SelectedFeature = null;
             SelectedFeatures.Clear();

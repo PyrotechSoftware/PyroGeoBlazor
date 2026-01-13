@@ -499,6 +499,11 @@ export const GeoJsonLayer = {
                             return;
                         }
 
+                        // Don't allow selection/unselection if the layer is currently being edited
+                        if ((layer as any)._editingEnabled) {
+                            return;
+                        }
+
                         // Create lightweight feature for callback
                         const featureToSend = (geoJsonLayer as any).createCallbackFeature(feature, 50000, false);
                         
@@ -911,6 +916,20 @@ export const GeoJsonLayer = {
             });
             hoveredLayers.clear();
         };
+
+        // Expose selected features for editableGeoJsonLayer to access
+        Object.defineProperty(geoJsonLayer, 'SelectedFeatures', {
+            get: function() {
+                const multipleSelection = options?.multipleFeatureSelection === true;
+                if (multipleSelection) {
+                    // Return array of features from selectedLayers Map
+                    return Array.from(selectedLayers.keys()).map(layer => layer.feature).filter(f => f != null);
+                } else {
+                    // Return single selected feature or empty array
+                    return selectedLayer && selectedLayer.feature ? [selectedLayer.feature] : [];
+                }
+            }
+        });
 
         // If initial data was provided, add it through our custom addData method
         if (geoJsonData) {

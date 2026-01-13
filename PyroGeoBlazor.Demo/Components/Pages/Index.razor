@@ -1,0 +1,106 @@
+@page "/"
+
+<PageTitle>PyroGeoBlazor Demo</PageTitle>
+
+<div class="container mt-5">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="display-4 mb-4">PyroGeoBlazor Demo</h1>
+            <p class="lead">
+                Welcome to the PyroGeoBlazor library demonstration. This library provides Blazor components for creating interactive maps using Leaflet.
+            </p>
+            <hr class="my-4" />
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <span class="badge bg-primary mb-2">Basic</span>
+                    </h5>
+                    <h4>Basic Map Features</h4>
+                    <p class="card-text">
+                        Explore fundamental mapping capabilities including:
+                    </p>
+                    <ul>
+                        <li>Map initialization and controls</li>
+                        <li>Adding markers and popups</li>
+                        <li>Navigation (pan, zoom, fly-to)</li>
+                        <li>Geolocation</li>
+                        <li>GeoJSON layer support</li>
+                    </ul>
+                    <a href="/basic-map" class="btn btn-primary mt-3">View Basic Map Demo</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <span class="badge bg-success mb-2">Advanced</span>
+                    </h5>
+                    <h4>Vector Tiles</h4>
+                    <p class="card-text">
+                        Discover high-performance vector tile rendering:
+                    </p>
+                    <ul>
+                        <li>Mapbox Vector Tiles (MVT/PBF)</li>
+                        <li>Interactive features (hover, select)</li>
+                        <li>Dynamic styling</li>
+                        <li>Multi-segment feature selection</li>
+                        <li>Runtime interactivity control</li>
+                    </ul>
+                    <a href="/vector-tiles" class="btn btn-success mt-3">View Vector Tiles Demo</a>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <span class="badge bg-info mb-2">Data</span>
+                    </h5>
+                    <h4>WFS Layers</h4>
+                    <p class="card-text">
+                        Work with Web Feature Service (WFS) data:
+                    </p>
+                    <ul>
+                        <li>Dynamic feature loading</li>
+                        <li>Bounded by map view</li>
+                        <li>Auto-refresh on pan/zoom</li>
+                        <li>Feature selection</li>
+                        <li>GeoServer integration</li>
+                    </ul>
+                    <a href="/wfs-layers" class="btn btn-info mt-3">View WFS Demo</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-5">
+        <div class="col-12">
+            <h3>About PyroGeoBlazor</h3>
+            <p>
+                PyroGeoBlazor is a comprehensive .NET library that brings the power of Leaflet maps to Blazor applications.
+                Built with modern .NET 10 and C# 14, it provides a type-safe, component-based approach to building interactive mapping applications.
+            </p>
+            <h4 class="mt-4">Key Features</h4>
+            <ul>
+                <li><strong>Blazor Components:</strong> Native Blazor integration with full C# support</li>
+                <li><strong>Vector Tiles:</strong> High-performance rendering with Leaflet.VectorGrid</li>
+                <li><strong>WFS Support:</strong> Built-in Web Feature Service client</li>
+                <li><strong>GeoJSON:</strong> Full GeoJSON layer support with callbacks</li>
+                <li><strong>Interactive Features:</strong> Selection, hover, and click events</li>
+                <li><strong>Type Safety:</strong> Strongly-typed APIs throughout</li>
+                <li><strong>Async/Await:</strong> Modern async patterns for all operations</li>
+            </ul>
+            <div class="alert alert-info mt-4">
+                <strong>Source Code:</strong> <a href="https://github.com/PyrotechSoftware/PyroGeoBlazor" target="_blank">github.com/PyrotechSoftware/PyroGeoBlazor</a>
+            </div>
+        </div>
+    </div>
+</div>

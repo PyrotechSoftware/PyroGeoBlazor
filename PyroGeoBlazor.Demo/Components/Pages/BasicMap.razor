@@ -1,0 +1,81 @@
+@page "/basic-map"
+@using PyroGeoBlazor.Demo.Models
+@using PyroGeoBlazor.Leaflet.Components
+@using PyroGeoBlazor.Leaflet.Models
+
+<PageTitle>Basic Map - PyroGeoBlazor Demo</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h2 class="mb-3">Basic Map Features</h2>
+            <p class="text-muted">Explore fundamental Leaflet mapping capabilities with PyroGeoBlazor</p>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-9">
+            <LeafletMap Height="600" Map="PositionMap" TileLayer="OpenStreetMapsTileLayer" Controls="MapControls" />
+        </div>
+        
+        <div class="col-md-3">
+            <div class="card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">Map Controls</h5>
+                </div>
+                <div class="card-body">
+                    <h6>Navigation</h6>
+                    <div class="d-grid gap-2 mb-3">
+                        <button class="btn btn-sm btn-outline-primary" @onclick="() => PositionMap?.SetView(new LatLng(51.505, -0.09), 13)">
+                            <i class="bi bi-geo-alt"></i> Go to London
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="() => PositionMap?.SetView(new LatLng(40.7128, -74.0060), 13)">
+                            <i class="bi bi-geo-alt"></i> Go to New York
+                        </button>
+                        <button class="btn btn-sm btn-outline-primary" @onclick="() => PositionMap?.SetView(new LatLng(-33.8688, 151.2093), 13)">
+                            <i class="bi bi-geo-alt"></i> Go to Sydney
+                        </button>
+                    </div>
+
+                    <h6>Markers</h6>
+                    <div class="d-grid gap-2 mb-3">
+                        <button class="btn btn-sm btn-outline-success" @onclick="AddMarkerAtMapCenter">
+                            <i class="bi bi-pin-map"></i> Add Marker at Center
+                        </button>
+                    </div>
+
+                    <h6>Geolocation</h6>
+                    <div class="d-grid gap-2 mb-3">
+                        <button class="btn btn-sm btn-outline-info" @onclick="Locate">
+                            <i class="bi bi-crosshair"></i> Locate Me
+                        </button>
+                    </div>
+
+                </div>
+            </div>
+
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h6 class="mb-0">Map State</h6>
+                </div>
+                <div class="card-body">
+                    <small>
+                        <strong>Center:</strong> @MapStateViewModel.MapCentreLatitude.ToString("F4"), @MapStateViewModel.MapCentreLongitude.ToString("F4")<br />
+                        <strong>Zoom:</strong> @MapStateViewModel.Zoom
+                    </small>
+                    <div class="d-grid gap-2 mt-2">
+                        <button class="btn btn-sm btn-secondary" @onclick="GetMapState">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh State
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-4">
+        <div class="col-12">
+            <a href="/" class="btn btn-link">&larr; Back to Home</a>
+        </div>
+    </div>
+</div>

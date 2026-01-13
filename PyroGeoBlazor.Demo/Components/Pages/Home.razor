@@ -1,9 +1,30 @@
-@page "/"
+@* This file has been superseded by the new page structure. 
+   The functionality has been split into:
+   - Index.razor (landing page)
+   - BasicMap.razor (markers, navigation, GeoJSON)
+   - VectorTiles.razor (vector tiles with interactive controls)
+   - WfsLayers.razor (WFS layer examples)
+*@
+
+@page "/old-home"
 @using PyroGeoBlazor.Demo.Models
 @using PyroGeoBlazor.Leaflet.Components
 @using PyroGeoBlazor.Leaflet.Models
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Old Home (Deprecated)</PageTitle>
+
+<div class="alert alert-warning">
+    <h4>⚠️ This page is deprecated</h4>
+    <p>
+        This demo has been reorganized into separate pages:
+    </p>
+    <ul>
+        <li><a href="/">Home</a> - Landing page with overview</li>
+        <li><a href="/basic-map">Basic Map</a> - Markers, navigation, GeoJSON</li>
+        <li><a href="/vector-tiles">Vector Tiles</a> - MVT/PBF with interactive controls</li>
+        <li><a href="/wfs-layers">WFS Layers</a> - Web Feature Service examples</li>
+    </ul>
+</div>
 
 <LeafletMap Height="500" Map="PositionMap" TileLayer="OpenStreetMapsTileLayer" Controls="MapControls" />
 <br />

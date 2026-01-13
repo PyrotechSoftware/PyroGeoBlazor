@@ -19,6 +19,7 @@ public partial class EditableGeoJson : ComponentBase, IAsyncDisposable
     
     private PyroGeoBlazor.Leaflet.Models.EditingControl? editingControl;
     private bool isDrawing = false;
+    private bool isEditingFeatures = false;
     private int selectedCount = 0;
 
     public EditableGeoJson()
@@ -81,6 +82,22 @@ public partial class EditableGeoJson : ComponentBase, IAsyncDisposable
             await SatelliteTileLayer.AddTo(PositionMap);
             await LayersControl.AddBaseLayer(OpenStreetMapsTileLayer, "Street Map");
             await LayersControl.AddBaseLayer(SatelliteTileLayer, "Satellite");
+            
+            // Add map click handler to clear selection when clicking empty space
+            PositionMap.OnClick += async (sender, args) =>
+            {
+                // Clear selection when clicking on the map (not on a feature)
+                if (EditableLayer != null && selectedCount > 0)
+                {
+                    await EditableLayer.ClearSelection();
+                    selectedCount = 0;
+                    if (editingControl != null)
+                    {
+                        await editingControl.SetSelectedCount(0);
+                    }
+                    await InvokeAsync(StateHasChanged);
+                }
+            };
         }
         
         await AddEditableLayer();
@@ -175,6 +192,12 @@ public partial class EditableGeoJson : ComponentBase, IAsyncDisposable
                 await InvokeAsync(StateHasChanged);
             };
 
+            EditableLayer.OnFeatureModified += async (sender, args) =>
+            {
+                Console.WriteLine($"Feature modified: {args?.Feature?.Id}");
+                await InvokeAsync(StateHasChanged);
+            };
+
             await EditableLayer.AddTo(PositionMap);
             await LayersControl.AddOverlay(EditableLayer, "Editable Layer");
         }
@@ -199,6 +222,7 @@ public partial class EditableGeoJson : ComponentBase, IAsyncDisposable
                     
                     editingControl.OnPolygonClick += async (s, e) => await DrawPolygon();
                     editingControl.OnLineClick += async (s, e) => await DrawLine();
+                    editingControl.OnEditClick += async (s, e) => await EditSelected();
                     editingControl.OnConfirmClick += async (s, e) => await ConfirmDrawing();
                     editingControl.OnCancelClick += async (s, e) => await CancelDrawing();
                     editingControl.OnDeleteClick += async (s, e) => await DeleteSelected();
@@ -255,6 +279,28 @@ public partial class EditableGeoJson : ComponentBase, IAsyncDisposable
             await EditableLayer.CancelDrawing();
             isDrawing = false;
             await editingControl.SetDrawing(false);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task EditSelected()
+    {
+        if (EditableLayer != null && editingControl != null)
+        {
+            if (isEditingFeatures)
+            {
+                // Disable editing
+                await EditableLayer.DisableEditingFeatures();
+                isEditingFeatures = false;
+                await editingControl.SetEditing(false);
+            }
+            else
+            {
+                // Enable editing
+                await EditableLayer.EditSelectedFeatures();
+                isEditingFeatures = true;
+                await editingControl.SetEditing(true);
+            }
             await InvokeAsync(StateHasChanged);
         }
     }

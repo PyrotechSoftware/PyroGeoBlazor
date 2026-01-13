@@ -44,6 +44,11 @@ public class EditingControlOptions
     public string LineIcon { get; set; } = DefaultIcons.Line;
 
     /// <summary>
+    /// SVG icon for the edit button.
+    /// </summary>
+    public string EditIcon { get; set; } = DefaultIcons.Edit;
+
+    /// <summary>
     /// SVG icon for the delete button.
     /// </summary>
     public string DeleteIcon { get; set; } = DefaultIcons.Delete;
@@ -67,6 +72,11 @@ public class EditingControlOptions
     /// Tooltip text for the line button.
     /// </summary>
     public string LineTooltip { get; set; } = "Draw new line";
+
+    /// <summary>
+    /// Tooltip text for the edit button.
+    /// </summary>
+    public string EditTooltip { get; set; } = "Edit selected features";
 
     /// <summary>
     /// Tooltip text for the delete button.

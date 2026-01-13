@@ -175,6 +175,20 @@ public class EditableGeoJsonLayer : GeoJsonLayer
     }
 
     /// <summary>
+    /// Disables edit mode for features currently being edited.
+    /// </summary>
+    public async Task<EditableGeoJsonLayer> DisableEditingFeatures()
+    {
+        if (JSObjectReference == null)
+        {
+            throw new InvalidOperationException("JavaScript object reference is not set.");
+        }
+
+        await JSObjectReference.InvokeVoidAsync("disableEditingFeatures");
+        return this;
+    }
+
+    /// <summary>
     /// Deletes the selected features from the layer.
     /// </summary>
     public async Task<EditableGeoJsonLayer> DeleteSelectedFeatures()

@@ -15,9 +15,11 @@ public class EditingControl : Control
     public event EventHandler? OnConfirmClick;
     public event EventHandler? OnCancelClick;
     public event EventHandler? OnDeleteClick;
+    public event EventHandler? OnEditClick;
 
     private bool _isDrawing;
     private int _selectedCount;
+    private bool _isEditing;
 
     /// <summary>
     /// Creates a new editing control with default options.
@@ -53,11 +55,13 @@ public class EditingControl : Control
                 // Pass icon and tooltip options to JavaScript
                 polygonIcon = _controlOptions.PolygonIcon,
                 lineIcon = _controlOptions.LineIcon,
+                editIcon = _controlOptions.EditIcon,
                 deleteIcon = _controlOptions.DeleteIcon,
                 confirmIcon = _controlOptions.ConfirmIcon,
                 cancelIcon = _controlOptions.CancelIcon,
                 polygonTooltip = _controlOptions.PolygonTooltip,
                 lineTooltip = _controlOptions.LineTooltip,
+                editTooltip = _controlOptions.EditTooltip,
                 deleteTooltip = _controlOptions.DeleteTooltip,
                 confirmTooltip = _controlOptions.ConfirmTooltip,
                 cancelTooltip = _controlOptions.CancelTooltip,
@@ -83,6 +87,16 @@ public class EditingControl : Control
         {
             var module = await JSBinder!.GetLeafletMapModule();
             await module.InvokeVoidAsync("LeafletMap.LeafletEditingControl.setSelectedCount", JSObjectReference, count);
+        }
+    }
+
+    public async Task SetEditing(bool isEditing)
+    {
+        _isEditing = isEditing;
+        if (JSObjectReference != null)
+        {
+            var module = await JSBinder!.GetLeafletMapModule();
+            await module.InvokeVoidAsync("LeafletMap.LeafletEditingControl.setEditing", JSObjectReference, isEditing);
         }
     }
 
@@ -123,6 +137,14 @@ public class EditingControl : Control
     {
         Console.WriteLine("C#: OnControlDeleteClick");
         OnDeleteClick?.Invoke(this, System.EventArgs.Empty);
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task OnControlEditClick()
+    {
+        Console.WriteLine("C#: OnControlEditClick");
+        OnEditClick?.Invoke(this, System.EventArgs.Empty);
         return Task.CompletedTask;
     }
 }

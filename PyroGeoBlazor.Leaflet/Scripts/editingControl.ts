@@ -5,11 +5,13 @@ export interface EditingControlOptions {
     dotNetRef?: any;
     polygonIcon?: string;
     lineIcon?: string;
+    editIcon?: string;
     deleteIcon?: string;
     confirmIcon?: string;
     cancelIcon?: string;
     polygonTooltip?: string;
     lineTooltip?: string;
+    editTooltip?: string;
     deleteTooltip?: string;
     confirmTooltip?: string;
     cancelTooltip?: string;
@@ -21,6 +23,7 @@ export class EditingControl extends L.Control {
     private container: HTMLDivElement | null = null;
     private dotNetRef: any;
     private isDrawing: boolean = false;
+    private isEditing: boolean = false;
     private selectedCount: number = 0;
     private controlOptions: EditingControlOptions;
 
@@ -70,8 +73,9 @@ export class EditingControl extends L.Control {
         this.container.innerHTML = '';
 
         // Always show all buttons, but disable based on state
-        this.addButton('btn-polygon', () => this.handlePolygonClick(), this.isDrawing);
-        this.addButton('btn-line', () => this.handleLineClick(), this.isDrawing);
+        this.addButton('btn-polygon', () => this.handlePolygonClick(), this.isDrawing || this.isEditing);
+        this.addButton('btn-line', () => this.handleLineClick(), this.isDrawing || this.isEditing);
+        this.addButton('btn-edit', () => this.handleEditClick(), this.selectedCount === 0 || this.isDrawing);
         this.addButton('btn-delete', () => this.handleDeleteClick(), this.selectedCount === 0);
         this.addButton('btn-confirm', () => this.handleConfirmClick(), !this.isDrawing);
         this.addButton('btn-cancel', () => this.handleCancelClick(), !this.isDrawing);
@@ -86,10 +90,13 @@ export class EditingControl extends L.Control {
         const buttonSize = this.controlOptions.buttonSize || 40;
         const iconSize = this.controlOptions.iconSize || 24;
         
+        // Check if this is the edit button and we're in editing mode
+        const isEditButtonActive = id === 'btn-edit' && this.isEditing;
+        
         // Add inline styles to ensure visibility
         button.style.cssText = `
-            background: white;
-            border: 2px solid rgba(0,0,0,0.2);
+            background: ${isEditButtonActive ? '#4CAF50' : 'white'};
+            border: 2px solid ${isEditButtonActive ? '#4CAF50' : 'rgba(0,0,0,0.2)'};
             border-radius: 4px;
             padding: 8px;
             font-size: 14px;
@@ -102,6 +109,8 @@ export class EditingControl extends L.Control {
             justify-content: center;
             min-width: ${buttonSize}px;
             min-height: ${buttonSize}px;
+            color: ${isEditButtonActive ? 'white' : 'currentColor'};
+            box-shadow: ${isEditButtonActive ? '0 2px 8px rgba(76, 175, 80, 0.4)' : 'none'};
         `;
         
         if (disabled) {
@@ -119,6 +128,9 @@ export class EditingControl extends L.Control {
         } else if (id === 'btn-line') {
             ariaLabel = this.controlOptions.lineTooltip || 'Draw new line';
             svgContent = this.controlOptions.lineIcon || '';
+        } else if (id === 'btn-edit') {
+            ariaLabel = this.controlOptions.editTooltip || 'Edit selected features';
+            svgContent = this.controlOptions.editIcon || '';
         } else if (id === 'btn-delete') {
             ariaLabel = this.controlOptions.deleteTooltip || 'Delete selected features';
             svgContent = this.controlOptions.deleteIcon || '';
@@ -163,6 +175,16 @@ export class EditingControl extends L.Control {
         }
     }
 
+    private async handleEditClick(): Promise<void> {
+        if (this.dotNetRef) {
+            try {
+                await this.dotNetRef.invokeMethodAsync('OnControlEditClick');
+            } catch (error) {
+                console.error('Error calling OnControlEditClick:', error);
+            }
+        }
+    }
+
     private async handleConfirmClick(): Promise<void> {
         if (this.dotNetRef) {
             try {
@@ -203,6 +225,11 @@ export class EditingControl extends L.Control {
         this.selectedCount = count;
         this.render();
     }
+
+    public setEditing(isEditing: boolean): void {
+        this.isEditing = isEditing;
+        this.render();
+    }
 }
 
 // Export for use in interop
@@ -222,6 +249,10 @@ export const LeafletEditingControl = {
 
     setSelectedCount(control: EditingControl, count: number): void {
         control.setSelectedCount(count);
+    },
+
+    setEditing(control: EditingControl, isEditing: boolean): void {
+        control.setEditing(isEditing);
     }
 };
 

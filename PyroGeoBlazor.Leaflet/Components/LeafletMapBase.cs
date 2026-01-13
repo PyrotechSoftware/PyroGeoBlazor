@@ -32,6 +32,16 @@ public class LeafletMapBase : ComponentBase
     /// </summary>
     [Parameter] public List<Control> Controls { get; set; } = [];
 
+    /// <summary>
+    /// Callback invoked when the map has been fully initialized and is ready for use.
+    /// </summary>
+    [Parameter] public EventCallback OnMapReady { get; set; }
+
+    /// <summary>
+    /// Gets a value indicating whether the map has been initialized and is ready for use.
+    /// </summary>
+    public bool MapReady { get; private set; }
+
     /// <inheritdoc/>
     protected async override Task OnAfterRenderAsync(bool firstRender)
     {
@@ -51,6 +61,13 @@ public class LeafletMapBase : ComponentBase
                 {
                     await TileLayer.AddTo(Map);
                     await layersControl.AddBaseLayer(TileLayer, "Base Layer");
+                }
+
+                // Mark map as ready and invoke callback
+                MapReady = true;
+                if (OnMapReady.HasDelegate)
+                {
+                    await OnMapReady.InvokeAsync();
                 }
             }
         }

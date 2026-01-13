@@ -62,7 +62,31 @@
             <div class="card h-100">
                 <div class="card-body">
                     <h5 class="card-title">
-                        <span class="badge bg-success mb-2">Advanced</span>
+                        <span class="badge bg-success mb-2">Editing</span>
+                    </h5>
+                    <h4>Editable GeoJSON</h4>
+                    <p class="card-text">
+                        Draw and edit features directly on the map:
+                    </p>
+                    <ul>
+                        <li>Draw polygons and polylines</li>
+                        <li>Vertex snapping</li>
+                        <li>Edit and delete features</li>
+                        <li>Export to GeoJSON</li>
+                        <li>Real-time drawing feedback</li>
+                    </ul>
+                    <a href="/editable-geojson" class="btn btn-success mt-3">View Editing Demo</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mt-3">
+        <div class="col-md-4 mb-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <span class="badge bg-dark mb-2">Advanced</span>
                     </h5>
                     <h4>Vector Tiles</h4>
                     <p class="card-text">
@@ -75,13 +99,11 @@
                         <li>Multi-segment feature selection</li>
                         <li>Runtime interactivity control</li>
                     </ul>
-                    <a href="/vector-tiles" class="btn btn-success mt-3">View Vector Tiles Demo</a>
+                    <a href="/vector-tiles" class="btn btn-dark mt-3">View Vector Tiles Demo</a>
                 </div>
             </div>
         </div>
-    </div>
 
-    <div class="row mt-3">
         <div class="col-md-4 mb-4">
             <div class="card h-100">
                 <div class="card-body">
@@ -104,7 +126,7 @@
             </div>
         </div>
 
-        <div class="col-md-8 mb-4">
+        <div class="col-md-4 mb-4">
             <div class="card h-100 bg-light">
                 <div class="card-body">
                     <h4>Quick Comparison</h4>
@@ -122,6 +144,12 @@
                                 <td><strong>GeoJSON</strong></td>
                                 <td>Small to medium datasets</td>
                                 <td>&lt; 1MB</td>
+                                <td>No</td>
+                            </tr>
+                            <tr>
+                                <td><strong>Editable</strong></td>
+                                <td>User-created features</td>
+                                <td>Small</td>
                                 <td>No</td>
                             </tr>
                             <tr>

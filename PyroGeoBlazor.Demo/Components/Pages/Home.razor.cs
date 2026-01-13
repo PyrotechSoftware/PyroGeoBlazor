@@ -469,6 +469,7 @@ public partial class Home : ComponentBase, IAsyncDisposable
                         Color = "rgba(255,140,0,1)",
                         Opacity = 1.0
                     },
+                    // HoverStyle uses default (red stroke)
                     AutoRefresh = true,
                     IncrementalRefresh = true,
                     RefreshDebounceMs = 1000
@@ -480,7 +481,7 @@ public partial class Home : ComponentBase, IAsyncDisposable
             {
                 if (args?.Feature?.Properties is not null)
                 {
-                    Console.WriteLine($"WFS Feature clicked: {JsonSerializer.Serialize(args.Feature.Properties)}");
+                    Console.WriteLine($"WFS Feature clicked: JsonSerializer.Serialize(args.Feature.Properties)");
                 }
             };
 
@@ -488,7 +489,7 @@ public partial class Home : ComponentBase, IAsyncDisposable
             {
                 if (args?.Feature?.Properties is not null)
                 {
-                    Console.WriteLine($"WFS Feature selected: {JsonSerializer.Serialize(args.Feature.Properties)}");
+                    Console.WriteLine($"WFS Feature selected: JsonSerializer.Serialize(args.Feature.Properties)");
                     Console.WriteLine($"Total selected: {WfsLayer?.GetSelectedFeaturesCount()}");
                 }
             };

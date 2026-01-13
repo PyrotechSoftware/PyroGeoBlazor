@@ -78,6 +78,21 @@ export const GeoJsonLayer = {
 
         const geoJsonLayer = L.geoJSON(null, leafletOptions); // Always start with null data
 
+        // Default styles (DRY - single source of truth)
+        const DEFAULT_SELECTION_STYLE = {
+            color: '#3388ff',
+            weight: 3,
+            opacity: 1,
+            fillOpacity: 0.5,
+            fillColor: '#3388ff'
+        };
+
+        const DEFAULT_HOVER_STYLE = {
+            color: 'red',
+            weight: 2,
+            opacity: 1.0
+        };
+
         // Store selection state
         // For single selection mode
         let selectedLayer: any = null;
@@ -85,6 +100,9 @@ export const GeoJsonLayer = {
         
         // For multiple selection mode
         const selectedLayers: Map<any, any> = new Map(); // Map of layer -> original style
+
+        // Store hover state
+        const hoveredLayers: Map<any, any> = new Map(); // Map of layer -> original style (for hover)
 
         // Helper function to create a lightweight version of a feature for C# callbacks
         // This strips geometry coordinates from large features to avoid serialization issues
@@ -498,6 +516,10 @@ export const GeoJsonLayer = {
                                 // Unselect this feature
                                 const originalStyle = selectedLayers.get(layer);
                                 if (originalStyle && layer.setStyle) {
+                                    // Clear any hover state first
+                                    if (hoveredLayers.has(layer)) {
+                                        hoveredLayers.delete(layer);
+                                    }
                                     layer.setStyle(originalStyle);
                                 }
                                 selectedLayers.delete(layer);
@@ -511,9 +533,15 @@ export const GeoJsonLayer = {
                                 }
                             } else {
                                 // Select this feature
-                                // Store original style
-                                if (layer.options) {
-                                    const originalStyle = {
+                                // Store original style (get from hover cache if currently hovering, otherwise from layer)
+                                let styleToStore;
+                                if (hoveredLayers.has(layer)) {
+                                    // Use the original style from before hover
+                                    styleToStore = hoveredLayers.get(layer);
+                                    hoveredLayers.delete(layer);
+                                } else if (layer.options) {
+                                    // Capture current style
+                                    styleToStore = {
                                         color: layer.options.color,
                                         weight: layer.options.weight,
                                         opacity: layer.options.opacity,
@@ -521,18 +549,20 @@ export const GeoJsonLayer = {
                                         fillOpacity: layer.options.fillOpacity,
                                         dashArray: layer.options.dashArray
                                     };
-                                    selectedLayers.set(layer, originalStyle);
+                                }
+                                
+                                if (styleToStore) {
+                                    selectedLayers.set(layer, styleToStore);
+                                }
+                                
+                                // Bring layer to front so selection is clearly visible
+                                if (layer.bringToFront) {
+                                    layer.bringToFront();
                                 }
                                 
                                 // Apply selected style (use provided or default)
                                 if (layer.setStyle) {
-                                    const selectionStyle = options?.selectedFeatureStyle || {
-                                        color: '#3388ff',
-                                        weight: 3,
-                                        opacity: 1,
-                                        fillOpacity: 0.5,
-                                        fillColor: '#3388ff'
-                                    };
+                                    const selectionStyle = options?.selectedFeatureStyle || DEFAULT_SELECTION_STYLE;
                                     layer.setStyle(selectionStyle);
                                 }
                                 
@@ -550,6 +580,10 @@ export const GeoJsonLayer = {
                             if (selectedLayer === layer) {
                                 // Unselect
                                 if (originalStyle && layer.setStyle) {
+                                    // Clear any hover state first
+                                    if (hoveredLayers.has(layer)) {
+                                        hoveredLayers.delete(layer);
+                                    }
                                     layer.setStyle(originalStyle);
                                 }
                                 selectedLayer = null;
@@ -571,8 +605,13 @@ export const GeoJsonLayer = {
                                 // Select new feature
                                 selectedLayer = layer;
                                 
-                                // Store original style
-                                if (layer.options) {
+                                // Store original style (get from hover cache if currently hovering, otherwise from layer)
+                                if (hoveredLayers.has(layer)) {
+                                    // Use the original style from before hover
+                                    originalStyle = hoveredLayers.get(layer);
+                                    hoveredLayers.delete(layer);
+                                } else if (layer.options) {
+                                    // Capture current style
                                     originalStyle = {
                                         color: layer.options.color,
                                         weight: layer.options.weight,
@@ -583,15 +622,14 @@ export const GeoJsonLayer = {
                                     };
                                 }
                                 
+                                // Bring layer to front so selection is clearly visible
+                                if (layer.bringToFront) {
+                                    layer.bringToFront();
+                                }
+                                
                                 // Apply selected style (use provided or default)
                                 if (layer.setStyle) {
-                                    const selectionStyle = options?.selectedFeatureStyle || {
-                                        color: '#3388ff',
-                                        weight: 3,
-                                        opacity: 1,
-                                        fillOpacity: 0.5,
-                                        fillColor: '#3388ff'
-                                    };
+                                    const selectionStyle = options?.selectedFeatureStyle || DEFAULT_SELECTION_STYLE;
                                     layer.setStyle(selectionStyle);
                                 }
                                 
@@ -606,6 +644,96 @@ export const GeoJsonLayer = {
                         }
                     } catch (e) {
                         console.error('Error handling feature selection:', e);
+                    }
+                });
+            }
+
+            // Hover styling (controlled by enableHoverStyle flag)
+            // Default to true if not specified
+            if (options?.enableHoverStyle !== false) {
+                console.log('Hover enabled, enableHoverStyle value:', options?.enableHoverStyle);
+                // Use provided hoverStyle or default to red stroke
+                const hoverStyle = options?.hoverStyle || DEFAULT_HOVER_STYLE;
+                
+                geoJsonLayer.on('mouseover', function (ev: any) {
+                    try {
+                        const feature = ev.layer?.feature || ev.propagatedFrom?.feature;
+                        const layer = ev.layer || ev.propagatedFrom;
+                        
+                        if (!feature || !layer || !layer.setStyle) {
+                            return;
+                        }
+
+                        // Bring layer to front so hover stroke is visible
+                        if (layer.bringToFront) {
+                            layer.bringToFront();
+                        }
+
+                        // Store original style if not already hovering
+                        if (!hoveredLayers.has(layer)) {
+                            if (layer.options) {
+                                const originalHoverStyle = {
+                                    color: layer.options.color,
+                                    weight: layer.options.weight,
+                                    opacity: layer.options.opacity,
+                                    fillColor: layer.options.fillColor,
+                                    fillOpacity: layer.options.fillOpacity,
+                                    dashArray: layer.options.dashArray
+                                };
+                                hoveredLayers.set(layer, originalHoverStyle);
+                            }
+                            
+                            // Apply hover style (merge with current style to only override specified properties)
+                            const currentStyle = {
+                                color: layer.options.color,
+                                weight: layer.options.weight,
+                                opacity: layer.options.opacity,
+                                fillColor: layer.options.fillColor,
+                                fillOpacity: layer.options.fillOpacity,
+                                dashArray: layer.options.dashArray
+                            };
+                            
+                            // Merge hover style properties with current style
+                            const mergedStyle = { ...currentStyle, ...hoverStyle };
+                            layer.setStyle(mergedStyle);
+                        }
+                    } catch (e) {
+                        console.error('Error applying hover style:', e);
+                    }
+                });
+
+                geoJsonLayer.on('mouseout', function (ev: any) {
+                    try {
+                        const feature = ev.layer?.feature || ev.propagatedFrom?.feature;
+                        const layer = ev.layer || ev.propagatedFrom;
+                        
+                        if (!feature || !layer || !layer.setStyle) {
+                            return;
+                        }
+
+                        // Restore original style if we were hovering
+                        if (hoveredLayers.has(layer)) {
+                            const originalHoverStyle = hoveredLayers.get(layer);
+                            
+                            // Check if this layer is currently selected
+                            const multipleSelection = options?.multipleFeatureSelection === true;
+                            const isSelected = multipleSelection 
+                                ? selectedLayers.has(layer) 
+                                : selectedLayer === layer;
+                            
+                            if (isSelected) {
+                                // Don't restore original style - reapply selection style instead
+                                const selectionStyle = options?.selectedFeatureStyle || DEFAULT_SELECTION_STYLE;
+                                layer.setStyle(selectionStyle);
+                            } else if (originalHoverStyle) {
+                                // Not selected - restore original style
+                                layer.setStyle(originalHoverStyle);
+                            }
+                            
+                            hoveredLayers.delete(layer);
+                        }
+                    } catch (e) {
+                        console.error('Error restoring hover style:', e);
                     }
                 });
             }
@@ -774,6 +902,14 @@ export const GeoJsonLayer = {
                 }
             });
             selectedLayers.clear();
+
+            // Clear any hover states
+            hoveredLayers.forEach((originalStyle, layer) => {
+                if (originalStyle && layer.setStyle) {
+                    layer.setStyle(originalStyle);
+                }
+            });
+            hoveredLayers.clear();
         };
 
         // If initial data was provided, add it through our custom addData method

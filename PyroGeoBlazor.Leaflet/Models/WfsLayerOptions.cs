@@ -31,3 +31,4 @@ public class WfsLayerOptions : GeoJsonLayerOptions
     /// </summary>
     public bool IncrementalRefresh { get; init; } = true;
 }
+

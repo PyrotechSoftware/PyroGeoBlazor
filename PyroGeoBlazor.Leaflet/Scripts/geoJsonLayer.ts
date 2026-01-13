@@ -499,6 +499,11 @@ export const GeoJsonLayer = {
                             return;
                         }
 
+                        // Don't allow selection/unselection if the layer is currently being edited
+                        if ((layer as any)._editingEnabled) {
+                            return;
+                        }
+
                         // Create lightweight feature for callback
                         const featureToSend = (geoJsonLayer as any).createCallbackFeature(feature, 50000, false);
                         

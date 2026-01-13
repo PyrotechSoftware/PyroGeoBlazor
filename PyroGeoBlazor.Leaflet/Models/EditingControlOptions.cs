@@ -3,13 +3,13 @@ namespace PyroGeoBlazor.Leaflet.Models;
 /// <summary>
 /// Configuration options for the editing control.
 /// </summary>
-public class EditingControlOptions
+public class EditingControlOptions : ControlOptions
 {
     /// <summary>
     /// Gets or sets the position of the editing control on the map.
-    /// Default is "bottom-center".
+    /// Default is "bottomleft".
     /// </summary>
-    public string Position { get; set; } = "bottom-center";
+    public new string Position { get; set; } = "bottomleft";
 
     /// <summary>
     /// Gets or sets additional CSS classes to apply to the control.
@@ -64,6 +64,21 @@ public class EditingControlOptions
     public string CancelIcon { get; set; } = DefaultIcons.Cancel;
 
     /// <summary>
+    /// SVG icon for the add vertex button.
+    /// </summary>
+    public string AddVertexIcon { get; set; } = DefaultIcons.AddVertex;
+
+    /// <summary>
+    /// SVG icon for the remove vertex button.
+    /// </summary>
+    public string RemoveVertexIcon { get; set; } = DefaultIcons.RemoveVertex;
+
+    /// <summary>
+    /// SVG icon for the move vertex button.
+    /// </summary>
+    public string MoveVertexIcon { get; set; } = DefaultIcons.MoveVertex;
+
+    /// <summary>
     /// Tooltip text for the polygon button.
     /// </summary>
     public string PolygonTooltip { get; set; } = "Draw new polygon";
@@ -92,6 +107,21 @@ public class EditingControlOptions
     /// Tooltip text for the cancel button.
     /// </summary>
     public string CancelTooltip { get; set; } = "Cancel drawing";
+
+    /// <summary>
+    /// Tooltip text for the add vertex button.
+    /// </summary>
+    public string AddVertexTooltip { get; set; } = "Add vertex";
+
+    /// <summary>
+    /// Tooltip text for the remove vertex button.
+    /// </summary>
+    public string RemoveVertexTooltip { get; set; } = "Remove vertex";
+
+    /// <summary>
+    /// Tooltip text for the move vertex button.
+    /// </summary>
+    public string MoveVertexTooltip { get; set; } = "Move vertex";
 
     /// <summary>
     /// Button size in pixels (width and height).

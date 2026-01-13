@@ -86,4 +86,46 @@ public static class DefaultIcons
      style=""pointer-events: none;"">
   <path d=""M18 6L6 18M6 6l12 12""/>
 </svg>";
+
+    /// <summary>
+    /// Default add vertex icon (node with plus).
+    /// </summary>
+    public const string AddVertex = @"
+<svg xmlns=""http://www.w3.org/2000/svg"" width=""24"" height=""24""
+     viewBox=""0 0 24 24"" fill=""none"" stroke=""currentColor"" stroke-width=""1.5""
+     stroke-linecap=""round"" stroke-linejoin=""round"" role=""img""
+     style=""pointer-events: none;"">
+  <path d=""M6 12 L18 12"" />
+  <circle cx=""6"" cy=""12"" r=""2"" fill=""currentColor"" />
+  <circle cx=""18"" cy=""12"" r=""2"" fill=""currentColor"" />
+  <circle cx=""12"" cy=""12"" r=""4"" fill=""white"" stroke=""currentColor""/>
+  <path d=""M12 10v4M10 12h4"" />
+</svg>";
+
+    /// <summary>
+    /// Default remove vertex icon (node with minus).
+    /// </summary>
+    public const string RemoveVertex = @"
+<svg xmlns=""http://www.w3.org/2000/svg"" width=""24"" height=""24""
+     viewBox=""0 0 24 24"" fill=""none"" stroke=""currentColor"" stroke-width=""1.5""
+     stroke-linecap=""round"" stroke-linejoin=""round"" role=""img""
+     style=""pointer-events: none;"">
+  <circle cx=""12"" cy=""12"" r=""7"" />
+  <path d=""M8 12h8"" stroke-width=""2"" />
+  <circle cx=""5"" cy=""12"" r=""1.5"" fill=""currentColor"" />
+  <circle cx=""19"" cy=""12"" r=""1.5"" fill=""currentColor"" />
+</svg>";
+
+    /// <summary>
+    /// Default move vertex icon (hand/cursor with arrows).
+    /// </summary>
+    public const string MoveVertex = @"
+<svg xmlns=""http://www.w3.org/2000/svg"" width=""24"" height=""24""
+     viewBox=""0 0 24 24"" fill=""none"" stroke=""currentColor"" stroke-width=""1.5""
+     stroke-linecap=""round"" stroke-linejoin=""round"" role=""img""
+     style=""pointer-events: none;"">
+  <circle cx=""12"" cy=""12"" r=""7"" fill=""white"" />
+  <path d=""M12 8v8M8 12h8"" stroke-width=""2"" />
+  <path d=""M9 9l3-3 3 3M15 15l-3 3-3-3"" />
+</svg>";
 }

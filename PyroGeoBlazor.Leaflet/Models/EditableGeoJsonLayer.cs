@@ -189,6 +189,76 @@ public class EditableGeoJsonLayer : GeoJsonLayer
     }
 
     /// <summary>
+    /// Confirms editing changes and commits them to the features.
+    /// </summary>
+    public async Task<EditableGeoJsonLayer> ConfirmEditing()
+    {
+        if (JSObjectReference == null)
+        {
+            throw new InvalidOperationException("JavaScript object reference is not set.");
+        }
+
+        await JSObjectReference.InvokeVoidAsync("confirmEditing");
+        return this;
+    }
+
+    /// <summary>
+    /// Cancels editing changes and restores the original geometry of features.
+    /// </summary>
+    public async Task<EditableGeoJsonLayer> CancelEditing()
+    {
+        if (JSObjectReference == null)
+        {
+            throw new InvalidOperationException("JavaScript object reference is not set.");
+        }
+
+        await JSObjectReference.InvokeVoidAsync("cancelEditing");
+        return this;
+    }
+
+    /// <summary>
+    /// Enables or disables add vertex mode for editing features.
+    /// </summary>
+    public async Task<EditableGeoJsonLayer> SetAddVertexMode(bool enabled)
+    {
+        if (JSObjectReference == null)
+        {
+            throw new InvalidOperationException("JavaScript object reference is not set.");
+        }
+
+        await JSObjectReference.InvokeVoidAsync("setAddVertexMode", enabled);
+        return this;
+    }
+
+    /// <summary>
+    /// Enables or disables remove vertex mode for editing features.
+    /// </summary>
+    public async Task<EditableGeoJsonLayer> SetRemoveVertexMode(bool enabled)
+    {
+        if (JSObjectReference == null)
+        {
+            throw new InvalidOperationException("JavaScript object reference is not set.");
+        }
+
+        await JSObjectReference.InvokeVoidAsync("setRemoveVertexMode", enabled);
+        return this;
+    }
+
+    /// <summary>
+    /// Enables or disables move vertex mode for editing features.
+    /// </summary>
+    public async Task<EditableGeoJsonLayer> SetMoveVertexMode(bool enabled)
+    {
+        if (JSObjectReference == null)
+        {
+            throw new InvalidOperationException("JavaScript object reference is not set.");
+        }
+
+        await JSObjectReference.InvokeVoidAsync("setMoveVertexMode", enabled);
+        return this;
+    }
+
+    /// <summary>
     /// Deletes the selected features from the layer.
     /// </summary>
     public async Task<EditableGeoJsonLayer> DeleteSelectedFeatures()

@@ -9,12 +9,18 @@ export interface EditingControlOptions {
     deleteIcon?: string;
     confirmIcon?: string;
     cancelIcon?: string;
+    addVertexIcon?: string;
+    removeVertexIcon?: string;
+    moveVertexIcon?: string;
     polygonTooltip?: string;
     lineTooltip?: string;
     editTooltip?: string;
     deleteTooltip?: string;
     confirmTooltip?: string;
     cancelTooltip?: string;
+    addVertexTooltip?: string;
+    removeVertexTooltip?: string;
+    moveVertexTooltip?: string;
     buttonSize?: number;
     iconSize?: number;
 }
@@ -25,6 +31,9 @@ export class EditingControl extends L.Control {
     private isDrawing: boolean = false;
     private isEditing: boolean = false;
     private selectedCount: number = 0;
+    private isAddingVertices: boolean = false;
+    private isRemovingVertices: boolean = false;
+    private isMovingVertices: boolean = false;
     private controlOptions: EditingControlOptions;
 
     constructor(options?: EditingControlOptions) {
@@ -72,16 +81,35 @@ export class EditingControl extends L.Control {
         // Clear existing content
         this.container.innerHTML = '';
 
-        // Always show all buttons, but disable based on state
-        this.addButton('btn-polygon', () => this.handlePolygonClick(), this.isDrawing || this.isEditing);
-        this.addButton('btn-line', () => this.handleLineClick(), this.isDrawing || this.isEditing);
-        this.addButton('btn-edit', () => this.handleEditClick(), this.selectedCount === 0 || this.isDrawing);
-        this.addButton('btn-delete', () => this.handleDeleteClick(), this.selectedCount === 0);
-        this.addButton('btn-confirm', () => this.handleConfirmClick(), !this.isDrawing);
-        this.addButton('btn-cancel', () => this.handleCancelClick(), !this.isDrawing);
+        // Button visibility logic:
+        // - Normal mode: show polygon/line, hide others
+        // - Feature selected: show polygon/line/edit/delete, hide vertex buttons
+        // - Editing mode: show vertex buttons and confirm/cancel, hide others
+        // - Drawing mode: show only confirm/cancel
+        
+        const isInActiveSession = this.isDrawing || this.isEditing;
+        
+        // Basic drawing buttons (always show unless in active session)
+        this.addButton('btn-polygon', () => this.handlePolygonClick(), isInActiveSession);
+        this.addButton('btn-line', () => this.handleLineClick(), isInActiveSession);
+        
+        // Edit and delete buttons (show when feature selected, hide during sessions)
+        this.addButton('btn-edit', () => this.handleEditClick(), this.selectedCount === 0 || isInActiveSession);
+        this.addButton('btn-delete', () => this.handleDeleteClick(), this.selectedCount === 0 || isInActiveSession);
+        
+        // Vertex edit buttons (only show during editing session)
+        if (this.isEditing) {
+            this.addButton('btn-move-vertex', () => this.handleMoveVertexClick(), false, this.isMovingVertices);
+            this.addButton('btn-add-vertex', () => this.handleAddVertexClick(), false, this.isAddingVertices);
+            this.addButton('btn-remove-vertex', () => this.handleRemoveVertexClick(), false, this.isRemovingVertices);
+        }
+        
+        // Confirm and cancel (show during any active session)
+        this.addButton('btn-confirm', () => this.handleConfirmClick(), !isInActiveSession);
+        this.addButton('btn-cancel', () => this.handleCancelClick(), !isInActiveSession);
     }
 
-    private addButton(id: string, onClick: () => void, disabled: boolean = false): void {
+    private addButton(id: string, onClick: () => void, disabled: boolean = false, isActive: boolean = false): void {
         const button = L.DomUtil.create('button', 'leaflet-editing-button', this.container!);
         button.id = id;
         button.type = 'button';
@@ -90,13 +118,13 @@ export class EditingControl extends L.Control {
         const buttonSize = this.controlOptions.buttonSize || 40;
         const iconSize = this.controlOptions.iconSize || 24;
         
-        // Check if this is the edit button and we're in editing mode
-        const isEditButtonActive = id === 'btn-edit' && this.isEditing;
+        // Highlight button if it's active
+        const shouldHighlight = isActive;
         
         // Add inline styles to ensure visibility
         button.style.cssText = `
-            background: ${isEditButtonActive ? '#4CAF50' : 'white'};
-            border: 2px solid ${isEditButtonActive ? '#4CAF50' : 'rgba(0,0,0,0.2)'};
+            background: ${shouldHighlight ? '#4CAF50' : 'white'};
+            border: 2px solid ${shouldHighlight ? '#4CAF50' : 'rgba(0,0,0,0.2)'};
             border-radius: 4px;
             padding: 8px;
             font-size: 14px;
@@ -109,8 +137,8 @@ export class EditingControl extends L.Control {
             justify-content: center;
             min-width: ${buttonSize}px;
             min-height: ${buttonSize}px;
-            color: ${isEditButtonActive ? 'white' : 'currentColor'};
-            box-shadow: ${isEditButtonActive ? '0 2px 8px rgba(76, 175, 80, 0.4)' : 'none'};
+            color: ${shouldHighlight ? 'white' : 'currentColor'};
+            box-shadow: ${shouldHighlight ? '0 2px 8px rgba(76, 175, 80, 0.4)' : 'none'};
         `;
         
         if (disabled) {
@@ -140,6 +168,15 @@ export class EditingControl extends L.Control {
         } else if (id === 'btn-cancel') {
             ariaLabel = this.controlOptions.cancelTooltip || 'Cancel drawing';
             svgContent = this.controlOptions.cancelIcon || '';
+        } else if (id === 'btn-add-vertex') {
+            ariaLabel = this.controlOptions.addVertexTooltip || 'Add vertex';
+            svgContent = this.controlOptions.addVertexIcon || '';
+        } else if (id === 'btn-remove-vertex') {
+            ariaLabel = this.controlOptions.removeVertexTooltip || 'Remove vertex';
+            svgContent = this.controlOptions.removeVertexIcon || '';
+        } else if (id === 'btn-move-vertex') {
+            ariaLabel = this.controlOptions.moveVertexTooltip || 'Move vertex';
+            svgContent = this.controlOptions.moveVertexIcon || '';
         }
 
         // Set button HTML with just the SVG (no text)
@@ -215,6 +252,36 @@ export class EditingControl extends L.Control {
         }
     }
 
+    private async handleAddVertexClick(): Promise<void> {
+        if (this.dotNetRef) {
+            try {
+                await this.dotNetRef.invokeMethodAsync('OnControlAddVertexClick');
+            } catch (error) {
+                console.error('Error calling OnControlAddVertexClick:', error);
+            }
+        }
+    }
+
+    private async handleRemoveVertexClick(): Promise<void> {
+        if (this.dotNetRef) {
+            try {
+                await this.dotNetRef.invokeMethodAsync('OnControlRemoveVertexClick');
+            } catch (error) {
+                console.error('Error calling OnControlRemoveVertexClick:', error);
+            }
+        }
+    }
+
+    private async handleMoveVertexClick(): Promise<void> {
+        if (this.dotNetRef) {
+            try {
+                await this.dotNetRef.invokeMethodAsync('OnControlMoveVertexClick');
+            } catch (error) {
+                console.error('Error calling OnControlMoveVertexClick:', error);
+            }
+        }
+    }
+
     // Public methods to update state from C#
     public setDrawing(isDrawing: boolean): void {
         this.isDrawing = isDrawing;
@@ -228,6 +295,21 @@ export class EditingControl extends L.Control {
 
     public setEditing(isEditing: boolean): void {
         this.isEditing = isEditing;
+        this.render();
+    }
+
+    public setAddingVertices(isAdding: boolean): void {
+        this.isAddingVertices = isAdding;
+        this.render();
+    }
+
+    public setRemovingVertices(isRemoving: boolean): void {
+        this.isRemovingVertices = isRemoving;
+        this.render();
+    }
+
+    public setMovingVertices(isMoving: boolean): void {
+        this.isMovingVertices = isMoving;
         this.render();
     }
 }
@@ -253,6 +335,18 @@ export const LeafletEditingControl = {
 
     setEditing(control: EditingControl, isEditing: boolean): void {
         control.setEditing(isEditing);
+    },
+
+    setAddingVertices(control: EditingControl, isAdding: boolean): void {
+        control.setAddingVertices(isAdding);
+    },
+
+    setRemovingVertices(control: EditingControl, isRemoving: boolean): void {
+        control.setRemovingVertices(isRemoving);
+    },
+
+    setMovingVertices(control: EditingControl, isMoving: boolean): void {
+        control.setMovingVertices(isMoving);
     }
 };
 

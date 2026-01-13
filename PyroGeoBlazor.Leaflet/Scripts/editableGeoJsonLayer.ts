@@ -20,6 +20,9 @@ export const EditableGeoJsonLayer = {
         let tempMarkers: L.CircleMarker[] = [];
         let tempPolyline: L.Polyline | null = null;
         let editableLayers: Map<any, any> = new Map();
+        
+        // Store original geometries for cancel operation
+        let originalGeometries: Map<any, any> = new Map(); // Map of feature -> original coordinates
 
         // Default styles
         const DEFAULT_DRAWING_STYLE = {
@@ -357,10 +360,24 @@ export const EditableGeoJsonLayer = {
                 return;
             }
 
+            // Clear previous edit session state
+            originalGeometries.clear();
+
             // Enable editing on selected features
             selectedFeatures.forEach((feature: any) => {
                 geoJsonLayer.eachLayer((layer: any) => {
                     if (layer.feature === feature && (layer instanceof L.Polygon || layer instanceof L.Polyline)) {
+                        // Store original geometry before editing
+                        const isPolygon = layer instanceof L.Polygon;
+                        const currentLatLngs = layer.getLatLngs();
+                        const coords = isPolygon ? currentLatLngs[0] : currentLatLngs;
+                        
+                        // Deep copy the coordinates
+                        const originalCoords = coords.map((latlng: L.LatLng) => ({ lat: latlng.lat, lng: latlng.lng }));
+                        originalGeometries.set(feature, { coords: originalCoords, isPolygon });
+                        
+                        console.log(`Stored original geometry for feature, ${originalCoords.length} vertices`);
+                        
                         // Enable Leaflet's built-in editing
                         if (!layer.editing) {
                             // If editing is not available, set up manual vertex editing
@@ -388,6 +405,141 @@ export const EditableGeoJsonLayer = {
             editableLayers.clear();
         };
 
+        // Confirm editing - commit changes
+        (geoJsonLayer as any).confirmEditing = function() {
+            console.log('Confirming editing changes');
+            
+            // Disable editing UI
+            editableLayers.forEach((layer: any, feature: any) => {
+                if (layer.editing && layer.editing.enabled()) {
+                    layer.editing.disable();
+                } else {
+                    disableVertexEditing(layer);
+                }
+                
+                // Update feature geometry with new coordinates
+                const isPolygon = layer instanceof L.Polygon;
+                const currentLatLngs = layer.getLatLngs();
+                const coords = isPolygon ? currentLatLngs[0] : currentLatLngs;
+                
+                const newCoords = coords.map((ll: L.LatLng) => [ll.lng, ll.lat]);
+                if (isPolygon) {
+                    newCoords.push(newCoords[0]); // Close polygon
+                    feature.geometry.coordinates = [newCoords];
+                } else {
+                    feature.geometry.coordinates = newCoords;
+                }
+                
+                console.log(`Committed ${newCoords.length} vertices to feature geometry`);
+                
+                // Fire modified event
+                if (handlerMappings?.dotNetRef && handlerMappings.events['featuremodified']) {
+                    handlerMappings.dotNetRef.invokeMethodAsync(
+                        handlerMappings.events['featuremodified'],
+                        { feature, layer: null }
+                    );
+                }
+            });
+            
+            editableLayers.clear();
+            originalGeometries.clear();
+        };
+
+        // Cancel editing - restore original geometry
+        (geoJsonLayer as any).cancelEditing = function() {
+            console.log('Cancelling editing changes');
+            
+            editableLayers.forEach((layer: any, feature: any) => {
+                // Disable editing UI first
+                if (layer.editing && layer.editing.enabled()) {
+                    layer.editing.disable();
+                } else {
+                    disableVertexEditing(layer);
+                }
+                
+                // Restore original geometry
+                const originalGeometry = originalGeometries.get(feature);
+                if (originalGeometry) {
+                    const { coords, isPolygon } = originalGeometry;
+                    const restoredLatLngs = coords.map((c: any) => L.latLng(c.lat, c.lng));
+                    
+                    if (isPolygon) {
+                        layer.setLatLngs([restoredLatLngs]);
+                    } else {
+                        layer.setLatLngs(restoredLatLngs);
+                    }
+                    
+                    // Also restore in feature.geometry
+                    const originalCoords = coords.map((c: any) => [c.lng, c.lat]);
+                    if (isPolygon) {
+                        originalCoords.push(originalCoords[0]); // Close polygon
+                        feature.geometry.coordinates = [originalCoords];
+                    } else {
+                        feature.geometry.coordinates = originalCoords;
+                    }
+                    
+                    console.log(`Restored ${coords.length} vertices to original geometry`);
+                } else {
+                    console.warn('No original geometry found for feature');
+                }
+            });
+            
+            editableLayers.clear();
+            originalGeometries.clear();
+        };
+
+        // Delete selected features
+        (geoJsonLayer as any).deleteSelectedFeatures = function() {
+            const selectedFeatures = (geoJsonLayer as any).SelectedFeatures || [];
+            
+            if (selectedFeatures.length === 0) {
+                console.warn('No features selected for deletion');
+                return;
+            }
+
+            const map = getMap();
+            if (!map) {
+                console.error('Cannot delete features: layer not added to map');
+                return;
+            }
+
+            // Disable editing on any features currently being edited
+            (geoJsonLayer as any).disableEditingFeatures();
+
+            // Delete each selected feature
+            selectedFeatures.forEach((feature: any) => {
+                geoJsonLayer.eachLayer((layer: any) => {
+                    if (layer.feature === feature) {
+                        // Remove from map
+                        geoJsonLayer.removeLayer(layer);
+                        
+                        // Fire deleted event
+                        if (handlerMappings?.dotNetRef && handlerMappings.events['featuredeleted']) {
+                            handlerMappings.dotNetRef.invokeMethodAsync(
+                                handlerMappings.events['featuredeleted'],
+                                { feature, layer: null }
+                            );
+                        }
+                    }
+                });
+            });
+
+            // Clear the SelectedFeatures array using splice to maintain the reference
+            const selectedFeaturesArray = (geoJsonLayer as any).SelectedFeatures;
+            if (selectedFeaturesArray && Array.isArray(selectedFeaturesArray)) {
+                selectedFeaturesArray.splice(0, selectedFeaturesArray.length);
+            }
+            (geoJsonLayer as any).SelectedFeature = null;
+            
+            // Fire unselection event to update UI
+            if (handlerMappings?.dotNetRef && handlerMappings.events['featureunselected']) {
+                handlerMappings.dotNetRef.invokeMethodAsync(
+                    handlerMappings.events['featureunselected'],
+                    { feature: null, layer: null }
+                );
+            }
+        };
+
         // Manual vertex editing implementation
         const enableVertexEditing = (layer: any, feature: any) => {
             if ((layer as any)._editingEnabled) return;
@@ -405,7 +557,7 @@ export const EditableGeoJsonLayer = {
             // Create vertex markers
             const vertexMarkers: L.CircleMarker[] = [];
             
-            const updateAllMarkers = () => {
+            const updateVertexMarkers = () => {
                 // Remove all existing markers
                 vertexMarkers.forEach(marker => {
                     const map = getMap();
@@ -415,11 +567,14 @@ export const EditableGeoJsonLayer = {
                 });
                 vertexMarkers.length = 0;
                 
-                // Recreate markers for current vertices
+                // Recreate vertex markers for current vertices
                 coords.forEach((latlng: L.LatLng, index: number) => {
                     const marker = createEditableVertexMarker(latlng, index);
                     vertexMarkers.push(marker);
                 });
+                
+                // Update stored references on layer
+                (layer as any)._vertexMarkers = vertexMarkers;
             };
             
             const createEditableVertexMarker = (latlng: L.LatLng, index: number) => {
@@ -430,61 +585,21 @@ export const EditableGeoJsonLayer = {
                     weight: 2,
                     opacity: 1,
                     fillOpacity: 1,
-                    draggable: true
+                    draggable: true,
+                    interactive: true,
+                    bubblingMouseEvents: false,
+                    pane: 'markerPane' // Use markerPane which has higher z-index than overlayPane
                 } as any);
                 
                 marker.addTo(map);
                 
-                // Right-click or Ctrl+Click to delete vertex
-                marker.on('click', (e: any) => {
-                    const originalEvent = e.originalEvent;
-                    
-                    // Check if it's Ctrl+Click or right-click (context menu)
-                    if (originalEvent.ctrlKey || originalEvent.button === 2) {
-                        L.DomEvent.stopPropagation(e);
-                        L.DomEvent.preventDefault(e);
-                        
-                        // Check minimum vertices
-                        if (coords.length <= minVertices) {
-                            console.warn(`Cannot delete vertex: ${isPolygon ? 'Polygon' : 'Polyline'} must have at least ${minVertices} vertices`);
-                            return;
-                        }
-                        
-                        // Remove the vertex
-                        coords.splice(index, 1);
-                        
-                        // Update the layer geometry
-                        if (isPolygon) {
-                            layer.setLatLngs([coords]);
-                        } else {
-                            layer.setLatLngs(coords);
-                        }
-                        
-                        // Recreate all markers with updated indices
-                        updateAllMarkers();
-                        
-                        // Fire modified event
-                        if (handlerMappings?.dotNetRef && handlerMappings.events['featuremodified']) {
-                            const newCoords = coords.map((ll: L.LatLng) => [ll.lng, ll.lat]);
-                            if (isPolygon) {
-                                newCoords.push(newCoords[0]);
-                                feature.geometry.coordinates = [newCoords];
-                            } else {
-                                feature.geometry.coordinates = newCoords;
-                            }
-                            
-                            handlerMappings.dotNetRef.invokeMethodAsync(
-                                handlerMappings.events['featuremodified'],
-                                { feature, layer: null }
-                            );
-                        }
-                        
-                        return;
-                    }
-                });
-                
-                // Context menu event (right-click)
-                marker.on('contextmenu', (e: any) => {
+                // Bring marker to front to ensure it's always clickable
+                if (marker.bringToFront) {
+                    marker.bringToFront();
+                }
+
+                // Store click handler reference for remove vertex mode
+                const deleteVertexHandler = (e: any) => {
                     L.DomEvent.stopPropagation(e);
                     L.DomEvent.preventDefault(e);
                     
@@ -505,24 +620,13 @@ export const EditableGeoJsonLayer = {
                     }
                     
                     // Recreate all markers with updated indices
-                    updateAllMarkers();
+                    updateVertexMarkers();
                     
-                    // Fire modified event
-                    if (handlerMappings?.dotNetRef && handlerMappings.events['featuremodified']) {
-                        const newCoords = coords.map((ll: L.LatLng) => [ll.lng, ll.lat]);
-                        if (isPolygon) {
-                            newCoords.push(newCoords[0]);
-                            feature.geometry.coordinates = [newCoords];
-                        } else {
-                            feature.geometry.coordinates = newCoords;
-                        }
-                        
-                        handlerMappings.dotNetRef.invokeMethodAsync(
-                            handlerMappings.events['featuremodified'],
-                            { feature, layer: null }
-                        );
-                    }
-                });
+                    console.log(`Deleted vertex at index ${index}, total vertices: ${coords.length}`);
+                };
+                
+                // Store the handler on the marker for later use
+                (marker as any)._deleteHandler = deleteVertexHandler;
                 
                 // Make marker draggable
                 marker.on('mousedown', (e: any) => {
@@ -553,23 +657,6 @@ export const EditableGeoJsonLayer = {
                         if (map.dragging) {
                             map.dragging.enable();
                         }
-                        
-                        // Fire modified event
-                        if (handlerMappings?.dotNetRef && handlerMappings.events['featuremodified']) {
-                            // Update feature geometry
-                            const newCoords = coords.map((ll: L.LatLng) => [ll.lng, ll.lat]);
-                            if (isPolygon) {
-                                newCoords.push(newCoords[0]); // Close polygon
-                                feature.geometry.coordinates = [newCoords];
-                            } else {
-                                feature.geometry.coordinates = newCoords;
-                            }
-                            
-                            handlerMappings.dotNetRef.invokeMethodAsync(
-                                handlerMappings.events['featuremodified'],
-                                { feature, layer: null }
-                            );
-                        }
                     };
                     
                     map.on('mousemove', onMouseMove);
@@ -580,14 +667,15 @@ export const EditableGeoJsonLayer = {
             };
             
             // Initial marker creation
-            coords.forEach((latlng: L.LatLng, index: number) => {
-                const marker = createEditableVertexMarker(latlng, index);
-                vertexMarkers.push(marker);
-            });
+            updateVertexMarkers();
             
-            // Store markers on layer for cleanup
+            // Store markers and data on layer for cleanup
             (layer as any)._vertexMarkers = vertexMarkers;
             (layer as any)._editingEnabled = true;
+            (layer as any)._updateVertexMarkers = updateVertexMarkers;
+            (layer as any)._coords = coords;
+            (layer as any)._isPolygon = isPolygon;
+            (layer as any)._minVertices = minVertices;
             
             // Apply editing style
             layer.setStyle(editingStyle);
@@ -598,14 +686,26 @@ export const EditableGeoJsonLayer = {
             if (!(layer as any)._editingEnabled) return;
             
             const map = getMap();
+            
+            // Remove vertex markers
             if (map && (layer as any)._vertexMarkers) {
                 (layer as any)._vertexMarkers.forEach((marker: L.CircleMarker) => {
                     map.removeLayer(marker);
                 });
             }
             
+            // Remove click handler from layer if in add vertex mode
+            if ((layer as any)._addVertexClickHandler) {
+                layer.off('click', (layer as any)._addVertexClickHandler);
+                delete (layer as any)._addVertexClickHandler;
+            }
+            
             delete (layer as any)._vertexMarkers;
             delete (layer as any)._editingEnabled;
+            delete (layer as any)._updateVertexMarkers;
+            delete (layer as any)._coords;
+            delete (layer as any)._isPolygon;
+            delete (layer as any)._minVertices;
             
             // Restore original style
             if ((layer as any).feature) {
@@ -620,6 +720,158 @@ export const EditableGeoJsonLayer = {
                 }
             }
         };
+        
+        // Set add vertex mode
+        (geoJsonLayer as any).setAddVertexMode = function(enabled: boolean) {
+            console.log(`Add vertex mode: ${enabled}`);
+            
+            editableLayers.forEach((layer: any, feature: any) => {
+                if (!layer._editingEnabled) return;
+                
+                if (enabled) {
+                    // Enable click-to-add-vertex on the layer itself
+                    const addVertexClickHandler = (e: L.LeafletMouseEvent) => {
+                        L.DomEvent.stopPropagation(e);
+                        
+                        const coords = layer._coords;
+                        const isPolygon = layer._isPolygon;
+                        
+                        if (!coords) return;
+                        
+                        // Find the closest edge to insert the new vertex
+                        const clickPoint = e.latlng;
+                        let minDist = Infinity;
+                        let insertIndex = 0;
+                        
+                        for (let i = 0; i < coords.length; i++) {
+                            const nextIndex = (i + 1) % coords.length;
+                            
+                            // For polylines, skip the wrap-around edge
+                            if (!isPolygon && nextIndex === 0) continue;
+                            
+                            const p1 = coords[i];
+                            const p2 = coords[nextIndex];
+                            
+                            // Calculate distance from click point to this edge
+                            const dist = getDistanceToSegment(clickPoint, p1, p2);
+                            
+                            if (dist < minDist) {
+                                minDist = dist;
+                                insertIndex = nextIndex;
+                            }
+                        }
+                        
+                        // Insert the new vertex
+                        coords.splice(insertIndex, 0, clickPoint);
+                        
+                        // Update the layer geometry
+                        if (isPolygon) {
+                            layer.setLatLngs([coords]);
+                        } else {
+                            layer.setLatLngs(coords);
+                        }
+                        
+                        // Update vertex markers
+                        if (layer._updateVertexMarkers) {
+                            layer._updateVertexMarkers();
+                        }
+                        
+                        console.log(`Added vertex at index ${insertIndex}, total vertices: ${coords.length}`);
+                    };
+                    
+                    layer.on('click', addVertexClickHandler);
+                    layer._addVertexClickHandler = addVertexClickHandler;
+                } else {
+                    // Disable click-to-add-vertex
+                    if (layer._addVertexClickHandler) {
+                        layer.off('click', layer._addVertexClickHandler);
+                        delete layer._addVertexClickHandler;
+                    }
+                }
+            });
+        };
+        
+        // Set remove vertex mode
+        (geoJsonLayer as any).setRemoveVertexMode = function(enabled: boolean) {
+            console.log(`Remove vertex mode: ${enabled}`);
+            
+            editableLayers.forEach((layer: any, feature: any) => {
+                if (!layer._editingEnabled || !layer._vertexMarkers) return;
+                
+                layer._vertexMarkers.forEach((marker: any) => {
+                    if (enabled) {
+                        // Enable click-to-delete on vertex markers
+                        if (marker._deleteHandler) {
+                            marker.on('click', marker._deleteHandler);
+                        }
+                    } else {
+                        // Disable click-to-delete
+                        if (marker._deleteHandler) {
+                            marker.off('click', marker._deleteHandler);
+                        }
+                    }
+                });
+            });
+        };
+        
+        // Set move vertex mode
+        (geoJsonLayer as any).setMoveVertexMode = function(enabled: boolean) {
+            console.log(`Move vertex mode: ${enabled}`);
+            
+            // Move mode is the default - vertices are always draggable
+            // When enabling move mode, just ensure Add and Remove modes are disabled
+            if (enabled) {
+                (geoJsonLayer as any).setAddVertexMode(false);
+                (geoJsonLayer as any).setRemoveVertexMode(false);
+            }
+            // When disabling move mode, we don't need to do anything special
+            // The vertex markers remain draggable by default
+        };
+        
+        // Helper function to calculate distance from point to line segment
+        function getDistanceToSegment(point: L.LatLng, p1: L.LatLng, p2: L.LatLng): number {
+            const map = getMap();
+            if (!map) return Infinity;
+            
+            const pt = map.latLngToContainerPoint(point);
+            const pt1 = map.latLngToContainerPoint(p1);
+            const pt2 = map.latLngToContainerPoint(p2);
+            
+            const x = pt.x, y = pt.y;
+            const x1 = pt1.x, y1 = pt1.y;
+            const x2 = pt2.x, y2 = pt2.y;
+            
+            const A = x - x1;
+            const B = y - y1;
+            const C = x2 - x1;
+            const D = y2 - y1;
+            
+            const dot = A * C + B * D;
+            const lenSq = C * C + D * D;
+            let param = -1;
+            
+            if (lenSq !== 0) {
+                param = dot / lenSq;
+            }
+            
+            let xx, yy;
+            
+            if (param < 0) {
+                xx = x1;
+                yy = y1;
+            } else if (param > 1) {
+                xx = x2;
+                yy = y2;
+            } else {
+                xx = x1 + param * C;
+                yy = y1 + param * D;
+            }
+            
+            const dx = x - xx;
+            const dy = y - yy;
+            
+            return Math.sqrt(dx * dx + dy * dy);
+        }
         
         return geoJsonLayer;
     }

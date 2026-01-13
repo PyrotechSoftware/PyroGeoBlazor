@@ -20,6 +20,9 @@ public partial class EditableGeoJson : ComponentBase, IAsyncDisposable
     private PyroGeoBlazor.Leaflet.Models.EditingControl? editingControl;
     private bool isDrawing = false;
     private bool isEditingFeatures = false;
+    private bool isAddingVertices = false;
+    private bool isRemovingVertices = false;
+    private bool isMovingVertices = false;
     private int selectedCount = 0;
 
     public EditableGeoJson()
@@ -82,22 +85,6 @@ public partial class EditableGeoJson : ComponentBase, IAsyncDisposable
             await SatelliteTileLayer.AddTo(PositionMap);
             await LayersControl.AddBaseLayer(OpenStreetMapsTileLayer, "Street Map");
             await LayersControl.AddBaseLayer(SatelliteTileLayer, "Satellite");
-            
-            // Add map click handler to clear selection when clicking empty space
-            PositionMap.OnClick += async (sender, args) =>
-            {
-                // Clear selection when clicking on the map (not on a feature)
-                if (EditableLayer != null && selectedCount > 0)
-                {
-                    await EditableLayer.ClearSelection();
-                    selectedCount = 0;
-                    if (editingControl != null)
-                    {
-                        await editingControl.SetSelectedCount(0);
-                    }
-                    await InvokeAsync(StateHasChanged);
-                }
-            };
         }
         
         await AddEditableLayer();
@@ -116,7 +103,7 @@ public partial class EditableGeoJson : ComponentBase, IAsyncDisposable
             var options = new EditableGeoJsonLayerOptions
             {
                 EnableFeatureSelection = true,
-                MultipleFeatureSelection = true,
+                MultipleFeatureSelection = false, // Changed to false for single-select mode
                 EnableHoverStyle = true,
                 DrawingStyle = new PathOptions
                 {
@@ -158,9 +145,10 @@ public partial class EditableGeoJson : ComponentBase, IAsyncDisposable
             // Subscribe to events
             EditableLayer.OnFeatureSelected += async (sender, args) =>
             {
-                if (EditableLayer != null)
+                if (sender is EditableGeoJsonLayer layer)
                 {
-                    selectedCount = EditableLayer.GetSelectedFeaturesCount();
+                    selectedCount = layer.GetSelectedFeaturesCount();
+                    Console.WriteLine($"Feature SELECTED - Count: {selectedCount}");
                     if (editingControl != null)
                     {
                         await editingControl.SetSelectedCount(selectedCount);
@@ -171,11 +159,26 @@ public partial class EditableGeoJson : ComponentBase, IAsyncDisposable
 
             EditableLayer.OnFeatureUnselected += async (sender, args) =>
             {
-                if (EditableLayer != null)
+                if (sender is EditableGeoJsonLayer layer)
                 {
-                    selectedCount = EditableLayer.GetSelectedFeaturesCount();
+                    selectedCount = layer.GetSelectedFeaturesCount();
+                    Console.WriteLine($"Feature UNSELECTED - Count: {selectedCount}");
+                    
+                    // If no features are selected and we're in editing mode, disable it
+                    if (selectedCount == 0 && isEditingFeatures)
+                    {
+                        Console.WriteLine("Disabling editing mode because no features selected");
+                        await layer.DisableEditingFeatures();
+                        isEditingFeatures = false;
+                        if (editingControl != null)
+                        {
+                            await editingControl.SetEditing(false);
+                        }
+                    }
+                    
                     if (editingControl != null)
                     {
+                        Console.WriteLine($"Setting control selected count to: {selectedCount}");
                         await editingControl.SetSelectedCount(selectedCount);
                     }
                     await InvokeAsync(StateHasChanged);
@@ -218,7 +221,10 @@ public partial class EditableGeoJson : ComponentBase, IAsyncDisposable
             {
                 try
                 {
-                    editingControl = new PyroGeoBlazor.Leaflet.Models.EditingControl("bottomleft");
+                    // Wait a bit to ensure map is fully initialized
+                    await Task.Delay(100);
+                    
+                    editingControl = new PyroGeoBlazor.Leaflet.Models.EditingControl();
                     
                     editingControl.OnPolygonClick += async (s, e) => await DrawPolygon();
                     editingControl.OnLineClick += async (s, e) => await DrawLine();
@@ -226,12 +232,16 @@ public partial class EditableGeoJson : ComponentBase, IAsyncDisposable
                     editingControl.OnConfirmClick += async (s, e) => await ConfirmDrawing();
                     editingControl.OnCancelClick += async (s, e) => await CancelDrawing();
                     editingControl.OnDeleteClick += async (s, e) => await DeleteSelected();
+                    editingControl.OnAddVertexClick += async (s, e) => await ToggleAddVertex();
+                    editingControl.OnRemoveVertexClick += async (s, e) => await ToggleRemoveVertex();
+                    editingControl.OnMoveVertexClick += async (s, e) => await ToggleMoveVertex();
                     
                     await PositionMap.AddControl(editingControl);
                 }
                 catch (Exception ex)
                 {
                     Console.WriteLine($"ERROR creating control: {ex.Message}");
+                    Console.WriteLine($"Stack trace: {ex.StackTrace}");
                 }
             }
             
@@ -261,13 +271,57 @@ public partial class EditableGeoJson : ComponentBase, IAsyncDisposable
         }
     }
 
+    private async Task EditSelected()
+    {
+        if (EditableLayer != null && editingControl != null)
+        {
+            if (!isEditingFeatures && selectedCount > 0)
+            {
+                // Start editing mode
+                await EditableLayer.EditSelectedFeatures();
+                isEditingFeatures = true;
+                
+                // Set move vertex as the default active mode
+                isMovingVertices = true;
+                
+                await editingControl.SetEditing(true);
+                await editingControl.SetMovingVertices(true);
+                
+                Console.WriteLine("Started editing selected features");
+            }
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
     private async Task ConfirmDrawing()
     {
         if (EditableLayer != null && editingControl != null)
         {
-            await EditableLayer.ConfirmDrawing();
-            isDrawing = false;
-            await editingControl.SetDrawing(false);
+            if (isDrawing)
+            {
+                // Confirm a drawing operation
+                await EditableLayer.ConfirmDrawing();
+                isDrawing = false;
+                await editingControl.SetDrawing(false);
+            }
+            else if (isEditingFeatures)
+            {
+                // Confirm editing changes
+                await EditableLayer.ConfirmEditing();
+                isEditingFeatures = false;
+                
+                // Clear all vertex editing modes
+                isMovingVertices = false;
+                isAddingVertices = false;
+                isRemovingVertices = false;
+                
+                await editingControl.SetEditing(false);
+                await editingControl.SetMovingVertices(false);
+                await editingControl.SetAddingVertices(false);
+                await editingControl.SetRemovingVertices(false);
+                
+                Console.WriteLine("Confirmed editing changes");
+            }
             await InvokeAsync(StateHasChanged);
         }
     }
@@ -276,30 +330,30 @@ public partial class EditableGeoJson : ComponentBase, IAsyncDisposable
     {
         if (EditableLayer != null && editingControl != null)
         {
-            await EditableLayer.CancelDrawing();
-            isDrawing = false;
-            await editingControl.SetDrawing(false);
-            await InvokeAsync(StateHasChanged);
-        }
-    }
-
-    private async Task EditSelected()
-    {
-        if (EditableLayer != null && editingControl != null)
-        {
-            if (isEditingFeatures)
+            if (isDrawing)
             {
-                // Disable editing
-                await EditableLayer.DisableEditingFeatures();
-                isEditingFeatures = false;
-                await editingControl.SetEditing(false);
+                // Cancel a drawing operation
+                await EditableLayer.CancelDrawing();
+                isDrawing = false;
+                await editingControl.SetDrawing(false);
             }
-            else
+            else if (isEditingFeatures)
             {
-                // Enable editing
-                await EditableLayer.EditSelectedFeatures();
-                isEditingFeatures = true;
-                await editingControl.SetEditing(true);
+                // Cancel editing changes and restore original geometry
+                await EditableLayer.CancelEditing();
+                isEditingFeatures = false;
+                
+                // Clear all vertex editing modes
+                isMovingVertices = false;
+                isAddingVertices = false;
+                isRemovingVertices = false;
+                
+                await editingControl.SetEditing(false);
+                await editingControl.SetMovingVertices(false);
+                await editingControl.SetAddingVertices(false);
+                await editingControl.SetRemovingVertices(false);
+                
+                Console.WriteLine("Cancelled editing changes");
             }
             await InvokeAsync(StateHasChanged);
         }
@@ -310,6 +364,96 @@ public partial class EditableGeoJson : ComponentBase, IAsyncDisposable
         if (EditableLayer != null && editingControl != null)
         {
             await EditableLayer.DeleteSelectedFeatures();
+            // Update the selected count after deletion (should be 0)
+            selectedCount = EditableLayer.GetSelectedFeaturesCount();
+            if (editingControl != null)
+            {
+                await editingControl.SetSelectedCount(selectedCount);
+            }
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ToggleAddVertex()
+    {
+        if (EditableLayer != null && editingControl != null && isEditingFeatures)
+        {
+            isAddingVertices = !isAddingVertices;
+            
+            // If enabling add mode, disable other modes
+            if (isAddingVertices)
+            {
+                if (isRemovingVertices)
+                {
+                    isRemovingVertices = false;
+                    await editingControl.SetRemovingVertices(false);
+                }
+                if (isMovingVertices)
+                {
+                    isMovingVertices = false;
+                    await editingControl.SetMovingVertices(false);
+                }
+            }
+            
+            await EditableLayer.SetAddVertexMode(isAddingVertices);
+            await editingControl.SetAddingVertices(isAddingVertices);
+            Console.WriteLine($"Add vertex mode: {isAddingVertices}");
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ToggleRemoveVertex()
+    {
+        if (EditableLayer != null && editingControl != null && isEditingFeatures)
+        {
+            isRemovingVertices = !isRemovingVertices;
+            
+            // If enabling remove mode, disable other modes
+            if (isRemovingVertices)
+            {
+                if (isAddingVertices)
+                {
+                    isAddingVertices = false;
+                    await editingControl.SetAddingVertices(false);
+                }
+                if (isMovingVertices)
+                {
+                    isMovingVertices = false;
+                    await editingControl.SetMovingVertices(false);
+                }
+            }
+            
+            await EditableLayer.SetRemoveVertexMode(isRemovingVertices);
+            await editingControl.SetRemovingVertices(isRemovingVertices);
+            Console.WriteLine($"Remove vertex mode: {isRemovingVertices}");
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ToggleMoveVertex()
+    {
+        if (EditableLayer != null && editingControl != null && isEditingFeatures)
+        {
+            isMovingVertices = !isMovingVertices;
+            
+            // If enabling move mode, disable other modes
+            if (isMovingVertices)
+            {
+                if (isAddingVertices)
+                {
+                    isAddingVertices = false;
+                    await editingControl.SetAddingVertices(false);
+                }
+                if (isRemovingVertices)
+                {
+                    isRemovingVertices = false;
+                    await editingControl.SetRemovingVertices(false);
+                }
+            }
+            
+            await EditableLayer.SetMoveVertexMode(isMovingVertices);
+            await editingControl.SetMovingVertices(isMovingVertices);
+            Console.WriteLine($"Move vertex mode: {isMovingVertices}");
             await InvokeAsync(StateHasChanged);
         }
     }

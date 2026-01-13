@@ -11,10 +11,31 @@ public class EditableGeoJsonLayer : GeoJsonLayer
     protected new readonly DomEventHandlerMapping<EditableGeoJsonLayer>? EventHandlerMapping;
     protected new EditableGeoJsonLayerOptions? Options { get; }
 
+    private readonly Dictionary<object, GeoJsonFeature> _modifiedFeatures = new();
+    private readonly Dictionary<object, GeoJsonFeature> _deletedFeatures = new();
+
     /// <summary>
     /// Gets a value indicating whether the layer is currently in edit mode.
     /// </summary>
     public bool IsEditing { get; private set; }
+
+    /// <summary>
+    /// Gets a read-only collection of modified features.
+    /// This includes both newly created features and features that have been edited.
+    /// The key is the feature ID and the value is the modified feature.
+    /// </summary>
+    public IReadOnlyDictionary<object, GeoJsonFeature> ModifiedFeatures => _modifiedFeatures;
+
+    /// <summary>
+    /// Gets a read-only collection of deleted features.
+    /// The key is the feature ID and the value is the deleted feature.
+    /// </summary>
+    public IReadOnlyDictionary<object, GeoJsonFeature> DeletedFeatures => _deletedFeatures;
+
+    /// <summary>
+    /// Gets a value indicating whether there are any unsaved changes (modified or deleted features).
+    /// </summary>
+    public bool HasUnsavedChanges => _modifiedFeatures.Count > 0 || _deletedFeatures.Count > 0;
 
     /// <summary>
     /// Fired when a new feature (polygon or polyline) is created.
@@ -291,6 +312,47 @@ public class EditableGeoJsonLayer : GeoJsonLayer
         return await JSObjectReference.InvokeAsync<object>("toGeoJSON");
     }
 
+    /// <summary>
+    /// Clears all tracked changes (modified and deleted features).
+    /// Call this after successfully saving changes to the backend.
+    /// </summary>
+    public void ClearTrackedChanges()
+    {
+        _modifiedFeatures.Clear();
+        _deletedFeatures.Clear();
+    }
+
+    /// <summary>
+    /// Clears only the tracked modified features.
+    /// </summary>
+    public void ClearModifiedFeatures()
+    {
+        _modifiedFeatures.Clear();
+    }
+
+    /// <summary>
+    /// Clears only the tracked deleted features.
+    /// </summary>
+    public void ClearDeletedFeatures()
+    {
+        _deletedFeatures.Clear();
+    }
+
+    /// <summary>
+    /// Gets a summary of all changes for saving to a backend.
+    /// </summary>
+    /// <returns>A dictionary containing modified and deleted feature collections.</returns>
+    public ChangesSummary GetChangesSummary()
+    {
+        return new ChangesSummary
+        {
+            ModifiedFeatures = _modifiedFeatures.Values.ToList(),
+            DeletedFeatures = _deletedFeatures.Values.ToList(),
+            ModifiedCount = _modifiedFeatures.Count,
+            DeletedCount = _deletedFeatures.Count
+        };
+    }
+
     #endregion
 
     #region Events
@@ -298,6 +360,12 @@ public class EditableGeoJsonLayer : GeoJsonLayer
     [JSInvokable]
     public async Task FeatureCreatedAsync(GeoJsonFeatureEventArgs? args)
     {
+        if (args?.Feature != null && args.Feature.Id != null)
+        {
+            // Track created features as modified since they need to be saved
+            _modifiedFeatures[args.Feature.Id] = args.Feature;
+        }
+        
         OnFeatureCreated?.Invoke(this, args ?? new GeoJsonFeatureEventArgs());
         await Task.CompletedTask;
     }
@@ -305,6 +373,12 @@ public class EditableGeoJsonLayer : GeoJsonLayer
     [JSInvokable]
     public async Task FeatureModifiedAsync(GeoJsonFeatureEventArgs? args)
     {
+        if (args?.Feature != null && args.Feature.Id != null)
+        {
+            // Track the modified feature
+            _modifiedFeatures[args.Feature.Id] = args.Feature;
+        }
+        
         OnFeatureModified?.Invoke(this, args ?? new GeoJsonFeatureEventArgs());
         await Task.CompletedTask;
     }
@@ -321,6 +395,15 @@ public class EditableGeoJsonLayer : GeoJsonLayer
     [JSInvokable]
     public async Task FeatureDeletedAsync(GeoJsonFeatureEventArgs? args)
     {
+        if (args?.Feature != null && args.Feature.Id != null)
+        {
+            // Track the deleted feature
+            _deletedFeatures[args.Feature.Id] = args.Feature;
+            
+            // Remove from modified features if it was there
+            _modifiedFeatures.Remove(args.Feature.Id);
+        }
+        
         OnFeatureDeleted?.Invoke(this, args ?? new GeoJsonFeatureEventArgs());
         await Task.CompletedTask;
     }

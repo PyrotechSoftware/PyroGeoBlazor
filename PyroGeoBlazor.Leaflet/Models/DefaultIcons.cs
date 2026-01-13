@@ -1,7 +1,7 @@
 namespace PyroGeoBlazor.Leaflet.Models;
 
 /// <summary>
-/// Provides default SVG icons for the editing control buttons.
+/// Provides default SVG icons for the editing control buttons and cursors.
 /// </summary>
 public static class DefaultIcons
 {
@@ -128,4 +128,26 @@ public static class DefaultIcons
   <path d=""M12 8v8M8 12h8"" stroke-width=""2"" />
   <path d=""M9 9l3-3 3 3M15 15l-3 3-3-3"" />
 </svg>";
+
+    /// <summary>
+    /// Default cursor for adding vertices (pointer with + badge).
+    /// </summary>
+    public const string AddCursor = """
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <path d="M2 2 L2 18 L8 14 L12 22 L15 21 L11 13 L18 12 Z" fill="black" stroke="white" stroke-width="1"/>
+  <circle cx="24" cy="8" r="6" fill="white" stroke="black" stroke-width="1.5"/>
+  <path d="M24 5v6M21 8h6" stroke="black" stroke-width="2" stroke-linecap="round"/>
+</svg>
+""";
+
+    /// <summary>
+    /// Default cursor for removing vertices (pointer with - badge).
+    /// </summary>
+    public const string RemoveCursor = """
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32">
+  <path d="M2 2 L2 18 L8 14 L12 22 L15 21 L11 13 L18 12 Z" fill="black" stroke="white" stroke-width="1"/>
+  <circle cx="24" cy="8" r="6" fill="white" stroke="black" stroke-width="1.5"/>
+  <path d="M21 8h6" stroke="black" stroke-width="2" stroke-linecap="round"/>
+</svg>
+""";
 }

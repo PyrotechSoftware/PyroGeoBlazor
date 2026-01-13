@@ -64,4 +64,16 @@ public class EditableGeoJsonLayerOptions : GeoJsonLayerOptions
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public int MinLinePoints { get; set; } = 2;
+
+    /// <summary>
+    /// SVG cursor for adding vertices (pointer with + badge).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? AddCursor { get; set; } = DefaultIcons.AddCursor;
+
+    /// <summary>
+    /// SVG cursor for removing vertices (pointer with - badge).
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? RemoveCursor { get; set; } = DefaultIcons.RemoveCursor;
 }

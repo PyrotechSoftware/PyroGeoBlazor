@@ -79,6 +79,16 @@ public class EditingControlOptions : ControlOptions
     public string MoveVertexIcon { get; set; } = DefaultIcons.MoveVertex;
 
     /// <summary>
+    /// SVG cursor for adding vertices (pointer with + badge).
+    /// </summary>
+    public string AddCursor { get; set; } = DefaultIcons.AddCursor;
+
+    /// <summary>
+    /// SVG cursor for removing vertices (pointer with - badge).
+    /// </summary>
+    public string RemoveCursor { get; set; } = DefaultIcons.RemoveCursor;
+
+    /// <summary>
     /// Tooltip text for the polygon button.
     /// </summary>
     public string PolygonTooltip { get; set; } = "Draw new polygon";

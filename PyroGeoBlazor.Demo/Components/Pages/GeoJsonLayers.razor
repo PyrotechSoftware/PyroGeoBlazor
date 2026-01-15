@@ -5,109 +5,117 @@
 
 <PageTitle>GeoJSON Layers - PyroGeoBlazor Demo</PageTitle>
 
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <h2 class="mb-3">GeoJSON Layers</h2>
-            <p class="text-muted">Work with GeoJSON data including features, styling, filtering, and callbacks</p>
-        </div>
+<div style="display: flex; flex-direction: column; height: 100%; overflow: hidden;">
+    <div style="flex: 0 0 auto; overflow-y: auto;">
+        <MudContainer MaxWidth="MaxWidth.False" Class="pa-4 pb-0">
+            <MudText Typo="Typo.h4" Class="mb-2">GeoJSON Layers</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">Work with GeoJSON data including features, styling, filtering, and callbacks</MudText>
+
+            <MudGrid>
+                <MudItem xs="12" sm="4">
+                    <MudCard>
+                        <MudCardHeader>
+                            <MudText Typo="Typo.h6">Data Features</MudText>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudList Dense="true" T="string">
+                                <MudListItem>Load GeoJSON data</MudListItem>
+                                <MudListItem>Custom styling per feature</MudListItem>
+                                <MudListItem>Feature filtering</MudListItem>
+                                <MudListItem>Point to layer callback</MudListItem>
+                            </MudList>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+
+                <MudItem xs="12" sm="4">
+                    <MudCard>
+                        <MudCardHeader>
+                            <MudText Typo="Typo.h6">Interaction Features</MudText>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudList Dense="true" T="string">
+                                <MudListItem>Hover effects</MudListItem>
+                                <MudListItem>Feature selection</MudListItem>
+                                <MudListItem>Multi-select mode</MudListItem>
+                                <MudListItem>OnEachFeature callback</MudListItem>
+                            </MudList>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+
+                <MudItem xs="12" sm="4">
+                    <MudCard>
+                        <MudCardHeader>
+                            <MudText Typo="Typo.h6">Callbacks</MudText>
+                        </MudCardHeader>
+                        <MudCardContent>
+                            <MudText Typo="Typo.body2">
+                                <strong>Style:</strong> Custom per feature<br/>
+                                <strong>Filter:</strong> Include all<br/>
+                                <strong>OnEachFeature:</strong> Enabled<br/>
+                                <strong>PointToLayer:</strong> Custom markers<br/>
+                                <strong>CoordsToLatLng:</strong> Standard
+                            </MudText>
+                        </MudCardContent>
+                    </MudCard>
+                </MudItem>
+            </MudGrid>
+        </MudContainer>
     </div>
 
-    <div class="row">
-        <div class="col-md-9">
-            <LeafletMap Height="600" Map="PositionMap" TileLayer="OpenStreetMapsTileLayer" Controls="MapControls" />
-        </div>
-        
-        <div class="col-md-3">
-            <div class="card">
-                <div class="card-header bg-warning text-dark">
-                    <h5 class="mb-0">GeoJSON Controls</h5>
-                </div>
-                <div class="card-body">
-                    <h6>Load Data</h6>
-                    <div class="d-grid gap-2 mb-3">
-                        <button class="btn btn-sm btn-outline-warning" @onclick="AddGeoJsonLayer" disabled="@geoJsonLayerAdded">
-                            <i class="bi bi-file-earmark-code"></i> Load GeoJSON
-                        </button>
-                    </div>
+    <div style="flex: 1 1 auto; display: flex; flex-direction: row; min-height: 0; overflow: hidden;">
+        <div style="flex: 0 0 30%; overflow-y: auto; overflow-x: hidden;">
+            <MudContainer MaxWidth="MaxWidth.False" Class="pa-4">
+                <MudCard>
+                    <MudCardHeader>
+                        <MudText Typo="Typo.h6">Controls</MudText>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small" FullWidth="true"
+                                   StartIcon="@Icons.Material.Filled.Code"
+                                   OnClick="AddGeoJsonLayer"
+                                   Disabled="@geoJsonLayerAdded">
+                            Load GeoJSON
+                        </MudButton>
 
-                    @if (geoJsonLayerAdded)
-                    {
-                        <h6>Selection Mode</h6>
-                        <div class="mb-3">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="selectionSwitch" checked="@selectionEnabled" @onchange="ToggleSelection">
-                                <label class="form-check-label" for="selectionSwitch">
-                                    Selection (@(selectionEnabled ? "On" : "Off"))
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="multiSelectSwitch" checked="@multiSelectEnabled" disabled="@(!selectionEnabled)" @onchange="ToggleMultiSelect">
-                                <label class="form-check-label" for="multiSelectSwitch">
-                                    Multi-Select (@(multiSelectEnabled ? "On" : "Off"))
-                                </label>
-                            </div>
-                        </div>
-
-                        <h6>Actions</h6>
-                        <div class="d-grid gap-2">
-                            <button class="btn btn-sm btn-outline-danger" @onclick="ClearSelection" disabled="@(!selectionEnabled)">
-                                <i class="bi bi-x-circle"></i> Clear Selection
-                            </button>
-                        </div>
-
-                        @if (selectedCount > 0)
+                        @if (geoJsonLayerAdded)
                         {
-                            <div class="alert alert-success py-2 px-2 small mt-3">
-                                <strong>Selected:</strong> @selectedCount features
-                            </div>
+                            <MudDivider Class="my-2" />
+                            <MudStack Spacing="1">
+                                <MudSwitch T="bool" Color="Color.Primary" Label="@($"Selection ({(selectionEnabled ? "On" : "Off")})")"
+                                           @bind-Value="@selectionEnabled" Dense="true" />
+                                <MudSwitch T="bool" Color="Color.Primary" Label="@($"Multi-Select ({(multiSelectEnabled ? "On" : "Off")})")"
+                                           @bind-Value="@multiSelectEnabled" 
+                                           Disabled="@(!selectionEnabled)" Dense="true" />
+                            </MudStack>
+
+                            <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" FullWidth="true"
+                                       StartIcon="@Icons.Material.Filled.Clear"
+                                       OnClick="ClearSelection"
+                                       Disabled="@(!selectionEnabled)"
+                                       Class="mt-2">
+                                Clear Selection
+                            </MudButton>
+
+                            @if (selectedCount > 0)
+                            {
+                                <MudAlert Severity="Severity.Success" Dense="true" Class="mt-2">
+                                    <strong>Selected:</strong> @selectedCount features
+                                </MudAlert>
+                            }
                         }
-                    }
-                </div>
-            </div>
+                    </MudCardContent>
+                </MudCard>
 
-            <div class="card mt-3">
-                <div class="card-header">
-                    <h6 class="mb-0">GeoJSON Features</h6>
-                </div>
-                <div class="card-body">
-                    <small>
-                        <ul class="mb-0">
-                            <li>Load GeoJSON data</li>
-                            <li>Custom styling per feature</li>
-                            <li>Feature filtering</li>
-                            <li>Point to layer callback</li>
-                            <li>Hover effects</li>
-                            <li>Feature selection</li>
-                            <li>OnEachFeature callback</li>
-                        </ul>
-                    </small>
-                </div>
-            </div>
-
-            <div class="card mt-3">
-                <div class="card-header">
-                    <h6 class="mb-0">Callbacks</h6>
-                </div>
-                <div class="card-body">
-                    <small>
-                        <strong>Style:</strong> Custom per feature<br/>
-                        <strong>Filter:</strong> Include all<br/>
-                        <strong>OnEachFeature:</strong> Enabled<br/>
-                        <strong>PointToLayer:</strong> Custom markers<br/>
-                        <strong>CoordsToLatLng:</strong> Standard
-                    </small>
-                </div>
-            </div>
+                <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ArrowBack" Href="/" Class="mt-3">
+                    Back to Home
+                </MudButton>
+            </MudContainer>
         </div>
-    </div>
 
-    <div class="row mt-4">
-        <div class="col-12">
-            <a href="/" class="btn btn-link">&larr; Back to Home</a>
+        <div style="flex: 1 1 70%; min-width: 0; overflow: hidden;">
+            <LeafletMap Height="100%" Map="PositionMap" TileLayer="OpenStreetMapsTileLayer" Controls="MapControls" />
         </div>
     </div>
 </div>

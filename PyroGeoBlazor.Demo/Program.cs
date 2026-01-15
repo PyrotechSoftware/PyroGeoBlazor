@@ -1,3 +1,5 @@
+using MudBlazor.Services;
+
 using PyroGeoBlazor.Demo.Components;
 using PyroGeoBlazor.Leaflet;
 
@@ -11,6 +13,8 @@ services.AddControllers();
 // Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+builder.Services.AddMudServices();
 
 builder.Services.AddLeafletMap();
 

@@ -1,196 +1,209 @@
 @page "/"
 
 <PageTitle>PyroGeoBlazor Demo</PageTitle>
+<MudGrid Justify="Justify.SpaceEvenly">
+    <MudItem xs="12">
+        <MudCard>
+            <MudCardHeader>
+                <MudText Typo="Typo.h5">Welcome to the PyroGeoBlazor Demo Application</MudText>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudText>
+                    This demo application showcases the features and capabilities of the PyroGeoBlazor library, which is a Blazor component library for interactive maps.
+                    Initially it is focused on using LeafletJS as the underlying framework.
 
-<div class="container mt-5">
-    <div class="row">
-        <div class="col-12">
-            <h1 class="display-4 mb-4">PyroGeoBlazor Demo</h1>
-            <p class="lead">
-                Welcome to the PyroGeoBlazor library demonstration. This library provides Blazor components for creating interactive maps using Leaflet.
-            </p>
-            <hr class="my-4" />
-        </div>
-    </div>
+                    Explore the various map demos below to see PyroGeoBlazor in action!
+                </MudText>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+    <br />
+    <MudItem xs="12" md="4">
+        <MudCard Style="height: 100%">
+            <MudCardHeader>
+                <MudChip T="string" Color="Color.Primary" Size="Size.Small">Basics</MudChip>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudText Typo="Typo.h6">Basic Map Features</MudText>
+                <MudText>
+                    Explore fundamental mapping capabilities including:
+                </MudText>
+                <MudList T="string" Dense="true">
+                    <MudListItem>Map initialization and controls</MudListItem>
+                    <MudListItem>Adding markers and popups</MudListItem>
+                    <MudListItem>Navigation (pan, zoom, fly-to)</MudListItem>
+                    <MudListItem>Geolocation</MudListItem>
+                    <MudListItem>Layer controls</MudListItem>
+                </MudList>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Text" Color="Color.Primary" Href="/basic-map" FullWidth>View Basic Map Demo</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="12" md="4">
+        <MudCard Style="height: 100%">
+            <MudCardHeader>
+                <MudChip T="string" Color="Color.Warning" Size="Size.Small">Data</MudChip>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudText Typo="Typo.h6">GeoJSON Layers</MudText>
+                <MudText>
+                    Work with GeoJSON data and vector features:
+                </MudText>
+                <MudList T="string" Dense="true">
+                    <MudListItem>Load GeoJSON data</MudListItem>
+                    <MudListItem>Custom styling per feature</MudListItem>
+                    <MudListItem>Feature filtering</MudListItem>
+                    <MudListItem>Hover and selection</MudListItem>
+                    <MudListItem>Callback functions</MudListItem>
+                </MudList>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Text" Color="Color.Warning" Href="/geojson-layers" FullWidth>View GeoJSON Demo</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
+    <MudItem xs="12" md="4">
+        <MudCard Style="height: 100%">
+            <MudCardHeader>
+                <MudChip T="string" Color="Color.Success" Size="Size.Small">Editing</MudChip>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudText Typo="Typo.h6">Editable GeoJSON</MudText>
+                <MudText>
+                    Draw and edit features directly on the map:
+                </MudText>
+                <MudList T="string" Dense="true">
+                    <MudListItem>Draw polygons and polylines</MudListItem>
+                    <MudListItem>Vertex snapping</MudListItem>
+                    <MudListItem>Edit and delete features</MudListItem>
+                    <MudListItem>Export to GeoJSON</MudListItem>
+                    <MudListItem>Real-time drawing feedback</MudListItem>
+                </MudList>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Text" Color="Color.Success" Href="/editable-geojson" FullWidth="true">View Editing Demo</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
 
-    <div class="row mt-4">
-        <div class="col-md-4 mb-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <span class="badge bg-primary mb-2">Basic</span>
-                    </h5>
-                    <h4>Basic Map Features</h4>
-                    <p class="card-text">
-                        Explore fundamental mapping capabilities including:
-                    </p>
-                    <ul>
-                        <li>Map initialization and controls</li>
-                        <li>Adding markers and popups</li>
-                        <li>Navigation (pan, zoom, fly-to)</li>
-                        <li>Geolocation</li>
-                        <li>Layer controls</li>
-                    </ul>
-                    <a href="/basic-map" class="btn btn-primary mt-3">View Basic Map Demo</a>
-                </div>
-            </div>
-        </div>
+    <MudItem xs="12" md="4">
+        <MudCard Style="height: 100%">
+            <MudCardHeader>
+                <MudChip T="string" Color="Color.Dark" Size="Size.Small">Advanced</MudChip>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudText Typo="Typo.h6">Vector Tiles</MudText>
+                <MudText>
+                    Discover high-performance vector tile rendering:
+                </MudText>
+                <MudList T="string" Dense="true">
+                    <MudListItem>Mapbox Vector Tiles (MVT/PBF)</MudListItem>
+                    <MudListItem>Interactive features (hover, select)</MudListItem>
+                    <MudListItem>Dynamic styling</MudListItem>
+                    <MudListItem>Multi-segment feature selection</MudListItem>
+                    <MudListItem>Runtime interactivity control</MudListItem>
+                </MudList>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Text" Color="Color.Dark" Href="/vector-tiles" FullWidth>View Vector Tiles Demo</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
 
-        <div class="col-md-4 mb-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <span class="badge bg-warning text-dark mb-2">Data</span>
-                    </h5>
-                    <h4>GeoJSON Layers</h4>
-                    <p class="card-text">
-                        Work with GeoJSON data and vector features:
-                    </p>
-                    <ul>
-                        <li>Load GeoJSON data</li>
-                        <li>Custom styling per feature</li>
-                        <li>Feature filtering</li>
-                        <li>Hover and selection</li>
-                        <li>Callback functions</li>
-                    </ul>
-                    <a href="/geojson-layers" class="btn btn-warning mt-3">View GeoJSON Demo</a>
-                </div>
-            </div>
-        </div>
+    <MudItem xs="12" md="4">
+        <MudCard Style="height: 100%">
+            <MudCardHeader>
+                <MudChip T="string" Color="Color.Info" Size="Size.Small">Services</MudChip>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudText Typo="Typo.h6">WFS Layers</MudText>
+                <MudText>
+                    Work with Web Feature Service (WFS) data:
+                </MudText>
+                <MudList T="string" Dense="true">
+                    <MudListItem>Dynamic feature loading</MudListItem>
+                    <MudListItem>Bounded by map view</MudListItem>
+                    <MudListItem>Auto-refresh on pan/zoom</MudListItem>
+                    <MudListItem>Feature selection</MudListItem>
+                    <MudListItem>GeoServer integration</MudListItem>
+                </MudList>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Text" Color="Color.Info" Href="/wfs-layers" FullWidth>View WFS Demo</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
 
-        <div class="col-md-4 mb-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <span class="badge bg-success mb-2">Editing</span>
-                    </h5>
-                    <h4>Editable GeoJSON</h4>
-                    <p class="card-text">
-                        Draw and edit features directly on the map:
-                    </p>
-                    <ul>
-                        <li>Draw polygons and polylines</li>
-                        <li>Vertex snapping</li>
-                        <li>Edit and delete features</li>
-                        <li>Export to GeoJSON</li>
-                        <li>Real-time drawing feedback</li>
-                    </ul>
-                    <a href="/editable-geojson" class="btn btn-success mt-3">View Editing Demo</a>
-                </div>
-            </div>
-        </div>
-    </div>
+    <MudItem xs="12" md="4">
+        <MudCard Style="height: 100%">
+            <MudCardContent>
+                <MudText Typo="Typo.h6">Quick Comparison</MudText>
+                <MudSimpleTable Class="mt-3" Dense="true" Bordered="true">
+                    <thead>
+                        <tr>
+                            <th>Layer Type</th>
+                            <th>Best For</th>
+                            <th>Data Size</th>
+                            <th>Server-Side</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><strong>GeoJSON</strong></td>
+                            <td>Small to medium datasets</td>
+                            <td>&lt; 1MB</td>
+                            <td>No</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Editable</strong></td>
+                            <td>User-created features</td>
+                            <td>Small</td>
+                            <td>No</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Vector Tiles</strong></td>
+                            <td>Large datasets, high zoom levels</td>
+                            <td>Unlimited</td>
+                            <td>Yes (tile server)</td>
+                        </tr>
+                        <tr>
+                            <td><strong>WFS</strong></td>
+                            <td>Dynamic queries, specific areas</td>
+                            <td>Medium</td>
+                            <td>Yes (WFS service)</td>
+                        </tr>
+                    </tbody>
+                </MudSimpleTable>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>
 
-    <div class="row mt-3">
-        <div class="col-md-4 mb-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <span class="badge bg-dark mb-2">Advanced</span>
-                    </h5>
-                    <h4>Vector Tiles</h4>
-                    <p class="card-text">
-                        Discover high-performance vector tile rendering:
-                    </p>
-                    <ul>
-                        <li>Mapbox Vector Tiles (MVT/PBF)</li>
-                        <li>Interactive features (hover, select)</li>
-                        <li>Dynamic styling</li>
-                        <li>Multi-segment feature selection</li>
-                        <li>Runtime interactivity control</li>
-                    </ul>
-                    <a href="/vector-tiles" class="btn btn-dark mt-3">View Vector Tiles Demo</a>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4 mb-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <span class="badge bg-info mb-2">Services</span>
-                    </h5>
-                    <h4>WFS Layers</h4>
-                    <p class="card-text">
-                        Work with Web Feature Service (WFS) data:
-                    </p>
-                    <ul>
-                        <li>Dynamic feature loading</li>
-                        <li>Bounded by map view</li>
-                        <li>Auto-refresh on pan/zoom</li>
-                        <li>Feature selection</li>
-                        <li>GeoServer integration</li>
-                    </ul>
-                    <a href="/wfs-layers" class="btn btn-info mt-3">View WFS Demo</a>
-                </div>
-            </div>
-        </div>
-
-        <div class="col-md-4 mb-4">
-            <div class="card h-100 bg-light">
-                <div class="card-body">
-                    <h4>Quick Comparison</h4>
-                    <table class="table table-sm table-bordered mt-3">
-                        <thead>
-                            <tr>
-                                <th>Layer Type</th>
-                                <th>Best For</th>
-                                <th>Data Size</th>
-                                <th>Server-Side</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><strong>GeoJSON</strong></td>
-                                <td>Small to medium datasets</td>
-                                <td>&lt; 1MB</td>
-                                <td>No</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Editable</strong></td>
-                                <td>User-created features</td>
-                                <td>Small</td>
-                                <td>No</td>
-                            </tr>
-                            <tr>
-                                <td><strong>Vector Tiles</strong></td>
-                                <td>Large datasets, high zoom levels</td>
-                                <td>Unlimited</td>
-                                <td>Yes (tile server)</td>
-                            </tr>
-                            <tr>
-                                <td><strong>WFS</strong></td>
-                                <td>Dynamic queries, specific areas</td>
-                                <td>Medium</td>
-                                <td>Yes (WFS service)</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row mt-5">
-        <div class="col-12">
-            <h3>About PyroGeoBlazor</h3>
-            <p>
-                PyroGeoBlazor is a comprehensive .NET library that brings the power of Leaflet maps to Blazor applications.
-                Built with modern .NET 10 and C# 14, it provides a type-safe, component-based approach to building interactive mapping applications.
-            </p>
-            <h4 class="mt-4">Key Features</h4>
-            <ul>
-                <li><strong>Blazor Components:</strong> Native Blazor integration with full C# support</li>
-                <li><strong>Vector Tiles:</strong> High-performance rendering with Leaflet.VectorGrid</li>
-                <li><strong>WFS Support:</strong> Built-in Web Feature Service client</li>
-                <li><strong>GeoJSON:</strong> Full GeoJSON layer support with callbacks</li>
-                <li><strong>Interactive Features:</strong> Selection, hover, and click events</li>
-                <li><strong>Type Safety:</strong> Strongly-typed APIs throughout</li>
-                <li><strong>Async/Await:</strong> Modern async patterns for all operations</li>
-            </ul>
-            <div class="alert alert-info mt-4">
-                <strong>Source Code:</strong> <a href="https://github.com/PyrotechSoftware/PyroGeoBlazor" target="_blank">github.com/PyrotechSoftware/PyroGeoBlazor</a>
-            </div>
-        </div>
-    </div>
-</div>
+<MudGrid Class="mt-5">
+    <MudItem xs="12">
+        <MudCard>
+            <MudCardContent>
+                <MudText Typo="Typo.h5">About PyroGeoBlazor</MudText>
+                <MudText Class="mt-3">
+                    PyroGeoBlazor is a comprehensive .NET library that brings the power of Leaflet maps to Blazor applications.
+                    Built with modern .NET 10 and C# 14, it provides a type-safe, component-based approach to building interactive mapping applications.
+                </MudText>
+                <MudText Typo="Typo.h6" Class="mt-4">Key Features</MudText>
+                <MudList T="string" Dense="true">
+                    <MudListItem><strong>Blazor Components:</strong> Native Blazor integration with full C# support</MudListItem>
+                    <MudListItem><strong>Vector Tiles:</strong> High-performance rendering with Leaflet.VectorGrid</MudListItem>
+                    <MudListItem><strong>WFS Support:</strong> Built-in Web Feature Service client</MudListItem>
+                    <MudListItem><strong>GeoJSON:</strong> Full GeoJSON layer support with callbacks</MudListItem>
+                    <MudListItem><strong>Interactive Features:</strong> Selection, hover, and click events</MudListItem>
+                    <MudListItem><strong>Type Safety:</strong> Strongly-typed APIs throughout</MudListItem>
+                    <MudListItem><strong>Async/Await:</strong> Modern async patterns for all operations</MudListItem>
+                </MudList>
+                <MudAlert Severity="Severity.Info" Class="mt-4">
+                    <strong>Source Code:</strong> <MudLink Href="https://github.com/PyrotechSoftware/PyroGeoBlazor" Target="_blank">github.com/PyrotechSoftware/PyroGeoBlazor</MudLink>
+                </MudAlert>
+            </MudCardContent>
+        </MudCard>
+    </MudItem>
+</MudGrid>

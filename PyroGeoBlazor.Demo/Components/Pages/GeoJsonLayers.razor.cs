@@ -16,7 +16,7 @@ public partial class GeoJsonLayers : ComponentBase, IAsyncDisposable
     protected List<Control> MapControls = [];
 
     private bool geoJsonLayerAdded = false;
-    private bool selectionEnabled = true;
+    private bool selectionEnabled { get; set; } = true;
     private bool multiSelectEnabled = true;
     private int selectedCount = 0;
 

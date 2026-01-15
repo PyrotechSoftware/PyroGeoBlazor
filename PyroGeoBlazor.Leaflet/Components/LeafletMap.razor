@@ -2,7 +2,7 @@
 
 @inherits LeafletMapBase
 
-<div style="position: relative;">
+<div style="position: relative; height: @GetHeightValue(); width: 100%;">
     @if (Map is not null)
     {
         <div class="leafletMap" id="@Map.ElementId" style="@MapStyle"></div>
@@ -12,12 +12,30 @@
 </div>
 
 @code {
-    [Parameter] public int Height { get; set; } = 400;
+    /// <summary>
+    /// Height of the map. Accepts CSS values like "400px", "100%", "50vh", etc.
+    /// If only a number is provided, it will be treated as pixels.
+    /// </summary>
+    [Parameter] public string Height { get; set; } = "400px";
     
     /// <summary>
     /// Optional child content to render within the map container (e.g., custom controls).
     /// </summary>
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
-    private string MapStyle => $"height: {Height}px; width: 100%; position: relative; z-index: 0;";
+    private string MapStyle => $"height: {GetHeightValue()}; width: 100%; position: relative; z-index: 0;";
+
+    private string GetHeightValue()
+    {
+        if (string.IsNullOrWhiteSpace(Height))
+            return "400px";
+
+        if (Height.Contains('%') || Height.Contains("px") || Height.Contains("vh") || Height.Contains("vw") || Height.Contains("em") || Height.Contains("rem"))
+            return Height;
+
+        if (int.TryParse(Height, out _))
+            return $"{Height}px";
+
+        return Height;
+    }
 }

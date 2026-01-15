@@ -1,44 +1,39 @@
 @inherits LayoutComponentBase
 
-<div class="page">
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
-        <div class="container-fluid">
-            <a class="navbar-brand" href="/">PyroGeoBlazor Demo</a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav">
-                    <li class="nav-item">
-                        <a class="nav-link" href="/">Home</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/basic-map">Basic Map</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/geojson-layers">GeoJSON</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/editable-geojson">Editable GeoJSON</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/vector-tiles">Vector Tiles</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/wfs-layers">WFS Layers</a>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+@* Required *@
+<MudThemeProvider />
+<MudPopoverProvider />
 
-    <main class="content px-4 py-3">
+@* Needed for dialogs *@
+<MudDialogProvider />
+
+@* Needed for snackbars *@
+<MudSnackbarProvider />
+
+<MudLayout Style="height: 100vh;">
+    <MudAppBar>
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start" OnClick="@((e) => DrawerToggle())" />
+        Pyro GeoBlazor Demo
+    </MudAppBar>
+    <MudDrawer @bind-Open="@_drawerOpen">
+        <MyNavMenu/>
+    </MudDrawer>
+    <MudMainContent Style="overflow: hidden; height: 100%;">
         @Body
-    </main>
-</div>
+    </MudMainContent>
+</MudLayout>
 
 <div id="blazor-error-ui" data-nosnippet>
     An unhandled error has occurred.
     <a href="." class="reload">Reload</a>
     <span class="dismiss">🗙</span>
 </div>
+
+@code {
+    bool _drawerOpen = false;
+
+    void DrawerToggle()
+    {
+        _drawerOpen = !_drawerOpen;
+    }
+}

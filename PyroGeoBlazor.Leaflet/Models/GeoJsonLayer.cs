@@ -254,6 +254,39 @@ public class GeoJsonLayer : FeatureGroup
 
     #region Events
 
+    private static bool FeaturesEqual(GeoJsonFeature? a, GeoJsonFeature? b)
+    {
+        if (a == null && b == null) return true;
+        if (a == null || b == null) return false;
+
+        // If both have non-null IDs compare them
+        if (a.Id != null && b.Id != null)
+        {
+            return a.Id.Equals(b.Id);
+        }
+
+        // Compare geometry type if available
+        if (a.Geometry != null && b.Geometry != null && a.Geometry.Type != null && b.Geometry.Type != null)
+        {
+            if (!string.Equals(a.Geometry.Type, b.Geometry.Type, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        // Fallback: compare serialized properties (deep comparison)
+        try
+        {
+            var aProps = a.Properties == null ? string.Empty : JsonSerializer.Serialize(a.Properties);
+            var bProps = b.Properties == null ? string.Empty : JsonSerializer.Serialize(b.Properties);
+            return string.Equals(aProps, bProps, StringComparison.Ordinal);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     [JSInvokable]
     public void FeatureClicked(GeoJsonFeatureClickEventArgs? args)
     {
@@ -273,8 +306,7 @@ public class GeoJsonLayer : FeatureGroup
             var isMultiple = Options?.MultipleFeatureSelection == true;
             if (isMultiple)
             {
-                if (!SelectedFeatures.Any(f => (f.Id != null && args.Feature.Id != null && f.Id.Equals(args.Feature.Id)) ||
-                    (f.Id == null && args.Feature.Id == null && f.Properties == args.Feature.Properties)))
+                if (!SelectedFeatures.Any(f => FeaturesEqual(f, args.Feature)))
                 {
                     SelectedFeatures.Add(args.Feature);
                 }
@@ -335,7 +367,17 @@ public class GeoJsonLayer : FeatureGroup
     [JSInvokable]
     public async Task SelectionChangedAsync(List<GeoJsonFeature>? features)
     {
-        SelectedFeatures = features ?? new List<GeoJsonFeature>();
+        // Deduplicate incoming features to avoid duplicate entries causing incorrect counts
+        var incoming = features ?? new List<GeoJsonFeature>();
+        var deduped = new List<GeoJsonFeature>();
+        foreach (var f in incoming)
+        {
+            if (!deduped.Any(d => FeaturesEqual(d, f)))
+            {
+                deduped.Add(f);
+            }
+        }
+        SelectedFeatures = deduped;
         SelectedFeature = SelectedFeatures.LastOrDefault();
         Console.WriteLine($"SelectionChangedAsync called. SelectedFeatures count: {SelectedFeatures.Count}");
         OnSelectionChanged?.Invoke(this, EventArgs.Empty);

@@ -442,7 +442,6 @@ export default defineConfig({
 ```typescript
 // Scripts/__tests__/setup.ts
 import { afterEach, vi } from 'vitest';
-import { cleanup } from '@testing-library/dom';
 
 // Mock Leaflet global
 global.L = {
@@ -453,7 +452,10 @@ global.L = {
 
 // Cleanup after each test
 afterEach(() => {
-  cleanup();
+  // Reset DOM
+  document.body.innerHTML = '';
+  // Clear all mocks
+  vi.clearAllMocks();
 });
 ```
 

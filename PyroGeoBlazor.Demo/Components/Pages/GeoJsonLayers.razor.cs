@@ -105,6 +105,16 @@ public partial class GeoJsonLayers : ComponentBase, IAsyncDisposable
 
             GeoJsonLayer = new GeoJsonLayer(geoJsonObject, options);
 
+            // Sync selection count when JS notifies of selection changes
+            GeoJsonLayer.OnSelectionChanged += (s, e) =>
+            {
+                if (GeoJsonLayer != null)
+                {
+                    selectedCount = GeoJsonLayer.GetSelectedFeaturesCount();
+                    StateHasChanged();
+                }
+            };
+
             // Subscribe to selection events
             GeoJsonLayer.OnFeatureSelected += (sender, args) =>
             {
@@ -159,9 +169,14 @@ public partial class GeoJsonLayers : ComponentBase, IAsyncDisposable
 
             await GeoJsonLayer.AddTo(PositionMap);
             await LayersControl.AddOverlay(GeoJsonLayer, "GeoJSON (Townships)");
+            // Ensure JS and .NET selection state are reconciled by applying current toggle settings
+            await GeoJsonLayer.SetEnableFeatureSelection(selectionEnabled);
+            await GeoJsonLayer.SetMultipleFeatureSelection(multiSelectEnabled);
 
             geoJsonLayerAdded = true;
             Console.WriteLine("GeoJSON layer loaded successfully");
+            // Refresh selected count (JS will also invoke selectionchanged which triggers the OnSelectionChanged handler)
+            selectedCount = GeoJsonLayer.GetSelectedFeaturesCount();
             StateHasChanged();
         }
         catch (Exception ex)
@@ -170,38 +185,56 @@ public partial class GeoJsonLayers : ComponentBase, IAsyncDisposable
         }
     }
 
-    private async Task ToggleSelection(ChangeEventArgs e)
+    private async Task ToggleSelection(bool enabled)
     {
-        selectionEnabled = (bool)(e.Value ?? false);
+        selectionEnabled = enabled;
 
         if (GeoJsonLayer != null)
         {
-            // Note: GeoJsonLayer doesn't have SetEnableFeatureSelection yet
-            // For now, we just track the state
-            if (!selectionEnabled)
+            try
             {
-                await GeoJsonLayer.ClearSelection();
-                selectedCount = 0;
+                await GeoJsonLayer.SetEnableFeatureSelection(selectionEnabled);
+
+                // If disabling selection, clear any existing selections immediately
+                if (!selectionEnabled)
+                {
+                    await GeoJsonLayer.ClearSelection();
+                    selectedCount = 0;
+                }
+                else
+                {
+                    // Refresh selected count from layer (JS will also sync state back to C#)
+                    selectedCount = GeoJsonLayer.GetSelectedFeaturesCount();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error toggling feature selection: {ex.Message}");
             }
         }
 
         StateHasChanged();
     }
 
-    private async Task ToggleMultiSelect(ChangeEventArgs e)
+    private async Task ToggleMultiSelect(bool enabled)
     {
-        multiSelectEnabled = (bool)(e.Value ?? false);
+        multiSelectEnabled = enabled;
 
         if (GeoJsonLayer != null)
         {
-            // Note: GeoJsonLayer doesn't have SetMultipleFeatureSelection yet
-            // For now, we just track the state and inform the user
-            Console.WriteLine($"Multi-select mode changed to: {multiSelectEnabled}");
-            Console.WriteLine("Note: Changing this setting requires reloading the layer");
+            try
+            {
+                await GeoJsonLayer.SetMultipleFeatureSelection(multiSelectEnabled);
 
-            // Clear current selection when switching modes
-            await GeoJsonLayer.ClearSelection();
-            selectedCount = 0;
+                // Optionally clear selection when switching modes to avoid confusion
+                await GeoJsonLayer.ClearSelection();
+                selectedCount = 0;
+                Console.WriteLine($"Multi-select mode changed to: {multiSelectEnabled}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error setting multiple selection mode: {ex.Message}");
+            }
         }
 
         StateHasChanged();

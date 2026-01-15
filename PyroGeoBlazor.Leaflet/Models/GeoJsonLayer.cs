@@ -4,12 +4,17 @@ using Microsoft.JSInterop;
 
 using PyroGeoBlazor.Leaflet.EventArgs;
 
+using System;
+
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 using System.Threading.Tasks;
 
 public class GeoJsonLayer : FeatureGroup
 {
     protected new readonly DomEventHandlerMapping<GeoJsonLayer>? EventHandlerMapping;
-    protected new GeoJsonLayerOptions? Options { get; }
+    protected new GeoJsonLayerOptions? Options { get; private set; }
     protected object? Data { get; }
 
     /// <summary>
@@ -25,17 +30,22 @@ public class GeoJsonLayer : FeatureGroup
     /// <summary>
     /// Fired when a GeoJSON feature is clicked.
     /// </summary>
-    public event EventHandler<EventArgs.GeoJsonFeatureClickEventArgs?>? OnFeatureClicked;
+    public event EventHandler<GeoJsonFeatureClickEventArgs?>? OnFeatureClicked;
 
     /// <summary>
     /// Fired when a GeoJSON feature is selected.
     /// </summary>
-    public event EventHandler<EventArgs.GeoJsonFeatureClickEventArgs?>? OnFeatureSelected;
+    public event EventHandler<GeoJsonFeatureClickEventArgs?>? OnFeatureSelected;
 
     /// <summary>
     /// Fired when a GeoJSON feature is unselected.
     /// </summary>
-    public event EventHandler<EventArgs.GeoJsonFeatureClickEventArgs?>? OnFeatureUnselected;
+    public event EventHandler<GeoJsonFeatureClickEventArgs?>? OnFeatureUnselected;
+
+    /// <summary>
+    /// Fired when the set of selected features changes (sync from JS).
+    /// </summary>
+    public event EventHandler? OnSelectionChanged;
 
     public GeoJsonLayer(object? data, GeoJsonLayerOptions? options)
         : base([] , options)
@@ -49,7 +59,8 @@ public class GeoJsonLayer : FeatureGroup
             {
                 { "featureclicked", nameof(this.FeatureClicked) },
                 { "featureselected", nameof(this.FeatureSelectedAsync) },
-                { "featureunselected", nameof(this.FeatureUnselectedAsync) }
+                { "featureunselected", nameof(this.FeatureUnselectedAsync) },
+                { "selectionchanged", nameof(this.SelectionChangedAsync) }
             });
             if (base.EventHandlerMapping != null)
             {
@@ -149,6 +160,46 @@ public class GeoJsonLayer : FeatureGroup
     }
 
     /// <summary>
+    /// Enable or disable feature selection at runtime.
+    /// When disabled, any current selection will be cleared.
+    /// </summary>
+    public async Task<GeoJsonLayer> SetEnableFeatureSelection(bool enabled)
+    {
+        if (JSObjectReference == null)
+        {
+            throw new InvalidOperationException("JavaScript object reference is not set.");
+        }
+
+        if (Options != null)
+        {
+            Options.EnableFeatureSelection = enabled;
+        }
+
+        await JSObjectReference.InvokeVoidAsync("setEnableFeatureSelection", enabled);
+        return this;
+    }
+
+    /// <summary>
+    /// Sets whether multiple features may be selected simultaneously.
+    /// Reconciles current selection state when switching modes.
+    /// </summary>
+    public async Task<GeoJsonLayer> SetMultipleFeatureSelection(bool enabled)
+    {
+        if (JSObjectReference == null)
+        {
+            throw new InvalidOperationException("JavaScript object reference is not set.");
+        }
+
+        if (Options != null)
+        {
+            Options.MultipleFeatureSelection = enabled;
+        }
+
+        await JSObjectReference.InvokeVoidAsync("setMultipleFeatureSelection", enabled);
+        return this;
+    }
+
+    /// <summary>
     /// Gets a read-only list of all currently selected features.
     /// </summary>
     /// <returns>A read-only list of selected GeoJSON features.</returns>
@@ -217,22 +268,27 @@ public class GeoJsonLayer : FeatureGroup
         if (args?.Feature != null)
         {
             SelectedFeature = args.Feature;
-            
-            // Add to selected features list if not already present
-            if (!SelectedFeatures.Any(f => 
-                (f.Id != null && f.Id.Equals(args.Feature.Id)) || 
-                (f.Id == null && args.Feature.Id == null && f.Properties == args.Feature.Properties)))
+
+            // Update local selected list to keep C# in sync when JS selectionchanged may be delayed
+            var isMultiple = Options?.MultipleFeatureSelection == true;
+            if (isMultiple)
             {
-                Console.WriteLine($"Adding feature with Id: {args.Feature.Id} to SelectedFeatures");
-                SelectedFeatures.Add(args.Feature);
-                Console.WriteLine($"SelectedFeatures count after add: {SelectedFeatures.Count}");
+                if (!SelectedFeatures.Any(f => (f.Id != null && args.Feature.Id != null && f.Id.Equals(args.Feature.Id)) ||
+                    (f.Id == null && args.Feature.Id == null && f.Properties == args.Feature.Properties)))
+                {
+                    SelectedFeatures.Add(args.Feature);
+                }
             }
             else
             {
-                Console.WriteLine($"Feature with Id: {args.Feature.Id} is already in SelectedFeatures");
+                SelectedFeatures.Clear();
+                SelectedFeatures.Add(args.Feature);
             }
+
+            // Notify listeners that selection changed locally
+            OnSelectionChanged?.Invoke(this, EventArgs.Empty);
         }
-        
+
         OnFeatureSelected?.Invoke(this, args);
         await Task.CompletedTask;
     }
@@ -242,71 +298,47 @@ public class GeoJsonLayer : FeatureGroup
     {
         Console.WriteLine($"FeatureUnselectedAsync called with feature: {args?.Feature?.Id}");
         Console.WriteLine($"Current SelectedFeatures count BEFORE removal: {SelectedFeatures.Count}");
-        
-        if (args?.Feature != null)
+        if (args?.Feature == null)
         {
-            // Log what we're trying to match
-            Console.WriteLine($"Trying to remove feature with Id: '{args.Feature.Id}'");
-            
-            // For features without IDs (like drawn features), we need a different approach
-            // In single-selection mode, just clear the list since only one can be selected
-            bool isSingleSelectMode = Options?.MultipleFeatureSelection != true;
-            
-            if (isSingleSelectMode && SelectedFeatures.Count > 0)
-            {
-                Console.WriteLine("Single-select mode: clearing all selections");
-                SelectedFeatures.Clear();
-                SelectedFeature = null;
-            }
-            else
-            {
-                // Multiple selection mode or need to find specific feature
-                int removedCount = SelectedFeatures.RemoveAll(f => 
-                {
-                    // Try to match by ID if both have IDs
-                    if (f.Id != null && args.Feature.Id != null)
-                    {
-                        bool idMatch = f.Id.Equals(args.Feature.Id);
-                        if (idMatch)
-                        {
-                            Console.WriteLine($"Removing feature by ID match: {f.Id}");
-                        }
-                        return idMatch;
-                    }
-                    
-                    // For features without IDs, try matching by geometry coordinates
-                    if (f.Geometry != null && args.Feature.Geometry != null)
-                    {
-                        // Compare geometry types
-                        if (f.Geometry.Type == args.Feature.Geometry.Type)
-                        {
-                            // For simplicity, if they're the same type and both have no ID, assume it's the same feature
-                            // This works for drawn features where there's typically only one being manipulated at a time
-                            Console.WriteLine($"Removing feature by geometry type match: {f.Geometry.Type}");
-                            return true;
-                        }
-                    }
-                    
-                    return false;
-                });
-                
-                Console.WriteLine($"Removed {removedCount} features");
-                
-                // Update SelectedFeature to the last item in the list, or null if empty
-                SelectedFeature = SelectedFeatures.LastOrDefault();
-            }
-            
-            Console.WriteLine($"SelectedFeatures count AFTER removal: {SelectedFeatures.Count}");
+            // Clear all selections
+            SelectedFeatures.Clear();
+            SelectedFeature = null;
         }
         else
         {
-            Console.WriteLine("Feature is null, clearing all selections");
-            // Clear all if no specific feature provided
-            SelectedFeature = null;
-            SelectedFeatures.Clear();
+            var isMultiple = Options?.MultipleFeatureSelection == true;
+            if (isMultiple)
+            {
+                SelectedFeatures.RemoveAll(f =>
+                    (f.Id != null && args.Feature.Id != null && f.Id.Equals(args.Feature.Id)) ||
+                    (f.Id == null && args.Feature.Id == null && f.Properties == args.Feature.Properties));
+                SelectedFeature = SelectedFeatures.LastOrDefault();
+            }
+            else
+            {
+                // Single-select -> clear
+                SelectedFeatures.Clear();
+                SelectedFeature = null;
+            }
         }
-        
+
         OnFeatureUnselected?.Invoke(this, args);
+        Console.WriteLine($"SelectedFeatures count after unselect: {SelectedFeatures.Count}");
+        OnSelectionChanged?.Invoke(this, EventArgs.Empty);
+        await Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Called from JS when the set of selected features changes. Accepts raw JSON and deserializes
+    /// into the internal SelectedFeatures list, then updates SelectedFeature to the last item.
+    /// </summary>
+    [JSInvokable]
+    public async Task SelectionChangedAsync(List<GeoJsonFeature>? features)
+    {
+        SelectedFeatures = features ?? new List<GeoJsonFeature>();
+        SelectedFeature = SelectedFeatures.LastOrDefault();
+        Console.WriteLine($"SelectionChangedAsync called. SelectedFeatures count: {SelectedFeatures.Count}");
+        OnSelectionChanged?.Invoke(this, EventArgs.Empty);
         await Task.CompletedTask;
     }
 

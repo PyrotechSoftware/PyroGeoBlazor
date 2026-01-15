@@ -97,6 +97,8 @@ export const GeoJsonLayer = {
         // For single selection mode
         let selectedLayer: any = null;
         let originalStyle: any = null;
+        // Runtime flag to enable/disable selection (can be toggled)
+        let selectionEnabledFlag: boolean = options?.enableFeatureSelection !== false;
         
         // For multiple selection mode
         const selectedLayers: Map<any, any> = new Map(); // Map of layer -> original style
@@ -489,168 +491,250 @@ export const GeoJsonLayer = {
             }
 
             // Feature selection handling (enabled by default)
-            if (options?.enableFeatureSelection !== false) {
-                geoJsonLayer.on('click', function (ev: any) {
-                    try {
-                        const feature = ev.layer?.feature || ev.propagatedFrom?.feature;
-                        const layer = ev.layer || ev.propagatedFrom;
-                        
-                        if (!feature || !layer) {
-                            return;
-                        }
+            // We create a named handler so it can be added/removed at runtime
+            const selectionClickHandler = function (ev: any) {
+                try {
+                    // Respect runtime flag to disable feature selection even if handler is attached
+                    if (!selectionEnabledFlag) {
+                        return;
+                    }
 
-                        // Don't allow selection/unselection if the layer is currently being edited
-                        if ((layer as any)._editingEnabled) {
-                            return;
-                        }
+                    const feature = ev.layer?.feature || ev.propagatedFrom?.feature;
+                    const layer = ev.layer || ev.propagatedFrom;
 
-                        // Create lightweight feature for callback
-                        const featureToSend = (geoJsonLayer as any).createCallbackFeature(feature, 50000, false);
-                        
-                        const payload = {
-                            ...LeafletEvents.LeafletEventArgs.fromLeaflet(ev).toDto(),
-                            layer: LeafletEvents.minimalLayerInfo(layer),
-                            feature: featureToSend
-                        };
+                    if (!feature || !layer) {
+                        return;
+                    }
 
-                        const multipleSelection = options?.multipleFeatureSelection === true;
+                    // Don't allow selection/unselection if the layer is currently being edited
+                    if ((layer as any)._editingEnabled) {
+                        return;
+                    }
 
-                        if (multipleSelection) {
-                            // Multiple selection mode
-                            if (selectedLayers.has(layer)) {
-                                // Unselect this feature
-                                const originalStyle = selectedLayers.get(layer);
-                                if (originalStyle && layer.setStyle) {
-                                    // Clear any hover state first
-                                    if (hoveredLayers.has(layer)) {
-                                        hoveredLayers.delete(layer);
-                                    }
-                                    layer.setStyle(originalStyle);
-                                }
-                                selectedLayers.delete(layer);
-                                
-                                // Notify C# of unselection
-                                if (handlerMappings?.events['featureunselected']) {
-                                    handlerMappings.dotNetRef!.invokeMethodAsync(
-                                        handlerMappings.events['featureunselected'],
-                                        payload
-                                    );
-                                }
-                            } else {
-                                // Select this feature
-                                // Store original style (get from hover cache if currently hovering, otherwise from layer)
-                                let styleToStore;
+                    // Create lightweight feature for callback
+                    const featureToSend = (geoJsonLayer as any).createCallbackFeature(feature, 50000, false);
+
+                    const payload = {
+                        ...LeafletEvents.LeafletEventArgs.fromLeaflet(ev).toDto(),
+                        layer: LeafletEvents.minimalLayerInfo(layer),
+                        feature: featureToSend
+                    };
+
+                    const multipleSelection = options?.multipleFeatureSelection === true;
+
+                    if (multipleSelection) {
+                        // Multiple selection mode
+                        if (selectedLayers.has(layer)) {
+                            // Unselect this feature
+                            const originalStyle = selectedLayers.get(layer);
+                            if (originalStyle && layer.setStyle) {
+                                // Clear any hover state first
                                 if (hoveredLayers.has(layer)) {
-                                    // Use the original style from before hover
-                                    styleToStore = hoveredLayers.get(layer);
                                     hoveredLayers.delete(layer);
-                                } else if (layer.options) {
-                                    // Capture current style
-                                    styleToStore = {
-                                        color: layer.options.color,
-                                        weight: layer.options.weight,
-                                        opacity: layer.options.opacity,
-                                        fillColor: layer.options.fillColor,
-                                        fillOpacity: layer.options.fillOpacity,
-                                        dashArray: layer.options.dashArray
-                                    };
                                 }
-                                
-                                if (styleToStore) {
-                                    selectedLayers.set(layer, styleToStore);
+                                layer.setStyle(originalStyle);
+                            }
+                            selectedLayers.delete(layer);
+
+                            // Notify of selection state change first so C# has authoritative list
+                            if (handlerMappings?.events['selectionchanged']) {
+                                try {
+                                    const raw = (geoJsonLayer as any).SelectedFeatures || [];
+                                    const dto = raw.map((f: any) => (geoJsonLayer as any).createCallbackFeature(f, 50000, false));
+                                    handlerMappings.dotNetRef!.invokeMethodAsync(handlerMappings.events['selectionchanged'], dto);
+                                } catch (e) {
+                                    console.error('Error invoking selectionchanged after unselect:', e);
                                 }
-                                
-                                // Bring layer to front so selection is clearly visible
-                                if (layer.bringToFront) {
-                                    layer.bringToFront();
-                                }
-                                
-                                // Apply selected style (use provided or default)
-                                if (layer.setStyle) {
-                                    const selectionStyle = options?.selectedFeatureStyle || DEFAULT_SELECTION_STYLE;
-                                    layer.setStyle(selectionStyle);
-                                }
-                                
-                                // Notify C# of selection
-                                if (handlerMappings?.events['featureselected']) {
-                                    handlerMappings.dotNetRef!.invokeMethodAsync(
-                                        handlerMappings.events['featureselected'],
-                                        payload
-                                    );
-                                }
+                            }
+                            // Notify C# of unselection
+                            if (handlerMappings?.events['featureunselected']) {
+                                handlerMappings.dotNetRef!.invokeMethodAsync(
+                                    handlerMappings.events['featureunselected'],
+                                    payload
+                                );
                             }
                         } else {
-                            // Single selection mode
-                            // Check if this is the currently selected layer
-                            if (selectedLayer === layer) {
-                                // Unselect
-                                if (originalStyle && layer.setStyle) {
-                                    // Clear any hover state first
-                                    if (hoveredLayers.has(layer)) {
-                                        hoveredLayers.delete(layer);
-                                    }
-                                    layer.setStyle(originalStyle);
+                            // Select this feature
+                            // Store original style (get from hover cache if currently hovering, otherwise from layer)
+                            let styleToStore;
+                            if (hoveredLayers.has(layer)) {
+                                // Use the original style from before hover
+                                styleToStore = hoveredLayers.get(layer);
+                                hoveredLayers.delete(layer);
+                            } else if (layer.options) {
+                                // Capture current style
+                                styleToStore = {
+                                    color: layer.options.color,
+                                    weight: layer.options.weight,
+                                    opacity: layer.options.opacity,
+                                    fillColor: layer.options.fillColor,
+                                    fillOpacity: layer.options.fillOpacity,
+                                    dashArray: layer.options.dashArray
+                                };
+                            }
+
+                            if (styleToStore) {
+                                selectedLayers.set(layer, styleToStore);
+                            }
+
+                            // Bring layer to front so selection is clearly visible
+                            if (layer.bringToFront) {
+                                layer.bringToFront();
+                            }
+
+                            // Apply selected style (use provided or default)
+                            if (layer.setStyle) {
+                                const selectionStyle = options?.selectedFeatureStyle || DEFAULT_SELECTION_STYLE;
+                                layer.setStyle(selectionStyle);
+                            }
+                            // Notify of selection state change before individual event so C# receives authoritative list first
+                            if (handlerMappings?.events['selectionchanged']) {
+                                try {
+                                    const raw = (geoJsonLayer as any).SelectedFeatures || [];
+                                    const dto = raw.map((f: any) => (geoJsonLayer as any).createCallbackFeature(f, 50000, false));
+                                    handlerMappings.dotNetRef!.invokeMethodAsync(handlerMappings.events['selectionchanged'], dto);
+                                } catch (e) {
+                                    console.error('Error invoking selectionchanged before featureselected (single):', e);
                                 }
-                                selectedLayer = null;
-                                originalStyle = null;
-                                
-                                // Notify C# of unselection
-                                if (handlerMappings?.events['featureunselected']) {
-                                    handlerMappings.dotNetRef!.invokeMethodAsync(
-                                        handlerMappings.events['featureunselected'],
-                                        payload
-                                    );
+                            }
+
+                            // Notify C# of selection
+                            if (handlerMappings?.events['featureselected']) {
+                                handlerMappings.dotNetRef!.invokeMethodAsync(
+                                    handlerMappings.events['featureselected'],
+                                    payload
+                                );
+                            }
+                            // Notify of selection state change (single-select)
+                            if (handlerMappings?.events['selectionchanged']) {
+                                try {
+                                    const dto = (geoJsonLayer as any).SelectedFeatures || [];
+                                    handlerMappings.dotNetRef!.invokeMethodAsync(handlerMappings.events['selectionchanged'], dto);
+                                } catch (e) {
+                                    console.error('Error invoking selectionchanged after select (single-final):', e);
                                 }
-                            } else {
-                                // Unselect previous selection if any
-                                if (selectedLayer && originalStyle && selectedLayer.setStyle) {
-                                    selectedLayer.setStyle(originalStyle);
+                            }
+                            // Notify of selection state change (single-select)
+                            if (handlerMappings?.events['selectionchanged']) {
+                                try {
+                                    const raw = (geoJsonLayer as any).SelectedFeatures || [];
+                                    const dto = raw.map((f: any) => (geoJsonLayer as any).createCallbackFeature(f, 50000, false));
+                                    handlerMappings.dotNetRef!.invokeMethodAsync(handlerMappings.events['selectionchanged'], dto);
+                                } catch (e) {
+                                    console.error('Error invoking selectionchanged after select (single):', e);
                                 }
-                                
-                                // Select new feature
-                                selectedLayer = layer;
-                                
-                                // Store original style (get from hover cache if currently hovering, otherwise from layer)
-                                if (hoveredLayers.has(layer)) {
-                                    // Use the original style from before hover
-                                    originalStyle = hoveredLayers.get(layer);
-                                    hoveredLayers.delete(layer);
-                                } else if (layer.options) {
-                                    // Capture current style
-                                    originalStyle = {
-                                        color: layer.options.color,
-                                        weight: layer.options.weight,
-                                        opacity: layer.options.opacity,
-                                        fillColor: layer.options.fillColor,
-                                        fillOpacity: layer.options.fillOpacity,
-                                        dashArray: layer.options.dashArray
-                                    };
-                                }
-                                
-                                // Bring layer to front so selection is clearly visible
-                                if (layer.bringToFront) {
-                                    layer.bringToFront();
-                                }
-                                
-                                // Apply selected style (use provided or default)
-                                if (layer.setStyle) {
-                                    const selectionStyle = options?.selectedFeatureStyle || DEFAULT_SELECTION_STYLE;
-                                    layer.setStyle(selectionStyle);
-                                }
-                                
-                                // Notify C# of selection
-                                if (handlerMappings?.events['featureselected']) {
-                                    handlerMappings.dotNetRef!.invokeMethodAsync(
-                                        handlerMappings.events['featureselected'],
-                                        payload
-                                    );
+                            }
+                            // Always notify of selection state change
+                            if (handlerMappings?.events['selectionchanged']) {
+                                try {
+                                    const raw = (geoJsonLayer as any).SelectedFeatures || [];
+                                    const dto = raw.map((f: any) => (geoJsonLayer as any).createCallbackFeature(f, 50000, false));
+                                    handlerMappings.dotNetRef!.invokeMethodAsync(handlerMappings.events['selectionchanged'], dto);
+                                } catch (e) {
+                                    console.error('Error invoking selectionchanged after select:', e);
                                 }
                             }
                         }
-                    } catch (e) {
-                        console.error('Error handling feature selection:', e);
+                    } else {
+                        // Single selection mode
+                        // Check if this is the currently selected layer
+                        if (selectedLayer === layer) {
+                            // Unselect
+                            if (originalStyle && layer.setStyle) {
+                                // Clear any hover state first
+                                if (hoveredLayers.has(layer)) {
+                                    hoveredLayers.delete(layer);
+                                }
+                                layer.setStyle(originalStyle);
+                            }
+                            selectedLayer = null;
+                            originalStyle = null;
+
+                            // Notify of selection state change first so C# has authoritative list
+                            if (handlerMappings?.events['selectionchanged']) {
+                                try {
+                                    const raw = (geoJsonLayer as any).SelectedFeatures || [];
+                                    const dto = raw.map((f: any) => (geoJsonLayer as any).createCallbackFeature(f, 50000, false));
+                                    handlerMappings.dotNetRef!.invokeMethodAsync(handlerMappings.events['selectionchanged'], dto);
+                                } catch (e) {
+                                    console.error('Error invoking selectionchanged after unselect (single):', e);
+                                }
+                            }
+                            // Notify C# of unselection
+                            if (handlerMappings?.events['featureunselected']) {
+                                handlerMappings.dotNetRef!.invokeMethodAsync(
+                                    handlerMappings.events['featureunselected'],
+                                    payload
+                                );
+                            }
+                        } else {
+                            // Unselect previous selection if any
+                            if (selectedLayer && originalStyle && selectedLayer.setStyle) {
+                                // Restore previous layer style
+                                selectedLayer.setStyle(originalStyle);
+                                // Notify .NET that the previous feature was unselected so C# can update its list
+                                try {
+                                    if (handlerMappings?.events['featureunselected']) {
+                                        const prevFeature = (selectedLayer as any).feature;
+                                        const prevPayload = {
+                                            layer: LeafletEvents.minimalLayerInfo(selectedLayer),
+                                            feature: (geoJsonLayer as any).createCallbackFeature(prevFeature, 50000, false)
+                                        };
+                                        handlerMappings.dotNetRef!.invokeMethodAsync(handlerMappings.events['featureunselected'], prevPayload);
+                                    }
+                                } catch (e) {
+                                    console.error('Error invoking featureunselected for previous selection:', e);
+                                }
+                            }
+
+                            // Select new feature
+                            selectedLayer = layer;
+
+                            // Store original style (get from hover cache if currently hovering, otherwise from layer)
+                            if (hoveredLayers.has(layer)) {
+                                // Use the original style from before hover
+                                originalStyle = hoveredLayers.get(layer);
+                                hoveredLayers.delete(layer);
+                            } else if (layer.options) {
+                                // Capture current style
+                                originalStyle = {
+                                    color: layer.options.color,
+                                    weight: layer.options.weight,
+                                    opacity: layer.options.opacity,
+                                    fillColor: layer.options.fillColor,
+                                    fillOpacity: layer.options.fillOpacity,
+                                    dashArray: layer.options.dashArray
+                                };
+                            }
+
+                            // Bring layer to front so selection is clearly visible
+                            if (layer.bringToFront) {
+                                layer.bringToFront();
+                            }
+
+                            // Apply selected style (use provided or default)
+                            if (layer.setStyle) {
+                                const selectionStyle = options?.selectedFeatureStyle || DEFAULT_SELECTION_STYLE;
+                                layer.setStyle(selectionStyle);
+                            }
+
+                            // Notify C# of selection
+                            if (handlerMappings?.events['featureselected']) {
+                                handlerMappings.dotNetRef!.invokeMethodAsync(
+                                    handlerMappings.events['featureselected'],
+                                    payload
+                                );
+                            }
+                        }
                     }
-                });
+                } catch (e) {
+                    console.error('Error handling feature selection:', e);
+                }
+            };
+
+            // Attach initially if configured
+            if (options?.enableFeatureSelection !== false) {
+                geoJsonLayer.on('click', selectionClickHandler);
             }
 
             // Hover styling (controlled by enableHoverStyle flag)
@@ -915,6 +999,75 @@ export const GeoJsonLayer = {
                 }
             });
             hoveredLayers.clear();
+            // Notify .NET of cleared selection
+            if (handlerMappings?.events['selectionchanged']) {
+                try {
+                    handlerMappings.dotNetRef!.invokeMethodAsync(handlerMappings.events['selectionchanged'], []);
+                } catch (e) {
+                    console.error('Error invoking selectionchanged after clearSelection:', e);
+                }
+            }
+        };
+
+        // Allow toggling feature selection at runtime from C#
+        (geoJsonLayer as any).setEnableFeatureSelection = function(enabled: boolean) {
+            try {
+                selectionEnabledFlag = enabled === true;
+                if (enabled) {
+                    // Attach selection handler if not already attached
+                    geoJsonLayer.on('click', selectionClickHandler);
+                    options.enableFeatureSelection = true;
+                } else {
+                    // Detach selection handler and clear selection
+                    geoJsonLayer.off('click', selectionClickHandler);
+                    options.enableFeatureSelection = false;
+                    (geoJsonLayer as any).clearSelection();
+                }
+            } catch (e) {
+                console.error('Error toggling feature selection:', e);
+            }
+        };
+
+        // Allow toggling multiple selection mode at runtime from C#
+        (geoJsonLayer as any).setMultipleFeatureSelection = function(enabled: boolean) {
+            try {
+                if (!options) return;
+                const wasMultiple = options.multipleFeatureSelection === true;
+                options.multipleFeatureSelection = enabled;
+
+                if (wasMultiple && !enabled) {
+                    // switching to single-select: keep last selected feature
+                    if (selectedLayers.size > 0) {
+                        const layers = Array.from(selectedLayers.keys());
+                        const keep = layers[layers.length - 1];
+
+                        // Restore styles for others
+                        for (let i = 0; i < layers.length - 1; i++) {
+                            const l = layers[i];
+                            const orig = selectedLayers.get(l);
+                            if (orig && l.setStyle) l.setStyle(orig);
+                        }
+
+                        // Set single selection
+                        selectedLayer = keep;
+                        originalStyle = selectedLayers.get(keep) || originalStyle;
+                        selectedLayers.clear();
+                    }
+                }
+
+                // Notify .NET of selection change
+                    if (handlerMappings?.events['selectionchanged']) {
+                        try {
+                            const raw = (geoJsonLayer as any).SelectedFeatures || [];
+                            const dto = raw.map((f: any) => (geoJsonLayer as any).createCallbackFeature(f, 50000, false));
+                            handlerMappings.dotNetRef!.invokeMethodAsync(handlerMappings.events['selectionchanged'], dto);
+                        } catch (e) {
+                            console.error('Error invoking selectionchanged after setMultipleFeatureSelection:', e);
+                        }
+                    }
+            } catch (e) {
+                console.error('Error setting multiple selection mode:', e);
+            }
         };
 
         // Expose selected features for editableGeoJsonLayer to access

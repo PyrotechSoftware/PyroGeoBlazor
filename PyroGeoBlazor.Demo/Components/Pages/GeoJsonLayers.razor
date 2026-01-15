@@ -84,9 +84,9 @@
                             <MudDivider Class="my-2" />
                             <MudStack Spacing="1">
                                 <MudSwitch T="bool" Color="Color.Primary" Label="@($"Selection ({(selectionEnabled ? "On" : "Off")})")"
-                                           @bind-Value="@selectionEnabled" Dense="true" />
+                                           Value="@selectionEnabled" ValueChanged="ToggleSelection" Dense="true" />
                                 <MudSwitch T="bool" Color="Color.Primary" Label="@($"Multi-Select ({(multiSelectEnabled ? "On" : "Off")})")"
-                                           @bind-Value="@multiSelectEnabled" 
+                                           Value="@multiSelectEnabled" ValueChanged="ToggleMultiSelect"
                                            Disabled="@(!selectionEnabled)" Dense="true" />
                             </MudStack>
 

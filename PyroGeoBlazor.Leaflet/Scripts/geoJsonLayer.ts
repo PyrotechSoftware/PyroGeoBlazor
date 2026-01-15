@@ -23,15 +23,13 @@ export const GeoJsonLayer = {
         }
 
         // Map pointToLayer callback (returns Layer/Marker)
-        if (options?.interop && options.pointToLayerEnabled) {
+            if (options?.interop && options.pointToLayerEnabled) {
             leafletOptions.pointToLayer = function (feature, latlng) {
                 // TODO: Make this properly async and await the result
                 // For now, return default marker and invoke callback
                 options.interop.invokeMethodAsync('PointToLayer', feature, latlng)
                     .then((result: any) => {
-                        // Result contains marker options from C#
-                        // We could potentially update the marker here
-                        console.log('PointToLayer result:', result);
+                        // Result contains marker options from C# - ignored in current implementation
                     });
                 return L.marker(latlng);
             };
@@ -78,6 +76,27 @@ export const GeoJsonLayer = {
 
         const geoJsonLayer = L.geoJSON(null, leafletOptions); // Always start with null data
 
+        // Override getBounds to return a properly formatted object for C# serialization
+        const originalGetBounds = (geoJsonLayer as any).getBounds?.bind(geoJsonLayer);
+        if (originalGetBounds) {
+            (geoJsonLayer as any).getBounds = function() {
+                try {
+                    const bounds = originalGetBounds();
+                    if (!bounds) return null;
+                    const sw = bounds.getSouthWest();
+                    const ne = bounds.getNorthEast();
+                    return {
+                        SouthWest: { Lat: sw.lat, Lng: sw.lng },
+                        NorthEast: { Lat: ne.lat, Lng: ne.lng }
+                    };
+                }
+                catch (e) {
+                    console.error('Error getting bounds from geoJsonLayer:', e);
+                    return null;
+                }
+            };
+        }
+
         // Default styles (DRY - single source of truth)
         const DEFAULT_SELECTION_STYLE = {
             color: '#3388ff',
@@ -105,6 +124,9 @@ export const GeoJsonLayer = {
 
         // Store hover state
         const hoveredLayers: Map<any, any> = new Map(); // Map of layer -> original style (for hover)
+        
+        // Selection click handler shared variable (declared in outer scope so other methods can attach/detach it)
+        let selectionClickHandler: ((ev: any) => void) | null = null;
 
         // Helper function to create a lightweight version of a feature for C# callbacks
         // This strips geometry coordinates from large features to avoid serialization issues
@@ -208,9 +230,7 @@ export const GeoJsonLayer = {
             }
             
             // Call the original addData with potentially filtered data
-            if (options?.debugLogging) {
-                console.log('Calling Leaflet addData with:', processedData);
-            }
+            // (debug logging removed)
             originalAddData(processedData);
             
             // Restore original onEachFeature
@@ -221,6 +241,16 @@ export const GeoJsonLayer = {
             // Wait for all onEachFeature callbacks to complete
             if (promises.length > 0) {
                 await Promise.all(promises);
+            }
+
+            // Notify .NET that bounds are ready for this layer (if handler configured)
+            try {
+                if (handlerMappings?.events && handlerMappings.events['boundsready']) {
+                    const boundsDto = (geoJsonLayer as any).getBounds ? (geoJsonLayer as any).getBounds() : null;
+                    handlerMappings.dotNetRef!.invokeMethodAsync(handlerMappings.events['boundsready'], boundsDto);
+                }
+            } catch (e) {
+                // suppressed
             }
             
             return geoJsonLayer;
@@ -491,8 +521,8 @@ export const GeoJsonLayer = {
             }
 
             // Feature selection handling (enabled by default)
-            // We create a named handler so it can be added/removed at runtime
-            const selectionClickHandler = function (ev: any) {
+            // Assign the handler inside the mapping block (it was declared in outer scope) so it's available to other scopes
+            selectionClickHandler = function (ev: any) {
                 try {
                     // Respect runtime flag to disable feature selection even if handler is attached
                     if (!selectionEnabledFlag) {
@@ -733,14 +763,14 @@ export const GeoJsonLayer = {
             };
 
             // Attach initially if configured
-            if (options?.enableFeatureSelection !== false) {
+            if (options?.enableFeatureSelection !== false && selectionClickHandler) {
                 geoJsonLayer.on('click', selectionClickHandler);
             }
 
             // Hover styling (controlled by enableHoverStyle flag)
             // Default to true if not specified
             if (options?.enableHoverStyle !== false) {
-                console.log('Hover enabled, enableHoverStyle value:', options?.enableHoverStyle);
+                // hover enabled
                 // Use provided hoverStyle or default to red stroke
                 const hoverStyle = options?.hoverStyle || DEFAULT_HOVER_STYLE;
                 
@@ -1014,12 +1044,20 @@ export const GeoJsonLayer = {
             try {
                 selectionEnabledFlag = enabled === true;
                 if (enabled) {
-                    // Attach selection handler if not already attached
-                    geoJsonLayer.on('click', selectionClickHandler);
+                    // Attach selection handler if not already attached (guard if handler isn't defined)
+                    if (selectionClickHandler) {
+                        geoJsonLayer.on('click', selectionClickHandler);
+                    } else {
+                        if (options?.debugLogging) console.warn('setEnableFeatureSelection: selectionClickHandler not defined');
+                    }
                     options.enableFeatureSelection = true;
                 } else {
                     // Detach selection handler and clear selection
-                    geoJsonLayer.off('click', selectionClickHandler);
+                    if (selectionClickHandler) {
+                        geoJsonLayer.off('click', selectionClickHandler);
+                    } else {
+                        if (options?.debugLogging) console.warn('setEnableFeatureSelection: selectionClickHandler not defined (off)');
+                    }
                     options.enableFeatureSelection = false;
                     (geoJsonLayer as any).clearSelection();
                 }

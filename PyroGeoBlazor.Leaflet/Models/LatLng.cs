@@ -2,6 +2,7 @@ namespace PyroGeoBlazor.Leaflet.Models;
 
 using Microsoft.JSInterop;
 
+using System.Globalization;
 using System.Threading.Tasks;
 
 /// <summary>
@@ -35,6 +36,8 @@ public class LatLng(double lat, double lng) : InteropObject
     /// <inheritdoc/>
     public override string ToString()
     {
-        return $"({Lat}, {Lng})";
+        var lat = Lat.ToString(CultureInfo.InvariantCulture);
+        var lng = Lng.ToString(CultureInfo.InvariantCulture);
+        return $"({lat}, {lng})";
     }
 }

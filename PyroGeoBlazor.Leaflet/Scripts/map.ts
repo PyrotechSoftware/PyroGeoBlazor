@@ -121,6 +121,114 @@ export const Map = {
             };
         };
 
+        // Guarded fitBounds that accepts several input formats from .NET and normalizes them
+        function coerceNumber(v: any): number {
+            if (typeof v === 'number') return v;
+            if (typeof v === 'string') {
+                // Normalize decimal separator to dot to avoid localization issues
+                const normalized = v.replace(',', '.');
+                const n = parseFloat(normalized);
+                if (!isNaN(n)) return n;
+            }
+            return NaN;
+        }
+
+        function coerceLatLng(obj: any) {
+            if (!obj) return null;
+            if (Array.isArray(obj) && obj.length >= 2) {
+                const lat = coerceNumber(obj[0]);
+                const lng = coerceNumber(obj[1]);
+                return !isNaN(lat) && !isNaN(lng) ? { lat, lng } : null;
+            }
+            // Expect object with Lat/Lng or lat/lng
+            const rawLat = obj.Lat ?? obj.lat ?? obj[1];
+            const rawLng = obj.Lng ?? obj.lng ?? obj[0];
+            const lat = coerceNumber(rawLat);
+            const lng = coerceNumber(rawLng);
+            return !isNaN(lat) && !isNaN(lng) ? { lat, lng } : null;
+        }
+
+        mapWrapper.fitBounds = function(boundsArg: any, options?: any) {
+            try {
+                let boundsToUse: any = null;
+                // Support arrays [[swLat, swLng],[neLat, neLng]]
+                if (Array.isArray(boundsArg) && boundsArg.length === 2 && Array.isArray(boundsArg[0])) {
+                    boundsToUse = boundsArg;
+                }
+                // Support object { SouthWest: {...}, NorthEast: {...} }
+                else if (boundsArg && (boundsArg.SouthWest || boundsArg.southWest) && (boundsArg.NorthEast || boundsArg.northEast)) {
+                    const sw = coerceLatLng(boundsArg.SouthWest || boundsArg.southWest);
+                    const ne = coerceLatLng(boundsArg.NorthEast || boundsArg.northEast);
+                    if (sw && ne) boundsToUse = [[sw.lat, sw.lng],[ne.lat, ne.lng]];
+                }
+                // Support object { south: ..., west: ..., north: ..., east: ... }
+                else if (boundsArg && (boundsArg.south !== undefined || boundsArg.north !== undefined)) {
+                    const sw = { lat: coerceNumber(boundsArg.south ?? boundsArg.South), lng: coerceNumber(boundsArg.west ?? boundsArg.West) };
+                    const ne = { lat: coerceNumber(boundsArg.north ?? boundsArg.North), lng: coerceNumber(boundsArg.east ?? boundsArg.East) };
+                    if (!isNaN(sw.lat) && !isNaN(sw.lng) && !isNaN(ne.lat) && !isNaN(ne.lng)) boundsToUse = [[sw.lat, sw.lng],[ne.lat, ne.lng]];
+                }
+
+                if (!boundsToUse) {
+                    // Fallback: try passing through and let Leaflet throw a useful error
+                    if (options) return (map as any).fitBounds(boundsArg, options);
+                    return (map as any).fitBounds(boundsArg);
+                }
+
+                // If bounds degenerate (same point) expand slightly
+                const swLat = coerceNumber(boundsToUse[0][0]);
+                const swLng = coerceNumber(boundsToUse[0][1]);
+                const neLat = coerceNumber(boundsToUse[1][0]);
+                const neLng = coerceNumber(boundsToUse[1][1]);
+                if (swLat === neLat && swLng === neLng) {
+                    const delta = 0.0001; // small expansion
+                    boundsToUse = [[swLat - delta, swLng - delta], [neLat + delta, neLng + delta]];
+                }
+
+                if (options) return (map as any).fitBounds(boundsToUse, options);
+                return (map as any).fitBounds(boundsToUse);
+            }
+            catch (e) {
+                // console.error suppressed in production
+                throw e;
+            }
+        };
+
+        // Mirror flyToBounds with same guarding
+        mapWrapper.flyToBounds = function(boundsArg: any, options?: any) {
+            try {
+                if ((mapWrapper as any).fitBounds) {
+                    // fitBounds handles normalization and expansion; flyToBounds can delegate to it then animate
+                    // But to preserve native behavior call flyToBounds with normalized bounds array
+                    let boundsToUse: any = null;
+                    if (Array.isArray(boundsArg) && boundsArg.length === 2 && Array.isArray(boundsArg[0])) {
+                        boundsToUse = boundsArg;
+                    } else if (boundsArg && (boundsArg.SouthWest || boundsArg.southWest) && (boundsArg.NorthEast || boundsArg.northEast)) {
+                        const sw = coerceLatLng(boundsArg.SouthWest || boundsArg.southWest);
+                        const ne = coerceLatLng(boundsArg.NorthEast || boundsArg.northEast);
+                        if (sw && ne) boundsToUse = [[sw.lat, sw.lng],[ne.lat, ne.lng]];
+                    }
+
+                    if (!boundsToUse) return (map as any).flyToBounds(boundsArg, options);
+
+                    const swLat = coerceNumber(boundsToUse[0][0]);
+                    const swLng = coerceNumber(boundsToUse[0][1]);
+                    const neLat = coerceNumber(boundsToUse[1][0]);
+                    const neLng = coerceNumber(boundsToUse[1][1]);
+                    if (swLat === neLat && swLng === neLng) {
+                        const delta = 0.0001;
+                        boundsToUse = [[swLat - delta, swLng - delta], [neLat + delta, neLng + delta]];
+                    }
+
+                    return (map as any).flyToBounds(boundsToUse, options);
+                }
+                return (map as any).flyToBounds(boundsArg, options);
+            }
+            catch (e) {
+                console.error('Error in flyToBounds guard:', e);
+                throw e;
+            }
+        };
+
         return mapWrapper;
     }
 };

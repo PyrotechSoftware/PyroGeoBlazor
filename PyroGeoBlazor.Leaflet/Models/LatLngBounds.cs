@@ -22,7 +22,7 @@ public class LatLngBounds(LatLng northEast, LatLng southWest) : InteropObject
     protected override async Task<IJSObjectReference> CreateJsObjectRef()
     {
         return JSBinder is null
-            ? throw new System.InvalidOperationException("Cannot create LatLngBounds object. No JavaScript binding has been set up for this object.")
+            ? throw new InvalidOperationException("Cannot create LatLngBounds object. No JavaScript binding has been set up for this object.")
             : await JSBinder.JSRuntime.InvokeAsync<IJSObjectReference>("L.latLngBounds", NorthEast.JSObjectReference, SouthWest.JSObjectReference);
     }
 }

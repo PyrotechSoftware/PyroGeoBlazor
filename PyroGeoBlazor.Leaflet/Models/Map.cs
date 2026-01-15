@@ -686,11 +686,6 @@ public class Map : InteropObject
         return await JSObjectReference!.InvokeAsync<object>("getContainer");
     }
 
-    public Task<Map> WhenReady()
-    {
-        throw new NotImplementedException();
-    }
-
     #endregion
 
     #endregion

@@ -1,8 +1,10 @@
 namespace PyroGeoBlazor.Demo.Components.Pages;
 
 using Microsoft.AspNetCore.Components;
+
 using PyroGeoBlazor.Demo.Models;
 using PyroGeoBlazor.Leaflet.Models;
+
 using System.IO;
 using System.Text.Json;
 
@@ -16,7 +18,7 @@ public partial class GeoJsonLayers : ComponentBase, IAsyncDisposable
     protected List<Control> MapControls = [];
 
     private bool geoJsonLayerAdded = false;
-    private bool selectionEnabled { get; set; } = true;
+    private bool selectionEnabled = true;
     private bool multiSelectEnabled = true;
     private int selectedCount = 0;
 
@@ -77,14 +79,79 @@ public partial class GeoJsonLayers : ComponentBase, IAsyncDisposable
             var text = File.ReadAllText("./Township.json");
             var geoJsonObject = JsonSerializer.Deserialize<object>(text);
 
-            var options = new GeoJsonLayerOptions(
-                OnEachFeatureCreated, 
-                OnPointToLayer, 
-                OnStyle, 
-                OnFeatureFilter, 
-                OnCoordsToLatLng)
+            // Try to compute bounds from the raw GeoJSON on the server side so we can fit immediately
+            LatLngBounds? computedBounds = null;
+            try
             {
-                DebugLogging = false,
+                using var doc = JsonDocument.Parse(text);
+                double? minLat = null, maxLat = null, minLng = null, maxLng = null;
+
+                void CollectCoords(JsonElement el)
+                {
+                    if (el.ValueKind == JsonValueKind.Array)
+                    {
+                        // If the first element is a number, treat this as a coordinate [lng, lat, ...]
+                        if (el.GetArrayLength() >= 2 && el[0].ValueKind == JsonValueKind.Number && el[1].ValueKind == JsonValueKind.Number)
+                        {
+                            try
+                            {
+                                var lng = el[0].GetDouble();
+                                var lat = el[1].GetDouble();
+                                if (!minLat.HasValue || lat < minLat) minLat = lat;
+                                if (!maxLat.HasValue || lat > maxLat) maxLat = lat;
+                                if (!minLng.HasValue || lng < minLng) minLng = lng;
+                                if (!maxLng.HasValue || lng > maxLng) maxLng = lng;
+                            }
+                            catch
+                            {
+                                // ignore parse errors
+                            }
+                        }
+                        else
+                        {
+                            foreach (var child in el.EnumerateArray())
+                            {
+                                CollectCoords(child);
+                            }
+                        }
+                    }
+                    else if (el.ValueKind == JsonValueKind.Object)
+                    {
+                        foreach (var prop in el.EnumerateObject())
+                        {
+                            CollectCoords(prop.Value);
+                        }
+                    }
+                }
+
+                CollectCoords(doc.RootElement);
+
+                if (minLat.HasValue && maxLat.HasValue && minLng.HasValue && maxLng.HasValue)
+                {
+                    var ne = new LatLng(maxLat.Value, maxLng.Value);
+                    var sw = new LatLng(minLat.Value, minLng.Value);
+
+                    // Guard against degenerate bounds (NE == SW) which Leaflet rejects as invalid
+                    if (Math.Abs(ne.Lat - sw.Lat) < 1e-9 && Math.Abs(ne.Lng - sw.Lng) < 1e-9)
+                    {
+                        // Expand bounds slightly so fitBounds will succeed
+                        const double delta = 0.01; // ~1km depending on latitude
+                        ne = new LatLng(ne.Lat + delta, ne.Lng + delta);
+                        sw = new LatLng(sw.Lat - delta, sw.Lng - delta);
+                    }
+
+                    computedBounds = new LatLngBounds(ne, sw);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error computing GeoJSON bounds locally: {ex.Message}");
+            }
+
+            var options = new GeoJsonLayerOptions(
+                )
+            {
+                DebugLogging = true, // enable JS-side debug logging to help diagnose bounds/loading
                 MultipleFeatureSelection = multiSelectEnabled,
                 EnableHoverStyle = true,
                 HoverStyle = new PathOptions
@@ -168,10 +235,75 @@ public partial class GeoJsonLayers : ComponentBase, IAsyncDisposable
             };
 
             await GeoJsonLayer.AddTo(PositionMap);
+            // Ensure the GeoJSON data is added via the interop wrapper so bounds are available immediately
+            // (the JS implementation may add initial data asynchronously when provided to the constructor)
+            // Listen for a layeradd event to know when features are being added to the feature group
+            TaskCompletionSource<bool>? layerAddTcs = null;
+            EventHandler<PyroGeoBlazor.Leaflet.EventArgs.LeafletLayerEventArgs>? layerAddHandler = null;
+            try
+            {
+                layerAddTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+                layerAddHandler = (s, e) => layerAddTcs.TrySetResult(true);
+                GeoJsonLayer.OnLayerAdd += layerAddHandler;
+
+                await GeoJsonLayer.AddData(geoJsonObject!);
+
+                // Wait up to 3s for the first layeradd event before falling back to polling bounds
+                var signalled = await Task.WhenAny(layerAddTcs.Task, Task.Delay(3000)) == layerAddTcs.Task;
+                if (!signalled)
+                {
+                    Console.WriteLine("Warning: did not receive layeradd event within timeout; will poll for bounds.");
+                }
+            }
+            finally
+            {
+                if (layerAddHandler != null)
+                {
+                    GeoJsonLayer.OnLayerAdd -= layerAddHandler;
+                }
+            }
             await LayersControl.AddOverlay(GeoJsonLayer, "GeoJSON (Townships)");
             // Ensure JS and .NET selection state are reconciled by applying current toggle settings
             await GeoJsonLayer.SetEnableFeatureSelection(selectionEnabled);
             await GeoJsonLayer.SetMultipleFeatureSelection(multiSelectEnabled);
+
+            // Zoom and pan the map to the bounds of the newly added GeoJSON layer.
+            try
+            {
+                if (PositionMap != null)
+                {
+                    if (computedBounds != null)
+                    {
+                        Console.WriteLine($"Computed server-side bounds NE={computedBounds.NorthEast}, SW={computedBounds.SouthWest}");
+                        await PositionMap.FitBounds(computedBounds);
+                    }
+                    else if (GeoJsonLayer != null)
+                    {
+                        // Fallback: try getting bounds from the JS layer (retry a few times)
+                        LatLngBounds? bounds = null;
+                        const int maxAttempts = 10;
+                        for (int attempt = 0; attempt < maxAttempts; attempt++)
+                        {
+                            bounds = await GeoJsonLayer.GetBounds();
+                            Console.WriteLine($"GetBounds attempt {attempt}: bounds={(bounds == null ? "null" : bounds.ToString())}");
+                            if (bounds?.NorthEast != null && bounds?.SouthWest != null)
+                            {
+                                // If NE and SW are the same point, bounds are probably empty/not ready
+                                if (!(bounds.NorthEast.Lat == bounds.SouthWest.Lat && bounds.NorthEast.Lng == bounds.SouthWest.Lng))
+                                {
+                                    await PositionMap.FitBounds(bounds);
+                                    break;
+                                }
+                            }
+                            await Task.Delay(100);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error fitting map to GeoJSON bounds: {ex.Message}");
+            }
 
             geoJsonLayerAdded = true;
             Console.WriteLine("GeoJSON layer loaded successfully");

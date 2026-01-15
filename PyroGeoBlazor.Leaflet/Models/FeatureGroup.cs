@@ -6,6 +6,7 @@ using PyroGeoBlazor.Leaflet.EventArgs;
 
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Threading.Tasks;
 
 /// <summary>
@@ -108,7 +109,51 @@ public class FeatureGroup : LayerGroup
         {
             throw new InvalidOperationException("JavaScript object reference is not set.");
         }
-        return await JSObjectReference.InvokeAsync<LatLngBounds>("getBounds");
+        var json = await JSObjectReference.InvokeAsync<JsonElement>("getBounds");
+        if (json.ValueKind == JsonValueKind.Null || json.ValueKind == JsonValueKind.Undefined) return null;
+
+        // shape 1: { SouthWest: { Lat, Lng }, NorthEast: { Lat, Lng } }
+        if (json.TryGetProperty("SouthWest", out var swEl) && json.TryGetProperty("NorthEast", out var neEl))
+        {
+            var swLat = swEl.GetProperty("Lat").GetDouble();
+            var swLng = swEl.GetProperty("Lng").GetDouble();
+            var neLat = neEl.GetProperty("Lat").GetDouble();
+            var neLng = neEl.GetProperty("Lng").GetDouble();
+
+            var ne = new LatLng(neLat, neLng);
+            var sw = new LatLng(swLat, swLng);
+            return new LatLngBounds(ne, sw);
+        }
+
+        // shape 2: lowercase properties
+        if (json.TryGetProperty("southWest", out swEl) && json.TryGetProperty("northEast", out neEl))
+        {
+            var swLat = swEl.GetProperty("lat").GetDouble();
+            var swLng = swEl.GetProperty("lng").GetDouble();
+            var neLat = neEl.GetProperty("lat").GetDouble();
+            var neLng = neEl.GetProperty("lng").GetDouble();
+
+            var ne = new LatLng(neLat, neLng);
+            var sw = new LatLng(swLat, swLng);
+            return new LatLngBounds(ne, sw);
+        }
+
+        // shape 3: array [[swLat, swLng], [neLat, neLng]]
+        if (json.ValueKind == JsonValueKind.Array && json.GetArrayLength() == 2)
+        {
+            var swArr = json[0];
+            var neArr = json[1];
+            var swLat = swArr[0].GetDouble();
+            var swLng = swArr[1].GetDouble();
+            var neLat = neArr[0].GetDouble();
+            var neLng = neArr[1].GetDouble();
+
+            var ne = new LatLng(neLat, neLng);
+            var sw = new LatLng(swLat, swLng);
+            return new LatLngBounds(ne, sw);
+        }
+
+        return null;
     }
 
     #endregion

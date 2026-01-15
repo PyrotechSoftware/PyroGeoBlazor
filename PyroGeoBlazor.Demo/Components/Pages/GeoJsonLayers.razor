@@ -84,10 +84,10 @@
                             <MudDivider Class="my-2" />
                             <MudStack Spacing="1">
                                 <MudSwitch T="bool" Color="Color.Primary" Label="@($"Selection ({(selectionEnabled ? "On" : "Off")})")"
-                                           Value="@selectionEnabled" ValueChanged="ToggleSelection" Dense="true" />
+                                           Value="@selectionEnabled" ValueChanged="ToggleSelection" />
                                 <MudSwitch T="bool" Color="Color.Primary" Label="@($"Multi-Select ({(multiSelectEnabled ? "On" : "Off")})")"
                                            Value="@multiSelectEnabled" ValueChanged="ToggleMultiSelect"
-                                           Disabled="@(!selectionEnabled)" Dense="true" />
+                                           Disabled="@(!selectionEnabled)" />
                             </MudStack>
 
                             <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" FullWidth="true"

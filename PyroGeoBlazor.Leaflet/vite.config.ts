@@ -16,7 +16,8 @@ export default defineConfig({
     emptyOutDir: false, // Don't delete existing Leaflet files
     
     rollupOptions: {
-      // External dependencies (Leaflet loaded separately)
+      // External dependencies are not bundled - they're loaded separately by Blazor
+      // Leaflet is provided via wwwroot/leaflet.js, avoiding duplication
       external: ['leaflet', 'leaflet-vectortile-mapbox'],
       
       output: {

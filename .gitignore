@@ -365,3 +365,5 @@ FodyWeavers.xsd
 # Vitest coverage reports
 **/coverage/
 
+/PyroGeoBlazor.Leaflet/wwwroot/leafletMap.js
+/PyroGeoBlazor.Leaflet/wwwroot/leafletMap.js.map

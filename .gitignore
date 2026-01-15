@@ -361,4 +361,7 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-/PyroGeoBlazor.Leaflet/wwwroot/leafletMap.js
+
+# Vitest coverage reports
+**/coverage/
+

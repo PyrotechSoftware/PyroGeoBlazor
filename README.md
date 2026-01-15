@@ -13,6 +13,71 @@ It provides a set of reusable components that allow developers to easily add int
 
   Future versions of PyroGeoBlazor will include additional GIS libraries and functionalities to further enhance the mapping capabilities available to developers.
 
+## Building the Project
+
+### Prerequisites
+- Node.js 18+ (for TypeScript/JavaScript build)
+- .NET 10 SDK (for Blazor components)
+
+### Building TypeScript/JavaScript
+
+The project uses **Vite** for bundling TypeScript code and **Vitest** for unit testing.
+
+```bash
+cd PyroGeoBlazor.Leaflet
+
+# Install dependencies
+npm install
+
+# Production build (outputs to wwwroot/leafletMap.js)
+npm run build
+
+# Development mode with hot module replacement
+npm run dev
+
+# Preview production build
+npm run preview
+```
+
+### Running Tests
+
+```bash
+cd PyroGeoBlazor.Leaflet
+
+# Run unit tests
+npm test
+
+# Run tests in watch mode
+npm test -- --watch
+
+# Run tests with UI
+npm run test:ui
+
+# Generate coverage report
+npm run test:coverage
+```
+
+### Building .NET Solution
+
+The TypeScript build is automatically triggered when building the .NET solution.
+
+```bash
+# Build entire solution
+dotnet build
+
+# Run C# tests (includes xUnit and bUnit tests)
+dotnet test
+```
+
+## Development Workflow
+
+1. Make TypeScript changes in `PyroGeoBlazor.Leaflet/Scripts/`
+2. Run `npm run dev` for live reloading during development
+3. Write tests in `PyroGeoBlazor.Leaflet/Scripts/__tests__/`
+4. Run `npm test` to verify TypeScript changes
+5. Build with `dotnet build` to integrate with Blazor components
+6. Run `dotnet test` to verify C# integration
+
 ## Components
 - LeafletMap
   A component that encapsulates the Leaflet.js map, allowing developers to create interactive maps with various layers and controls.

@@ -1,12 +1,17 @@
 namespace PyroGeoBlazor.Demo.Components.Pages;
 
 using Microsoft.AspNetCore.Components;
+
 using PyroGeoBlazor.Demo.Models;
 using PyroGeoBlazor.Leaflet.Models;
+
+using System.Globalization;
 using System.Text.Json;
 
 public partial class VectorTiles : ComponentBase, IAsyncDisposable
 {
+    private HttpClient HttpClient { get; set; } = new HttpClient();
+
     protected Map? PositionMap;
     protected TileLayer OpenStreetMapsTileLayer;
     protected ProtobufVectorTileLayer? TownshipsLayer;
@@ -222,7 +227,155 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
         }
 
         layersAdded = true;
+
+        // Get bounds from WMTS service and fit the map
+        // Note: The WMTS layer identifier is just "Township", not "PlannerSpatial:Township"
+        try
+        {
+            var bounds = await GetLayerBoundsFromWMTS("Township");
+            if (bounds != null)
+            {
+                await PositionMap.FitBounds(bounds);
+            }
+            else
+            {
+                Console.WriteLine("Could not retrieve bounds from WMTS service");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fitting bounds: {ex.Message}");
+        }
+
         StateHasChanged();
+    }
+
+    /// <summary>
+    /// Gets the bounding box of a layer from the WMTS GetCapabilities response.
+    /// </summary>
+    /// <param name="layerName">The name of the layer (e.g., "PlannerSpatial:Township")</param>
+    /// <returns>LatLngBounds for the layer, or null if not found</returns>
+    private async Task<LatLngBounds?> GetLayerBoundsFromWMTS(string layerName)
+    {
+        try
+        {
+            // Build the GetCapabilities URL
+            var baseUrl = "https://lims.koleta.co.mz/geoserver/PlannerSpatial/gwc/service/wmts";
+            var getCapabilitiesUrl = $"{baseUrl}?REQUEST=GetCapabilities&SERVICE=WMTS";
+
+            Console.WriteLine($"Fetching WMTS GetCapabilities from: {getCapabilitiesUrl}");
+
+            // Fetch the GetCapabilities XML
+            var response = await HttpClient.GetStringAsync(getCapabilitiesUrl);
+            
+            Console.WriteLine($"Received response, length: {response.Length}");
+            Console.WriteLine($"First 500 chars: {response.Substring(0, Math.Min(500, response.Length))}");
+            
+            // Parse the XML
+            var doc = System.Xml.Linq.XDocument.Parse(response);
+            
+            Console.WriteLine($"XML parsed successfully. Root element: {doc.Root?.Name}");
+            
+            // Define namespaces used in WMTS GetCapabilities
+            System.Xml.Linq.XNamespace ns = "http://www.opengis.net/wmts/1.0";
+            System.Xml.Linq.XNamespace ows = "http://www.opengis.net/ows/1.1";
+            
+            // Log all namespaces in the document
+            var namespaces = doc.Root?.Attributes()
+                .Where(a => a.IsNamespaceDeclaration)
+                .Select(a => $"{a.Name.LocalName}={a.Value}");
+            if (namespaces?.Any() == true)
+            {
+                Console.WriteLine($"Document namespaces: {string.Join(", ", namespaces)}");
+            }
+            
+            // Find the layer element with matching identifier
+            Console.WriteLine($"Looking for layer: {layerName}");
+            var allLayers = doc.Descendants(ns + "Layer").ToList();
+            Console.WriteLine($"Found {allLayers.Count} Layer elements");
+            
+            var layer = allLayers.FirstOrDefault(l => 
+            {
+                var identifier = l.Element(ows + "Identifier")?.Value;
+                Console.WriteLine($"  Found layer with identifier: {identifier}");
+                return identifier == layerName;
+            });
+            
+            if (layer == null)
+            {
+                Console.WriteLine($"Layer {layerName} not found in WMTS GetCapabilities");
+                return null;
+            }
+            
+            Console.WriteLine($"Found layer: {layerName}");
+            
+            // Try to get WGS84BoundingBox first (this is in lat/lon)
+            var wgs84BBox = layer.Element(ows + "WGS84BoundingBox");
+            if (wgs84BBox != null)
+            {
+                Console.WriteLine("Found WGS84BoundingBox");
+                var lowerCorner = wgs84BBox.Element(ows + "LowerCorner")?.Value.Split(' ');
+                var upperCorner = wgs84BBox.Element(ows + "UpperCorner")?.Value.Split(' ');
+                
+                if (lowerCorner?.Length == 2 && upperCorner?.Length == 2)
+                {
+                    // WGS84BoundingBox is in lon/lat order
+                    var minLon = double.Parse(lowerCorner[0], CultureInfo.InvariantCulture);
+                    var minLat = double.Parse(lowerCorner[1], CultureInfo.InvariantCulture);
+                    var maxLon = double.Parse(upperCorner[0], CultureInfo.InvariantCulture);
+                    var maxLat = double.Parse(upperCorner[1], CultureInfo.InvariantCulture);
+
+                    Console.WriteLine($"Bounds: SW({minLat}, {minLon}) NE({maxLat}, {maxLon})");
+                    
+                    var southWest = new LatLng(minLat, minLon);
+                    var northEast = new LatLng(maxLat, maxLon);
+                    
+                    return new LatLngBounds(northEast, southWest);
+                }
+            }
+            
+            // If no WGS84BoundingBox, try BoundingBox (might need projection conversion)
+            var bbox = layer.Element(ows + "BoundingBox");
+            if (bbox != null)
+            {
+                Console.WriteLine("Found BoundingBox");
+                var crs = bbox.Attribute("crs")?.Value;
+                var lowerCorner = bbox.Element(ows + "LowerCorner")?.Value.Split(' ');
+                var upperCorner = bbox.Element(ows + "UpperCorner")?.Value.Split(' ');
+                
+                if (lowerCorner?.Length == 2 && upperCorner?.Length == 2)
+                {
+                    // If it's EPSG:4326, it's already in lat/lon
+                    if (crs?.Contains("4326") == true)
+                    {
+                        var minLon = double.Parse(lowerCorner[0], CultureInfo.InvariantCulture);
+                        var minLat = double.Parse(lowerCorner[1], CultureInfo.InvariantCulture);
+                        var maxLon = double.Parse(upperCorner[0], CultureInfo.InvariantCulture);
+                        var maxLat = double.Parse(upperCorner[1], CultureInfo.InvariantCulture);
+                        
+                        Console.WriteLine($"Bounds: SW({minLat}, {minLon}) NE({maxLat}, {maxLon})");
+                        
+                        var southWest = new LatLng(minLat, minLon);
+                        var northEast = new LatLng(maxLat, maxLon);
+                        
+                        return new LatLngBounds(northEast, southWest);
+                    }
+                    else
+                    {
+                        Console.WriteLine($"BoundingBox is in projection {crs}, conversion needed");
+                    }
+                }
+            }
+            
+            Console.WriteLine($"No usable bounding box found for layer {layerName}");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error getting layer bounds from WMTS: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            return null;
+        }
     }
 
     private async Task ToggleInteractive(ChangeEventArgs e)
@@ -303,6 +456,7 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
             await PositionMap.DisposeAsync();
         }
 
+        HttpClient.Dispose();
         GC.SuppressFinalize(this);
     }
 }

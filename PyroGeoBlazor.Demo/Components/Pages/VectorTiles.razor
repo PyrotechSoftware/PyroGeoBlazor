@@ -5,95 +5,87 @@
 
 <PageTitle>Vector Tiles - PyroGeoBlazor Demo</PageTitle>
 
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <h2 class="mb-3">Vector Tiles (Mapbox Vector Tiles / PBF)</h2>
-            <p class="text-muted">High-performance rendering with interactive features, selection, and dynamic styling</p>
-        </div>
-    </div>
+<div style="display: flex; flex-direction: row; height: 100%; overflow: hidden;">
+    <div style="flex: 0 0 30%; overflow-y: auto; overflow-x: hidden;">
+        <MudContainer MaxWidth="MaxWidth.False" Class="pa-4">
+            <MudText Typo="Typo.h4" Class="mb-2">Vector Tiles</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">High-performance rendering with interactive features, selection, and dynamic styling</MudText>
 
-    <div class="row">
-        <div class="col-md-9">
-            <LeafletMap Height="600" Map="PositionMap" TileLayer="OpenStreetMapsTileLayer" Controls="MapControls" />
-        </div>
-        
-        <div class="col-md-3">
-            <div class="card">
-                <div class="card-header bg-success text-white">
-                    <h5 class="mb-0">Vector Tile Controls</h5>
-                </div>
-                <div class="card-body">
-                    <h6>Layers</h6>
-                    <div class="d-grid gap-2 mb-3">
-                        <button class="btn btn-sm btn-outline-success" @onclick="AddVectorTileLayers" disabled="@layersAdded">
-                            <i class="bi bi-layers"></i> Load Vector Layers
-                        </button>
-                    </div>
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Layers</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Success" Size="Size.Small" FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.Layers"
+                               OnClick="AddVectorTileLayers"
+                               Disabled="@layersAdded">
+                        Load Vector Layers
+                    </MudButton>
 
                     @if (layersAdded)
                     {
-                        <h6>Interactivity</h6>
-                        <div class="mb-3">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="interactiveSwitch" checked="@isInteractive" @onchange="ToggleInteractive">
-                                <label class="form-check-label" for="interactiveSwitch">
-                                    Interactive (@(isInteractive ? "On" : "Off"))
-                                </label>
-                            </div>
-                        </div>
+                        <MudDivider Class="my-2" />
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">Interactivity</MudText>
+                        <MudStack Spacing="1">
+                            <MudSwitch T="bool" Color="Color.Primary" Label="@($"Interactive ({(isInteractive ? "On" : "Off")})")"
+                                       @bind-Value="@isInteractive" Dense="true" />
+                            <MudSwitch T="bool" Color="Color.Primary" Label="@($"Selection ({(selectionEnabled ? "On" : "Off")})")"
+                                       @bind-Value="@selectionEnabled" 
+                                       Disabled="@(!isInteractive)" Dense="true" />
+                            <MudSwitch T="bool" Color="Color.Primary" Label="@($"Multi-Select ({(multiSelectEnabled ? "On" : "Off")})")"
+                                       @bind-Value="@multiSelectEnabled" 
+                                       Disabled="@(!selectionEnabled)" Dense="true" />
+                        </MudStack>
 
-                        <h6>Selection Mode</h6>
-                        <div class="mb-3">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="selectionSwitch" checked="@selectionEnabled" disabled="@(!isInteractive)" @onchange="ToggleSelection">
-                                <label class="form-check-label" for="selectionSwitch">
-                                    Selection (@(selectionEnabled ? "On" : "Off"))
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="multiSelectSwitch" checked="@multiSelectEnabled" disabled="@(!selectionEnabled)" @onchange="ToggleMultiSelect">
-                                <label class="form-check-label" for="multiSelectSwitch">
-                                    Multi-Select (@(multiSelectEnabled ? "On" : "Off"))
-                                </label>
-                            </div>
-                        </div>
-
-                        <h6>Actions</h6>
-                        <div class="d-grid gap-2">
-                            <button class="btn btn-sm btn-outline-danger" @onclick="ClearSelection" disabled="@(!selectionEnabled)">
-                                <i class="bi bi-x-circle"></i> Clear Selection
-                            </button>
-                        </div>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" FullWidth="true"
+                                   StartIcon="@Icons.Material.Filled.Clear"
+                                   OnClick="ClearSelection"
+                                   Disabled="@(!selectionEnabled)"
+                                   Class="mt-2">
+                            Clear Selection
+                        </MudButton>
                     }
-                </div>
-            </div>
+                </MudCardContent>
+            </MudCard>
 
-            <div class="card mt-3">
-                <div class="card-header">
-                    <h6 class="mb-0">Features</h6>
-                </div>
-                <div class="card-body">
-                    <small>
-                        <ul class="mb-0">
-                            <li>Interactive hover effects</li>
-                            <li>Feature selection</li>
-                            <li>Multi-segment support</li>
-                            <li>Dynamic styling</li>
-                            <li>Runtime control</li>
-                        </ul>
-                    </small>
-                </div>
-            </div>
-        </div>
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Features</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudList Dense="true" T="string">
+                        <MudListItem>Interactive hover effects</MudListItem>
+                        <MudListItem>Feature selection</MudListItem>
+                        <MudListItem>Multi-segment support</MudListItem>
+                        <MudListItem>Dynamic styling</MudListItem>
+                        <MudListItem>Runtime control</MudListItem>
+                    </MudList>
+                </MudCardContent>
+            </MudCard>
+
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Vector Tile Layers</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudText Typo="Typo.body2">
+                        <strong>Format:</strong> Mapbox Vector Tiles (PBF)<br/>
+                        <strong>Protocol:</strong> WMTS<br/>
+                        <strong>Layers:</strong> Townships, Extensions, Parcels<br/>
+                        <strong>Styling:</strong> Dynamic per layer<br/>
+                        <strong>Selection:</strong> Multi-feature support
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+
+            <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ArrowBack" Href="/" Class="mt-3">
+                Back to Home
+            </MudButton>
+        </MudContainer>
     </div>
 
-    <div class="row mt-4">
-        <div class="col-12">
-            <a href="/" class="btn btn-link">&larr; Back to Home</a>
-        </div>
+    <div style="flex: 1 1 70%; min-width: 0; overflow: hidden;">
+        <LeafletMap Height="100%" Map="PositionMap" TileLayer="OpenStreetMapsTileLayer" Controls="MapControls" />
     </div>
 </div>

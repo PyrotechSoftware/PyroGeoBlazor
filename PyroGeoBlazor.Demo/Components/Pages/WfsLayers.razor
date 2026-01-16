@@ -5,101 +5,125 @@
 
 <PageTitle>WFS Layers - PyroGeoBlazor Demo</PageTitle>
 
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <h2 class="mb-3">WFS (Web Feature Service) Layers</h2>
-            <p class="text-muted">Dynamic feature loading with auto-refresh on pan/zoom and bounded by map view</p>
-        </div>
-    </div>
+<div style="display: flex; flex-direction: row; height: 100%; overflow: hidden;">
+    <div style="flex: 0 0 30%; overflow-y: auto; overflow-x: hidden;">
+        <MudContainer MaxWidth="MaxWidth.False" Class="pa-4">
+            <MudText Typo="Typo.h4" Class="mb-2">WFS Layers</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">Dynamic feature loading with auto-refresh on pan/zoom and bounded by map view</MudText>
 
-    <div class="row">
-        <div class="col-md-9">
-            <LeafletMap Height="600" Map="PositionMap" TileLayer="OpenStreetMapsTileLayer" Controls="MapControls" />
-        </div>
-        
-        <div class="col-md-3">
-            <div class="card">
-                <div class="card-header bg-info text-white">
-                    <h5 class="mb-0">WFS Controls</h5>
-                </div>
-                <div class="card-body">
-                    <h6>WFS Layer</h6>
-                    <div class="d-grid gap-2 mb-3">
-                        <button class="btn btn-sm btn-outline-info" @onclick="AddWfsLayer" disabled="@wfsLayerAdded">
-                            <i class="bi bi-cloud-arrow-down"></i> Load WFS Layer
-                        </button>
-                    </div>
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Controls</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudNumericField @bind-Value="maxFeatures" 
+                                     Label="Max Features" 
+                                     Variant="Variant.Outlined" 
+                                     Step="100"
+                                     Min="100"
+                                     Max="10000"
+                                     HelperText="Maximum number of features to load"
+                                     Disabled="@wfsLayerAdded"
+                                     Class="mb-3" />
+
+                    <MudButton Variant="Variant.Outlined" Color="Color.Info" Size="Size.Small" FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.CloudDownload"
+                               OnClick="AddWfsLayer"
+                               Disabled="@wfsLayerAdded">
+                        Load WFS Layer
+                    </MudButton>
 
                     @if (wfsLayerAdded)
                     {
-                        <div class="d-grid gap-2 mb-3">
-                            <button class="btn btn-sm btn-outline-warning" @onclick="ReloadWfsLayer">
-                                <i class="bi bi-arrow-clockwise"></i> Reload Layer
-                            </button>
-                        </div>
+                        <MudDivider Class="my-3" />
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">Update Settings</MudText>
+                        <MudNumericField @bind-Value="newMaxFeatures" 
+                                         Label="New Max Features" 
+                                         Variant="Variant.Outlined" 
+                                         Step="100"
+                                         Min="100"
+                                         Max="10000"
+                                         HelperText="Change and apply new limit"
+                                         Class="mb-2" />
+                        
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" FullWidth="true"
+                                   StartIcon="@Icons.Material.Filled.Update"
+                                   OnClick="UpdateMaxFeatures"
+                                   Class="mb-2">
+                            Apply New Limit
+                        </MudButton>
 
-                        <div class="alert alert-success py-2 px-2 small">
+                        <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small" FullWidth="true"
+                                   StartIcon="@Icons.Material.Filled.Refresh"
+                                   OnClick="ReloadWfsLayer"
+                                   Class="mb-2">
+                            Reload Layer
+                        </MudButton>
+
+                        <MudAlert Severity="Severity.Success" Dense="true" Class="mt-2">
                             <strong>Auto-Refresh:</strong> Enabled<br/>
-                            <small class="text-muted">Features refresh automatically when you pan or zoom the map</small>
-                        </div>
+                            <MudText Typo="Typo.caption">Features refresh automatically when you pan or zoom the map</MudText>
+                        </MudAlert>
 
-                        <h6>Selection</h6>
-                        <div class="d-grid gap-2">
-                            <button class="btn btn-sm btn-outline-danger" @onclick="ClearSelection">
-                                <i class="bi bi-x-circle"></i> Clear Selection
-                            </button>
-                        </div>
+                        <MudDivider Class="my-2" />
+                        <MudText Typo="Typo.subtitle2" Class="mb-2">Selection</MudText>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" FullWidth="true"
+                                   StartIcon="@Icons.Material.Filled.Clear"
+                                   OnClick="ClearSelection">
+                            Clear Selection
+                        </MudButton>
 
                         @if (selectedCount > 0)
                         {
-                            <div class="alert alert-info py-2 px-2 small mt-2">
+                            <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
                                 <strong>Selected:</strong> @selectedCount features
-                            </div>
+                            </MudAlert>
                         }
+                        
+                        <MudAlert Severity="Severity.Info" Dense="true" Class="mt-2">
+                            <strong>Current Limit:</strong> @maxFeatures features
+                        </MudAlert>
                     }
-                </div>
-            </div>
+                </MudCardContent>
+            </MudCard>
 
-            <div class="card mt-3">
-                <div class="card-header">
-                    <h6 class="mb-0">WFS Features</h6>
-                </div>
-                <div class="card-body">
-                    <small>
-                        <ul class="mb-0">
-                            <li>Bounded by map view</li>
-                            <li>Auto-refresh on pan/zoom</li>
-                            <li>Incremental loading</li>
-                            <li>Feature selection</li>
-                            <li>GeoServer integration</li>
-                        </ul>
-                    </small>
-                </div>
-            </div>
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">WFS Features</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudList Dense="true" T="string">
+                        <MudListItem>Bounded by map view</MudListItem>
+                        <MudListItem>Auto-refresh on pan/zoom</MudListItem>
+                        <MudListItem>Incremental loading</MudListItem>
+                        <MudListItem>Feature selection</MudListItem>
+                        <MudListItem>GeoServer integration</MudListItem>
+                    </MudList>
+                </MudCardContent>
+            </MudCard>
 
-            <div class="card mt-3">
-                <div class="card-header">
-                    <h6 class="mb-0">Usage Tips</h6>
-                </div>
-                <div class="card-body">
-                    <small>
-                        <ol class="mb-0 ps-3">
-                            <li>Click "Load WFS Layer"</li>
-                            <li>Pan or zoom the map</li>
-                            <li>Watch features load automatically</li>
-                            <li>Click features to select</li>
-                            <li>Use Ctrl+Click for multiple</li>
-                        </ol>
-                    </small>
-                </div>
-            </div>
-        </div>
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Usage Tips</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudList Dense="true" T="string">
+                        <MudListItem>Click "Load WFS Layer"</MudListItem>
+                        <MudListItem>Pan or zoom the map</MudListItem>
+                        <MudListItem>Watch features load automatically</MudListItem>
+                        <MudListItem>Click features to select</MudListItem>
+                        <MudListItem>Use Ctrl+Click for multiple</MudListItem>
+                    </MudList>
+                </MudCardContent>
+            </MudCard>
+
+            <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ArrowBack" Href="/" Class="mt-3">
+                Back to Home
+            </MudButton>
+        </MudContainer>
     </div>
 
-    <div class="row mt-4">
-        <div class="col-12">
-            <a href="/" class="btn btn-link">&larr; Back to Home</a>
-        </div>
+    <div style="flex: 1 1 70%; min-width: 0; overflow: hidden;">
+        <LeafletMap Height="100%" Map="PositionMap" TileLayer="OpenStreetMapsTileLayer" Controls="MapControls" />
     </div>
 </div>

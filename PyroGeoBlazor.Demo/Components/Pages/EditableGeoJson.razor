@@ -5,20 +5,82 @@
 
 <PageTitle>Editable GeoJSON Layer - PyroGeoBlazor Demo</PageTitle>
 
-<div class="container-fluid">
-    <div class="row">
-        <div class="col-12">
-            <h2 class="mb-3">Editable GeoJSON Layer</h2>
-            <p class="text-muted">Draw and edit polygons and polylines on the map using the control at the bottom-left</p>
-        </div>
+<div style="display: flex; flex-direction: row; height: 100%; overflow: hidden;">
+    <div style="flex: 0 0 30%; overflow-y: auto; overflow-x: hidden;">
+        <MudContainer MaxWidth="MaxWidth.False" Class="pa-4">
+            <MudText Typo="Typo.h4" Class="mb-2">Editable GeoJSON Layer</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">Draw and edit polygons and polylines on the map using the control at the bottom-left</MudText>
+
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Drawing Tools</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudText Typo="Typo.body2">
+                        Use the drawing control on the map to:
+                    </MudText>
+                    <MudList Dense="true" T="string">
+                        <MudListItem>Draw polygons</MudListItem>
+                        <MudListItem>Draw polylines</MudListItem>
+                        <MudListItem>Edit existing features</MudListItem>
+                        <MudListItem>Delete features</MudListItem>
+                    </MudList>
+                </MudCardContent>
+            </MudCard>
+
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Features</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudList Dense="true" T="string">
+                        <MudListItem>Vertex snapping</MudListItem>
+                        <MudListItem>Double-click to finish</MudListItem>
+                        <MudListItem>Drawing guides</MudListItem>
+                        <MudListItem>Hover effects</MudListItem>
+                        <MudListItem>Feature selection</MudListItem>
+                    </MudList>
+                </MudCardContent>
+            </MudCard>
+
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Styling</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudList Dense="true" T="string">
+                        <MudListItem><MudChip T="string" Size="Size.Small" Color="Color.Warning">Orange</MudChip> Drawing</MudListItem>
+                        <MudListItem><MudChip T="string" Size="Size.Small" Color="Color.Error">Red</MudChip> Editing</MudListItem>
+                        <MudListItem><MudChip T="string" Size="Size.Small" Style="background-color: purple; color: white;">Purple</MudChip> Selected</MudListItem>
+                        <MudListItem><MudChip T="string" Size="Size.Small" Style="background-color: orange; color: white;">Orange</MudChip> Hover</MudListItem>
+                    </MudList>
+                </MudCardContent>
+            </MudCard>
+
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Status</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudText Typo="Typo.body2">
+                        <strong>Snapping:</strong> Enabled (15px)<br/>
+                        <strong>Guides:</strong> Enabled<br/>
+                        <strong>Selection:</strong> Single<br/>
+                        <strong>Selected:</strong> @selectedCount features
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+
+            <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ArrowBack" Href="/" Class="mt-3">
+                Back to Home
+            </MudButton>
+        </MudContainer>
     </div>
 
-    <div class="row">
-        <div class="col-12">
-            <LeafletMap Height="600" 
-                        Map="PositionMap" 
-                        Controls="MapControls"
-                        OnMapReady="HandleMapReady" />
-        </div>
+    <div style="flex: 1 1 70%; min-width: 0; overflow: hidden;">
+        <LeafletMap Height="100%" 
+                    Map="PositionMap" 
+                    Controls="MapControls"
+                    OnMapReady="HandleMapReady" />
     </div>
 </div>

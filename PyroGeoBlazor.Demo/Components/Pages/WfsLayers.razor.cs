@@ -1,12 +1,17 @@
 namespace PyroGeoBlazor.Demo.Components.Pages;
 
 using Microsoft.AspNetCore.Components;
+
 using PyroGeoBlazor.Demo.Models;
 using PyroGeoBlazor.Leaflet.Models;
+
+using System.Globalization;
 using System.Text.Json;
 
 public partial class WfsLayers : ComponentBase, IAsyncDisposable
 {
+    private readonly HttpClient _httpClient = new();
+
     protected Map? PositionMap;
     protected TileLayer OpenStreetMapsTileLayer;
     protected WfsLayer? WfsLayer;
@@ -16,6 +21,8 @@ public partial class WfsLayers : ComponentBase, IAsyncDisposable
 
     private bool wfsLayerAdded = false;
     private int selectedCount = 0;
+    private int maxFeatures = 1000;
+    private int newMaxFeatures = 1000;
 
     public WfsLayers()
     {
@@ -72,6 +79,21 @@ public partial class WfsLayers : ComponentBase, IAsyncDisposable
 
         try
         {
+            // First, try to get bounds from WFS GetCapabilities and fit the map
+            var layerBounds = await GetLayerBoundsFromWFS("PlannerSpatial:vwParcelsLayer");
+            if (layerBounds != null)
+            {
+                Console.WriteLine("Fitting map to WFS layer bounds...");
+                await PositionMap.FitBounds(layerBounds, new FitBoundsOptions
+                {
+                    Padding = new Point(50, 50),
+                    MaxZoom = 12
+                });
+                
+                // Wait a moment for the map to adjust
+                await Task.Delay(500);
+            }
+
             // Get current map bounds
             var bounds = await PositionMap.GetBounds();
 
@@ -98,7 +120,7 @@ public partial class WfsLayers : ComponentBase, IAsyncDisposable
                     RequestParameters = new WfsRequestParameters
                     {
                         TypeName = "PlannerSpatial:vwParcelsLayer",
-                        MaxFeatures = 5000,
+                        MaxFeatures = maxFeatures,
                         SrsName = "EPSG:4326",
                         BBox = new WfsBoundingBox
                         {
@@ -168,6 +190,7 @@ public partial class WfsLayers : ComponentBase, IAsyncDisposable
             await LayersControl.AddOverlay(WfsLayer, "WFS Parcels");
 
             wfsLayerAdded = true;
+            newMaxFeatures = maxFeatures; // Initialize newMaxFeatures to current value
             StateHasChanged();
         }
         catch (HttpRequestException ex)
@@ -177,6 +200,132 @@ public partial class WfsLayers : ComponentBase, IAsyncDisposable
         catch (Exception ex)
         {
             Console.WriteLine($"Error adding WFS layer: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Gets the bounding box of a layer from the WFS GetCapabilities response.
+    /// </summary>
+    /// <param name="typeName">The type name of the layer (e.g., "PlannerSpatial:vwParcelsLayer")</param>
+    /// <returns>LatLngBounds for the layer, or null if not found</returns>
+    private async Task<LatLngBounds?> GetLayerBoundsFromWFS(string typeName)
+    {
+        try
+        {
+            // Build the GetCapabilities URL
+            var baseUrl = "https://lims.koleta.co.mz/geoserver/PlannerSpatial/ows";
+            var getCapabilitiesUrl = $"{baseUrl}?service=WFS&version=2.0.0&request=GetCapabilities";
+
+            Console.WriteLine($"Fetching WFS GetCapabilities from: {getCapabilitiesUrl}");
+
+            // Fetch the GetCapabilities XML
+            var response = await _httpClient.GetStringAsync(getCapabilitiesUrl);
+            
+            Console.WriteLine($"Received WFS response, length: {response.Length}");
+            
+            // Parse the XML
+            var doc = System.Xml.Linq.XDocument.Parse(response);
+            
+            Console.WriteLine($"XML parsed successfully. Root element: {doc.Root?.Name}");
+            
+            // Define namespaces used in WFS GetCapabilities
+            System.Xml.Linq.XNamespace wfs = "http://www.opengis.net/wfs/2.0";
+            System.Xml.Linq.XNamespace ows = "http://www.opengis.net/ows/1.1";
+            
+            // Find the FeatureType element with matching Name
+            Console.WriteLine($"Looking for layer: {typeName}");
+            var allFeatureTypes = doc.Descendants(wfs + "FeatureType").ToList();
+            Console.WriteLine($"Found {allFeatureTypes.Count} FeatureType elements");
+            
+            var featureType = allFeatureTypes.FirstOrDefault(ft => 
+            {
+                var name = ft.Element(wfs + "Name")?.Value;
+                Console.WriteLine($"  Found feature type with name: {name}");
+                return name == typeName;
+            });
+            
+            if (featureType == null)
+            {
+                Console.WriteLine($"Layer {typeName} not found in WFS GetCapabilities");
+                return null;
+            }
+            
+            Console.WriteLine($"Found feature type: {typeName}");
+            
+            // Try to get WGS84BoundingBox (this is in lat/lon)
+            var wgs84BBox = featureType.Element(ows + "WGS84BoundingBox");
+            if (wgs84BBox != null)
+            {
+                Console.WriteLine("Found WGS84BoundingBox");
+                var lowerCorner = wgs84BBox.Element(ows + "LowerCorner")?.Value.Split(' ');
+                var upperCorner = wgs84BBox.Element(ows + "UpperCorner")?.Value.Split(' ');
+                
+                if (lowerCorner?.Length == 2 && upperCorner?.Length == 2)
+                {
+                    // WGS84BoundingBox is in lon/lat order
+                    var minLon = double.Parse(lowerCorner[0], CultureInfo.InvariantCulture);
+                    var minLat = double.Parse(lowerCorner[1], CultureInfo.InvariantCulture);
+                    var maxLon = double.Parse(upperCorner[0], CultureInfo.InvariantCulture);
+                    var maxLat = double.Parse(upperCorner[1], CultureInfo.InvariantCulture);
+                    
+                    Console.WriteLine($"WFS Bounds: SW({minLat}, {minLon}) NE({maxLat}, {maxLon})");
+                    
+                    var southWest = new LatLng(minLat, minLon);
+                    var northEast = new LatLng(maxLat, maxLon);
+                    
+                    return new LatLngBounds(northEast, southWest);
+                }
+            }
+            
+            Console.WriteLine($"No usable bounding box found for layer {typeName}");
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error getting layer bounds from WFS: {ex.Message}");
+            Console.WriteLine($"Stack trace: {ex.StackTrace}");
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Updates the MaxFeatures limit dynamically without recreating the layer.
+    /// Subsequent auto-refresh requests will use the new limit.
+    /// </summary>
+    public async Task UpdateMaxFeatures()
+    {
+        if (PositionMap is null || WfsLayer is null)
+        {
+            return;
+        }
+
+        if (newMaxFeatures == maxFeatures)
+        {
+            Console.WriteLine("MaxFeatures value unchanged, no update needed");
+            return;
+        }
+
+        try
+        {
+            Console.WriteLine($"Updating MaxFeatures from {maxFeatures} to {newMaxFeatures}");
+            
+            // Update the stored max features value
+            maxFeatures = newMaxFeatures;
+
+            // Update the MaxFeatures on the existing layer (doesn't recreate the layer)
+            WfsLayer.UpdateMaxFeatures(maxFeatures);
+
+            // Optionally reload features with the new limit
+            // Clear cache and reload to immediately apply the new limit
+            WfsLayer.ClearLoadedFeatureCache();
+            await WfsLayer.LoadFeaturesAsync(clearExisting: true);
+
+            Console.WriteLine($"MaxFeatures updated to {maxFeatures}. Subsequent requests will use this limit.");
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error updating MaxFeatures: {ex.Message}");
         }
     }
 
@@ -219,7 +368,7 @@ public partial class WfsLayers : ComponentBase, IAsyncDisposable
                     RequestParameters = new WfsRequestParameters
                     {
                         TypeName = "PlannerSpatial:vwParcelsLayer",
-                        MaxFeatures = 5000,
+                        MaxFeatures = maxFeatures,
                         SrsName = "EPSG:4326",
                         BBox = new WfsBoundingBox
                         {
@@ -297,6 +446,7 @@ public partial class WfsLayers : ComponentBase, IAsyncDisposable
             await PositionMap.DisposeAsync();
         }
 
+        _httpClient.Dispose();
         GC.SuppressFinalize(this);
     }
 }

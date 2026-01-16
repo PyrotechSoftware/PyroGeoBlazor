@@ -188,6 +188,26 @@ public class WfsLayer : GeoJsonLayer
     }
 
     /// <summary>
+    /// Updates the MaxFeatures limit for the WFS query without creating a new layer instance.
+    /// Subsequent requests will use the new limit.
+    /// </summary>
+    /// <param name="newMaxFeatures">The new maximum number of features to request</param>
+    public void UpdateMaxFeatures(int newMaxFeatures)
+    {
+        Options.RequestParameters = new WfsRequestParameters
+        {
+            TypeName = Options.RequestParameters.TypeName,
+            Version = Options.RequestParameters.Version,
+            MaxFeatures = newMaxFeatures,
+            CqlFilter = Options.RequestParameters.CqlFilter,
+            PropertyName = Options.RequestParameters.PropertyName,
+            SrsName = Options.RequestParameters.SrsName,
+            BBox = Options.RequestParameters.BBox
+        };
+        Console.WriteLine($"WfsLayer: Updated MaxFeatures to: {newMaxFeatures}");
+    }
+
+    /// <summary>
     /// Loads features from the WFS endpoint.
     /// This should be called after adding the layer to the map.
     /// </summary>

@@ -33,5 +33,61 @@
   <ItemGroup>
     <None Include="..\Nuget2.png" Pack="true" PackagePath="" />
   </ItemGroup>
+
+  <!-- Exclude development / build-time npm files from the nupkg so consumers don't get npm deps -->
+  <ItemGroup>
+    <None Update="package.json">
+      <Pack>false</Pack>
+    </None>
+    <None Update="package-lock.json">
+      <Pack>false</Pack>
+    </None>
+    <None Update="npm-shrinkwrap.json">
+      <Pack>false</Pack>
+    </None>
+    <None Update="vite.config.ts">
+      <Pack>false</Pack>
+    </None>
+    <None Update="vitest.config.ts">
+      <Pack>false</Pack>
+    </None>
+    <None Update="vite-build.mjs">
+      <Pack>false</Pack>
+    </None>
+    <None Update="Scripts\**\*">
+      <Pack>false</Pack>
+    </None>
+    <None Update="node_modules\**\*">
+      <Pack>false</Pack>
+    </None>
+  </ItemGroup>
+
+  <!-- Exclude development / build-time npm files from the nupkg so consumers don't get npm deps -->
+  <ItemGroup>
+    <None Update="package.json">
+      <Pack>false</Pack>
+    </None>
+    <None Update="package-lock.json">
+      <Pack>false</Pack>
+    </None>
+    <None Update="npm-shrinkwrap.json">
+      <Pack>false</Pack>
+    </None>
+    <None Update="vite.config.ts">
+      <Pack>false</Pack>
+    </None>
+    <None Update="vitest.config.ts">
+      <Pack>false</Pack>
+    </None>
+    <None Update="vite-build.mjs">
+      <Pack>false</Pack>
+    </None>
+    <None Update="Scripts\**\*">
+      <Pack>false</Pack>
+    </None>
+    <None Update="node_modules\**\*">
+      <Pack>false</Pack>
+    </None>
+  </ItemGroup>
 	
 </Project>

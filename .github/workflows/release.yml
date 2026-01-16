@@ -168,54 +168,12 @@ jobs:
             echo "No CHANGELOG.md found, skipping release body update"
           fi
 
-      - name: Request OIDC token for NuGet
-        id: id-token
-        run: |
-          set -euo pipefail
-          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
-            echo "ACTIONS_ID_TOKEN_REQUEST_URL not found. OIDC not available."
-            exit 1
-          fi
-          echo "Requesting ID token from the GitHub Actions runtime"
-          # Request an OIDC token with audience api.nuget.org
-          ID_TOK_JSON=$(curl -sS -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}?audience=api.nuget.org")
-          ID_TOKEN=$(echo "$ID_TOK_JSON" | jq -r .value)
-          if [ -z "$ID_TOKEN" ] || [ "$ID_TOKEN" = "null" ]; then
-            echo "Failed to acquire ID token"
-            echo "id-token=" >> $GITHUB_OUTPUT
-            exit 1
-          fi
-          echo "id-token=$ID_TOKEN" >> $GITHUB_OUTPUT
-
-      - name: Exchange OIDC token for temporary NuGet API key
-        id: nuget-key
-        run: |
-          set -euo pipefail
-          ID_TOKEN=${{ steps.id-token.outputs.id-token }}
-          echo "Exchanging ID token for temporary NuGet API key"
-          # NuGet trusted publishing temporary API key endpoint
-          RESP=$(curl -sS -X POST "https://api.nuget.org/v3/account/temporaryapikey" -H "Content-Type: application/json" -d "{\"id_token\":\"$ID_TOKEN\",\"audience\":\"api.nuget.org\"}" ) || true
-          echo "NuGet response (truncated to 4000 chars):"
-          echo "$RESP" | sed -n '1,4000p'
-
-          # If response is valid JSON, parse with jq; otherwise try regex extraction
-          API_KEY=""
-          if echo "$RESP" | jq -e . >/dev/null 2>&1; then
-            API_KEY=$(echo "$RESP" | jq -r '.apiKey // .key // .value // .temporaryApiKey // .temporaryKey // empty')
-          else
-            echo "Response is not valid JSON; attempting regex extraction of an API key-like token"
-            # Look for a plausible API key token (alphanumeric, length >= 16)
-            API_KEY=$(echo "$RESP" | grep -oE '[A-Za-z0-9_-]{16,}' | head -n 1 || true)
-          fi
-
-          if [ -z "$API_KEY" ]; then
-            echo "Failed to obtain temporary NuGet API key from nuget.org. Full response:"
-            echo "$RESP"
-            echo "Ensure Trusted Publishing is configured on nuget.org for this repository and workflow file name (release.yml)."
-            exit 1
-          fi
-
-          echo "nuget_api_key=$API_KEY" >> $GITHUB_OUTPUT
+      - name: NuGet login (OIDC → temp API key)
+        uses: NuGet/login@v1
+        id: login
+        with:
+          # user is required by the action; set a repo secret with the NuGet username (account) to be used as owner
+          user: ${{ secrets.NUGET_USER }}
 
       - name: Push packages to nuget.org (Trusted Publishing)
         run: |
@@ -231,9 +189,9 @@ jobs:
             echo "No packages found to push"
             exit 1
           fi
-          API_KEY=${{ steps.nuget-key.outputs.nuget_api_key }}
+          API_KEY=${{ steps.login.outputs.NUGET_API_KEY }}
           if [ -z "$API_KEY" ]; then
-            echo "Temporary NuGet API key not available. Ensure Trusted Publishing is configured on nuget.org and this workflow is trusted."
+            echo "Temporary NuGet API key not available from NuGet/login action. Ensure Trusted Publishing is configured on nuget.org and this workflow is trusted."
             exit 1
           fi
           for pkg in $PKG_LIST; do

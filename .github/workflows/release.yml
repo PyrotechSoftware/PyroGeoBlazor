@@ -1,0 +1,229 @@
+name: Release
+
+permissions:
+  id-token: write
+  packages: write
+  contents: write
+
+on:
+  workflow_dispatch: {}
+  release:
+    types: [published]
+
+jobs:
+  build-pack:
+    name: Build and Pack
+    runs-on: ubuntu-latest
+    outputs:
+      artifacts-path: ${{ steps.pack.outputs.artifacts-path }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Cache npm
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-cache-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            npm-cache-${{ runner.os }}-
+
+      - name: Install JS dependencies and build
+        working-directory: PyroGeoBlazor.Leaflet
+        run: |
+          npm ci
+          npm run build
+
+      - name: Run JS tests
+        working-directory: PyroGeoBlazor.Leaflet
+        run: |
+          npm ci --silent
+          npm test --silent
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Cache NuGet
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore .NET
+        run: dotnet restore
+
+      - name: Build solution (Release)
+        run: dotnet build -c Release --no-restore
+
+      - name: Run .NET tests
+        run: dotnet test -c Release --no-build --verbosity normal
+
+      - name: Install jq
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Determine package version
+        id: version
+        run: |
+          set -e
+          echo "Determining package version from release tag or git tags"
+          VERSION=""
+          if [ -f "$GITHUB_EVENT_PATH" ]; then
+            TAG=$(jq -r .release.tag_name < "$GITHUB_EVENT_PATH" 2>/dev/null || echo "")
+            if [ "$TAG" != "null" ]; then
+              VERSION="$TAG"
+            fi
+          fi
+          if [ -z "$VERSION" ]; then
+            TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+            VERSION="$TAG"
+          fi
+          if [ -z "$VERSION" ]; then
+            VERSION="0.0.0-ci"
+          fi
+          # strip leading v or V
+          VERSION=${VERSION#v}
+          VERSION=${VERSION#V}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Using package version: $VERSION"
+
+      - name: Pack projects
+        id: pack
+        run: |
+          mkdir -p ./artifacts
+          VERSION=${{ steps.version.outputs.version }}
+          echo "Packing with version: $VERSION"
+          dotnet pack PyroGeoBlazor/PyroGeoBlazor.csproj -c Release -o ./artifacts /p:PackageVersion=$VERSION --no-build
+          dotnet pack PyroGeoBlazor.Leaflet/PyroGeoBlazor.Leaflet.csproj -c Release -o ./artifacts /p:PackageVersion=$VERSION --no-build
+          echo "artifacts-path=./artifacts" >> $GITHUB_OUTPUT
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-packages
+          path: ./artifacts/*.nupkg
+
+  publish:
+    name: Publish to NuGet
+    needs: build-pack
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'release' && startsWith(github.event.release.tag_name, 'v') }}
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          name: nuget-packages
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Upload packages as GitHub Release assets
+        if: ${{ github.event_name == 'release' && github.event.release.upload_url != '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          UPLOAD_URL="${{ github.event.release.upload_url }}"
+          # upload_url is a template like https://uploads.github.com/.../assets{?name,label}
+          UPLOAD_URL_BASE=${UPLOAD_URL%%\{*}
+          echo "Uploading release assets to $UPLOAD_URL_BASE"
+          if [ -d "./nuget-packages" ]; then
+            FILES=$(find ./nuget-packages -type f -name '*.nupkg')
+          else
+            FILES=$(find . -type f -name '*.nupkg')
+          fi
+          for f in $FILES; do
+            fname=$(basename "$f")
+            echo "Uploading $fname"
+            curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" -H "Content-Type: application/octet-stream" --data-binary @"$f" "$UPLOAD_URL_BASE?name=$fname"
+          done
+
+      - name: Inject CHANGELOG.md into GitHub Release body (if present)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          if [ -f CHANGELOG.md ]; then
+            echo "CHANGELOG.md found, updating release body"
+            BODY_JSON=$(jq -Rs '{body: .}' < CHANGELOG.md)
+            API_URL="https://api.github.com/repos/${{ github.repository }}/releases/${{ github.event.release.id }}"
+            curl -s -X PATCH -H "Authorization: token $GITHUB_TOKEN" -H "Content-Type: application/json" -d "$BODY_JSON" "$API_URL"
+          else
+            echo "No CHANGELOG.md found, skipping release body update"
+          fi
+
+      - name: Request OIDC token for NuGet
+        id: id-token
+        run: |
+          set -euo pipefail
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ]; then
+            echo "ACTIONS_ID_TOKEN_REQUEST_URL not found. OIDC not available."
+            exit 1
+          fi
+          echo "Requesting ID token from the GitHub Actions runtime"
+          # Request an OIDC token with audience api.nuget.org
+          ID_TOK_JSON=$(curl -sS -H "Authorization: Bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" "${ACTIONS_ID_TOKEN_REQUEST_URL}?audience=api.nuget.org")
+          ID_TOKEN=$(echo "$ID_TOK_JSON" | jq -r .value)
+          if [ -z "$ID_TOKEN" ] || [ "$ID_TOKEN" = "null" ]; then
+            echo "Failed to acquire ID token"
+            echo "id-token=" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          echo "id-token=$ID_TOKEN" >> $GITHUB_OUTPUT
+
+      - name: Exchange OIDC token for temporary NuGet API key
+        id: nuget-key
+        run: |
+          set -euo pipefail
+          ID_TOKEN=${{ steps.id-token.outputs.id-token }}
+          echo "Exchanging ID token for temporary NuGet API key"
+          # NuGet trusted publishing temporary API key endpoint
+          RESP=$(curl -sS -X POST "https://api.nuget.org/v3/account/temporaryapikey" -H "Content-Type: application/json" -d "{\"id_token\":\"$ID_TOKEN\",\"audience\":\"api.nuget.org\"}")
+          # Try multiple possible response fields
+          API_KEY=$(echo "$RESP" | jq -r '.apiKey // .key // .value // .temporaryApiKey // .temporaryKey // empty')
+          if [ -z "$API_KEY" ]; then
+            echo "Failed to obtain temporary NuGet API key from nuget.org. Response: $RESP"
+            exit 1
+          fi
+          echo "nuget_api_key=$API_KEY" >> $GITHUB_OUTPUT
+
+      - name: Push packages to nuget.org (Trusted Publishing)
+        run: |
+          set -euo pipefail
+          # downloaded artifacts are extracted into ./nuget-packages by download-artifact
+          ART_DIR="./nuget-packages"
+          if [ -d "$ART_DIR" ]; then
+            PKG_LIST=$(find "$ART_DIR" -type f -name '*.nupkg')
+          else
+            PKG_LIST=$(find . -type f -name '*.nupkg')
+          fi
+          if [ -z "$PKG_LIST" ]; then
+            echo "No packages found to push"
+            exit 1
+          fi
+          API_KEY=${{ steps.nuget-key.outputs.nuget_api_key }}
+          if [ -z "$API_KEY" ]; then
+            echo "Temporary NuGet API key not available. Ensure Trusted Publishing is configured on nuget.org and this workflow is trusted."
+            exit 1
+          fi
+          for pkg in $PKG_LIST; do
+            echo "Pushing $pkg"
+            dotnet nuget push "$pkg" -k "$API_KEY" -s https://api.nuget.org/v3/index.json --skip-duplicate || exit 1
+          done

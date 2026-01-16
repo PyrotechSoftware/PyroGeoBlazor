@@ -21,17 +21,17 @@
                             <MudStack Spacing="2">
                                 <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" FullWidth="true"
                                            StartIcon="@Icons.Material.Filled.LocationOn"
-                                           OnClick="() => PositionMap?.SetView(new LatLng(51.505, -0.09), 13)">
+                                           OnClick="@(() => PositionMap != null ? PositionMap.SetView(new LatLng(51.505, -0.09), 13) : Task.CompletedTask)">
                                     Go to London
                                 </MudButton>
                                 <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" FullWidth="true"
                                            StartIcon="@Icons.Material.Filled.LocationOn"
-                                           OnClick="() => PositionMap?.SetView(new LatLng(40.7128, -74.0060), 13)">
+                                           OnClick="@(() => PositionMap != null ? PositionMap.SetView(new LatLng(40.7128, -74.0060), 13) : Task.CompletedTask)">
                                     Go to New York
                                 </MudButton>
                                 <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" FullWidth="true"
                                            StartIcon="@Icons.Material.Filled.LocationOn"
-                                           OnClick="() => PositionMap?.SetView(new LatLng(-33.8688, 151.2093), 13)">
+                                           OnClick="@(() => PositionMap != null ? PositionMap.SetView(new LatLng(-33.8688, 151.2093), 13) : Task.CompletedTask)">
                                     Go to Sydney
                                 </MudButton>
                             </MudStack>

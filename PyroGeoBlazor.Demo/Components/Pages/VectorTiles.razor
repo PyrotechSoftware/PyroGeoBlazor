@@ -33,13 +33,13 @@
                     <MudDivider Class="my-2" />
                     <MudStack Spacing="1">
                         <MudSwitch T="bool" Color="Color.Primary" Label="@($"Interactive ({(isInteractive ? "On" : "Off")})")"
-                                   @bind-Value="@isInteractive" Dense="true" />
+                                   @bind-Value="@isInteractive" />
                         <MudSwitch T="bool" Color="Color.Primary" Label="@($"Selection ({(selectionEnabled ? "On" : "Off")})")"
                                    @bind-Value="@selectionEnabled" 
-                                   Disabled="@(!isInteractive)" Dense="true" />
+                                   Disabled="@(!isInteractive)" />
                         <MudSwitch T="bool" Color="Color.Primary" Label="@($"Multi-Select ({(multiSelectEnabled ? "On" : "Off")})")"
                                    @bind-Value="@multiSelectEnabled" 
-                                   Disabled="@(!selectionEnabled)" Dense="true" />
+                                   Disabled="@(!selectionEnabled)" />
                     </MudStack>
 
                     @if (loadedLayers.Count > 0)

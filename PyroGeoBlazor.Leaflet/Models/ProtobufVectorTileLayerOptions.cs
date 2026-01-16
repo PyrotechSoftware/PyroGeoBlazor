@@ -1,7 +1,5 @@
 namespace PyroGeoBlazor.Leaflet.Models;
 
-using Microsoft.JSInterop;
-
 using System.Text.Json.Serialization;
 
 /// <summary>
@@ -22,10 +20,4 @@ public class ProtobufVectorTileLayerOptions : VectorTileLayerOptions
     /// </summary>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public string[]? Subdomains { get; set; }
-
-    /// <summary>
-    /// Maximum native zoom level for the tile source.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public int? MaxNativeZoom { get; set; }
 }

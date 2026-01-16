@@ -103,7 +103,7 @@ public class FeatureGroup : LayerGroup
     /// <summary>
     /// Returns the <see cref="LatLngBounds"/> of the Feature Group (created from bounds and coordinates of its children).
     /// </summary>
-    public async Task<LatLngBounds> GetBounds()
+    public async Task<LatLngBounds?> GetBounds()
     {
         if (JSObjectReference == null)
         {

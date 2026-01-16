@@ -308,7 +308,7 @@ public partial class GeoJsonLayers : ComponentBase, IAsyncDisposable
             geoJsonLayerAdded = true;
             Console.WriteLine("GeoJSON layer loaded successfully");
             // Refresh selected count (JS will also invoke selectionchanged which triggers the OnSelectionChanged handler)
-            selectedCount = GeoJsonLayer.GetSelectedFeaturesCount();
+            selectedCount = GeoJsonLayer?.GetSelectedFeaturesCount() ?? 0;
             StateHasChanged();
         }
         catch (Exception ex)
@@ -381,125 +381,6 @@ public partial class GeoJsonLayers : ComponentBase, IAsyncDisposable
             StateHasChanged();
         }
     }
-
-    #region GeoJSON Callbacks
-
-    private void OnEachFeatureCreated(GeoJsonFeature feature, LayerInfo layer)
-    {
-        // This callback is invoked for each feature as it is created
-        // You have access to:
-        // - feature.Id
-        // - feature.Properties (Dictionary<string, object?>)
-        // - feature.Geometry (with Type and Coordinates)
-        // - layer.LeafletId
-        // - layer.Type (e.g., "Marker", "Polyline", "Polygon", etc.)
-
-        if (feature.Properties != null && feature.Properties.TryGetValue("TownCode", out var townCode))
-        {
-            Console.WriteLine($"Created feature with TownCode: {townCode}");
-        }
-    }
-
-    private bool OnFeatureFilter(GeoJsonFeature feature)
-    {
-        // Filter features before adding to the map
-        // Return true to include the feature, false to exclude it
-
-        // Example: Only include features with a specific property value
-        //if (feature.Properties != null)
-        //{
-        //    if (feature.Properties.TryGetValue("TownCode", out var townCode))
-        //    {
-        //        return townCode?.ToString() == "010"; // Only include specific town
-        //    }
-        //}
-
-        return true; // Include all features by default
-    }
-
-    private Marker OnPointToLayer(GeoJsonFeature feature, LatLng latlng)
-    {
-        // Customize how point features are rendered
-        // Create custom markers based on feature properties
-
-        var markerOptions = new MarkerOptions
-        {
-            Title = "Feature Point",
-            RiseOnHover = true,
-            RiseOffset = 10
-        };
-
-        if (feature.Properties != null && feature.Properties.TryGetValue("name", out var nameValue))
-        {
-            markerOptions.Title = nameValue?.ToString() ?? "Unnamed Feature";
-        }
-
-        return new Marker(latlng, markerOptions);
-    }
-
-    private PathOptions OnStyle(GeoJsonFeature feature)
-    {
-        // Customize the style of each feature based on its properties
-        var pathOptions = new PathOptions();
-
-        if (feature.Properties != null &&
-            feature.Properties.TryGetValue("TownCode", out var townCodeValue))
-        {
-            var townCode = townCodeValue?.ToString();
-
-            // Style based on TownCode
-            if (townCode == "010")
-            {
-                // Highlight specific township in red
-                pathOptions.Color = "red";
-                pathOptions.FillColor = "red";
-                pathOptions.FillOpacity = 0.5;
-                pathOptions.Weight = 3;
-            }
-            else if (townCode?.StartsWith("01") == true)
-            {
-                // Other townships in the same region in yellow
-                pathOptions.Color = "yellow";
-                pathOptions.FillColor = "yellow";
-                pathOptions.FillOpacity = 0.3;
-                pathOptions.Weight = 2;
-            }
-            else
-            {
-                // Default style for other townships
-                pathOptions.Color = "blue";
-                pathOptions.FillColor = "lightblue";
-                pathOptions.FillOpacity = 0.2;
-                pathOptions.Weight = 1;
-            }
-        }
-        else
-        {
-            // Default style when no TownCode property
-            pathOptions.Color = "blue";
-            pathOptions.FillColor = "lightblue";
-            pathOptions.FillOpacity = 0.2;
-            pathOptions.Weight = 1;
-        }
-
-        return pathOptions;
-    }
-
-    private LatLng OnCoordsToLatLng(double[] coords)
-    {
-        // Convert coordinate array to LatLng
-        // GeoJSON uses [longitude, latitude] order (X, Y)
-        // Leaflet uses (latitude, longitude) order
-
-        if (coords.Length >= 2)
-        {
-            return new LatLng(coords[1], coords[0]); // lat, lng
-        }
-
-        return new LatLng(0, 0); // Fallback
-    }
-
-    #endregion
 
     public async ValueTask DisposeAsync()
     {

@@ -1,6 +1,7 @@
 using MudBlazor.Services;
 
 using PyroGeoBlazor.Demo.Components;
+using PyroGeoBlazor.Extensions;
 using PyroGeoBlazor.Leaflet;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,6 +18,7 @@ builder.Services.AddRazorComponents()
 builder.Services.AddMudServices();
 
 builder.Services.AddLeafletMap();
+builder.Services.AddPyroGeoBlazor();
 
 var app = builder.Build();
 

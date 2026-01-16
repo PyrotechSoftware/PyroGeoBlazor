@@ -1,0 +1,369 @@
+@using PyroGeoBlazor.Models
+@inject HttpClient HttpClient
+
+<div class="wfs-layer-selector">
+    <h3>WFS Layer Selector</h3>
+    
+    <div class="form-group">
+        <label for="wfsUrl">GetCapabilities URL:</label>
+        <input id="wfsUrl" 
+               type="text" 
+               @bind="CapabilitiesUrl" 
+               class="form-control" 
+               placeholder="https://your-server.com/geoserver/ows?SERVICE=WFS&REQUEST=GetCapabilities" />
+    </div>
+
+    <div class="form-group">
+        <label for="wfsVersion">WFS Version:</label>
+        <select id="wfsVersion" @bind="SelectedVersion" class="form-control">
+            <option value="1.0.0">1.0.0</option>
+            <option value="1.1.0">1.1.0</option>
+            <option value="2.0.0">2.0.0</option>
+        </select>
+    </div>
+
+    <button @onclick="FetchCapabilities" disabled="@IsLoading" class="btn btn-primary">
+        @if (IsLoading)
+        {
+            <span>Loading...</span>
+        }
+        else
+        {
+            <span>Get Capabilities</span>
+        }
+    </button>
+
+    @if (!string.IsNullOrEmpty(ErrorMessage))
+    {
+        <div class="alert alert-danger mt-3">
+            @ErrorMessage
+        </div>
+    }
+
+    @if (Capabilities != null && Capabilities.Layers.Count > 0)
+    {
+        <div class="mt-3">
+            <h4>Available Layers</h4>
+            <div class="form-group">
+                <label for="layerSelect">Select Layer:</label>
+                <select id="layerSelect" @bind="SelectedLayerName" class="form-control">
+                    <option value="">-- Select a layer --</option>
+                    @foreach (var layer in Capabilities.Layers)
+                    {
+                        <option value="@layer.Name">@layer.Title (@layer.Name)</option>
+                    }
+                </select>
+            </div>
+
+            @if (!string.IsNullOrEmpty(SelectedLayerName))
+            {
+                var selectedLayer = Capabilities.Layers.FirstOrDefault(l => l.Name == SelectedLayerName);
+                if (selectedLayer != null)
+                {
+                    <div class="layer-details mt-3">
+                        <h5>Layer Details</h5>
+                        <p><strong>Name:</strong> @selectedLayer.Name</p>
+                        <p><strong>Title:</strong> @selectedLayer.Title</p>
+                        @if (!string.IsNullOrEmpty(selectedLayer.Abstract))
+                        {
+                            <p><strong>Description:</strong> @selectedLayer.Abstract</p>
+                        }
+
+                        <p><strong>Default CRS:</strong> @selectedLayer.DefaultCrs</p>
+                        
+                        @if (selectedLayer.OtherCrs.Count > 0)
+                        {
+                            <p><strong>Other CRS:</strong> @string.Join(", ", selectedLayer.OtherCrs)</p>
+                        }
+
+                        @if (selectedLayer.BoundingBox != null)
+                        {
+                            <div class="bounding-box mt-2">
+                                <p><strong>Bounding Box:</strong></p>
+                                <ul>
+                                    <li>Min X (West): @selectedLayer.BoundingBox.MinX.ToString("F6")</li>
+                                    <li>Min Y (South): @selectedLayer.BoundingBox.MinY.ToString("F6")</li>
+                                    <li>Max X (East): @selectedLayer.BoundingBox.MaxX.ToString("F6")</li>
+                                    <li>Max Y (North): @selectedLayer.BoundingBox.MaxY.ToString("F6")</li>
+                                    <li>CRS: @selectedLayer.BoundingBox.Crs</li>
+                                </ul>
+                            </div>
+                        }
+
+                        @if (selectedLayer.OutputFormats.Count > 0)
+                        {
+                            <div class="form-group">
+                                <label for="outputFormat">Output Format:</label>
+                                <select id="outputFormat" @bind="SelectedOutputFormat" class="form-control">
+                                    @foreach (var format in selectedLayer.OutputFormats)
+                                    {
+                                        <option value="@format">@format</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+
+                        <div class="form-group">
+                            <label for="maxFeatures">Max Features (optional):</label>
+                            <input id="maxFeatures" 
+                                   type="number" 
+                                   @bind="MaxFeatures" 
+                                   class="form-control" 
+                                   min="1"
+                                   placeholder="Leave empty for no limit" />
+                        </div>
+
+                        <button @onclick="GenerateConfig" class="btn btn-success mt-2">
+                            Generate Configuration
+                        </button>
+
+                        @if (GeneratedConfig != null)
+                        {
+                            <div class="alert alert-success mt-3">
+                                <h6>WFS Configuration Generated</h6>
+                                <p><strong>Service URL:</strong> @GeneratedConfig.ServiceUrl</p>
+                                <p><strong>Type Name:</strong> @GeneratedConfig.TypeName</p>
+                                <p><strong>Version:</strong> @GeneratedConfig.Version</p>
+                                <p><strong>SRS Name:</strong> @GeneratedConfig.SrsName</p>
+                                @if (GeneratedConfig.MaxFeatures.HasValue)
+                                {
+                                    <p><strong>Max Features:</strong> @GeneratedConfig.MaxFeatures.Value</p>
+                                }
+                                @if (GeneratedConfig.BoundingBox != null)
+                                {
+                                    <p><strong>Bounding Box:</strong></p>
+                                    <ul>
+                                        <li>Min X: @GeneratedConfig.BoundingBox.MinX.ToString("F6")</li>
+                                        <li>Min Y: @GeneratedConfig.BoundingBox.MinY.ToString("F6")</li>
+                                        <li>Max X: @GeneratedConfig.BoundingBox.MaxX.ToString("F6")</li>
+                                        <li>Max Y: @GeneratedConfig.BoundingBox.MaxY.ToString("F6")</li>
+                                    </ul>
+                                }
+                                <p class="mt-2"><strong>Total Available Layers:</strong> @GeneratedConfig.AvailableLayers.Count</p>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private string CapabilitiesUrl { get; set; } = string.Empty;
+    private string SelectedVersion { get; set; } = "2.0.0";
+    private bool IsLoading { get; set; }
+    private string? ErrorMessage { get; set; }
+    private WfsCapabilities? Capabilities { get; set; }
+    private string SelectedLayerName { get; set; } = string.Empty;
+    private string SelectedOutputFormat { get; set; } = "application/json";
+    private int? MaxFeatures { get; set; }
+    private WfsLayerConfig? GeneratedConfig { get; set; }
+
+    /// <summary>
+    /// Event that fires when a configuration is generated.
+    /// </summary>
+    [Parameter]
+    public EventCallback<WfsLayerConfig> OnConfigGenerated { get; set; }
+
+    /// <summary>
+    /// Optional initial GetCapabilities URL to populate the input field.
+    /// </summary>
+    [Parameter]
+    public string? InitialUrl { get; set; }
+
+    /// <summary>
+    /// Optional initial WFS version to select (default: "2.0.0").
+    /// </summary>
+    [Parameter]
+    public string? InitialVersion { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrEmpty(InitialUrl))
+        {
+            CapabilitiesUrl = InitialUrl;
+        }
+
+        if (!string.IsNullOrEmpty(InitialVersion))
+        {
+            SelectedVersion = InitialVersion;
+        }
+    }
+
+    private async Task FetchCapabilities()
+    {
+        IsLoading = true;
+        ErrorMessage = null;
+        Capabilities = null;
+        GeneratedConfig = null;
+        StateHasChanged();
+
+        try
+        {
+            var url = CapabilitiesUrl;
+            if (!url.Contains("REQUEST=GetCapabilities", StringComparison.OrdinalIgnoreCase))
+            {
+                var separator = url.Contains('?') ? '&' : '?';
+                url = $"{url}{separator}SERVICE=WFS&VERSION={SelectedVersion}&REQUEST=GetCapabilities";
+            }
+
+            var response = await HttpClient.GetStringAsync(url);
+            Capabilities = ParseWfsCapabilities(response, CapabilitiesUrl, SelectedVersion);
+
+            if (Capabilities.Layers.Count == 0)
+            {
+                ErrorMessage = "No layers found in the GetCapabilities response.";
+            }
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Error fetching capabilities: {ex.Message}";
+        }
+        finally
+        {
+            IsLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private WfsCapabilities ParseWfsCapabilities(string xmlContent, string serviceUrl, string version)
+    {
+        var capabilities = new WfsCapabilities
+        {
+            ServiceUrl = serviceUrl,
+            Version = version
+        };
+
+        try
+        {
+            var doc = System.Xml.Linq.XDocument.Parse(xmlContent);
+            var ns = doc.Root?.Name.Namespace ?? System.Xml.Linq.XNamespace.None;
+            var owsNs = System.Xml.Linq.XNamespace.Get("http://www.opengis.net/ows/1.1");
+            var wfsNs = version == "2.0.0" 
+                ? System.Xml.Linq.XNamespace.Get("http://www.opengis.net/wfs/2.0") 
+                : System.Xml.Linq.XNamespace.Get("http://www.opengis.net/wfs");
+
+            // Parse service identification
+            var serviceId = doc.Root?.Element(owsNs + "ServiceIdentification");
+            if (serviceId != null)
+            {
+                capabilities.ServiceTitle = serviceId.Element(owsNs + "Title")?.Value ?? string.Empty;
+                capabilities.ServiceAbstract = serviceId.Element(owsNs + "Abstract")?.Value ?? string.Empty;
+            }
+
+            // Parse feature types (layers)
+            var featureTypeList = doc.Root?.Element(wfsNs + "FeatureTypeList") 
+                                  ?? doc.Root?.Descendants().FirstOrDefault(e => e.Name.LocalName == "FeatureTypeList");
+            
+            if (featureTypeList != null)
+            {
+                foreach (var ftElement in featureTypeList.Elements().Where(e => e.Name.LocalName == "FeatureType"))
+                {
+                    var layer = new WfsLayerInfo
+                    {
+                        Name = ftElement.Element(wfsNs + "Name")?.Value 
+                               ?? ftElement.Elements().FirstOrDefault(e => e.Name.LocalName == "Name")?.Value 
+                               ?? string.Empty,
+                        Title = ftElement.Element(wfsNs + "Title")?.Value 
+                                ?? ftElement.Elements().FirstOrDefault(e => e.Name.LocalName == "Title")?.Value 
+                                ?? string.Empty,
+                        Abstract = ftElement.Element(wfsNs + "Abstract")?.Value 
+                                   ?? ftElement.Elements().FirstOrDefault(e => e.Name.LocalName == "Abstract")?.Value 
+                                   ?? string.Empty
+                    };
+
+                    // Parse default CRS/SRS
+                    var defaultCrs = ftElement.Element(wfsNs + "DefaultCRS")?.Value 
+                                     ?? ftElement.Element(wfsNs + "DefaultSRS")?.Value
+                                     ?? ftElement.Elements().FirstOrDefault(e => e.Name.LocalName == "DefaultCRS" || e.Name.LocalName == "DefaultSRS")?.Value
+                                     ?? "EPSG:4326";
+                    layer.DefaultCrs = defaultCrs;
+
+                    // Parse other CRS
+                    layer.OtherCrs = ftElement.Elements()
+                        .Where(e => e.Name.LocalName == "OtherCRS" || e.Name.LocalName == "OtherSRS")
+                        .Select(e => e.Value)
+                        .ToList();
+
+                    // Parse WGS84 bounding box
+                    var wgs84BBox = ftElement.Element(owsNs + "WGS84BoundingBox")
+                                    ?? ftElement.Elements().FirstOrDefault(e => e.Name.LocalName == "WGS84BoundingBox");
+                    
+                    if (wgs84BBox != null)
+                    {
+                        var lowerCorner = wgs84BBox.Element(owsNs + "LowerCorner")?.Value
+                                          ?? wgs84BBox.Elements().FirstOrDefault(e => e.Name.LocalName == "LowerCorner")?.Value;
+                        var upperCorner = wgs84BBox.Element(owsNs + "UpperCorner")?.Value
+                                          ?? wgs84BBox.Elements().FirstOrDefault(e => e.Name.LocalName == "UpperCorner")?.Value;
+                        
+                        if (!string.IsNullOrEmpty(lowerCorner) && !string.IsNullOrEmpty(upperCorner))
+                        {
+                            var lowerParts = lowerCorner.Split(' ');
+                            var upperParts = upperCorner.Split(' ');
+                            
+                            if (lowerParts.Length == 2 && upperParts.Length == 2)
+                            {
+                                layer.BoundingBox = new WfsBoundingBox
+                                {
+                                    MinX = double.Parse(lowerParts[0], System.Globalization.CultureInfo.InvariantCulture),
+                                    MinY = double.Parse(lowerParts[1], System.Globalization.CultureInfo.InvariantCulture),
+                                    MaxX = double.Parse(upperParts[0], System.Globalization.CultureInfo.InvariantCulture),
+                                    MaxY = double.Parse(upperParts[1], System.Globalization.CultureInfo.InvariantCulture),
+                                    Crs = "EPSG:4326"
+                                };
+                            }
+                        }
+                    }
+
+                    // Parse output formats
+                    layer.OutputFormats = ftElement.Elements()
+                        .Where(e => e.Name.LocalName == "OutputFormats")
+                        .SelectMany(e => e.Elements().Where(f => f.Name.LocalName == "Format"))
+                        .Select(f => f.Value)
+                        .ToList();
+
+                    capabilities.Layers.Add(layer);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error parsing WFS capabilities: {ex.Message}");
+        }
+
+        return capabilities;
+    }
+
+    private void GenerateConfig()
+    {
+        if (string.IsNullOrEmpty(SelectedLayerName) || Capabilities == null)
+        {
+            return;
+        }
+
+        var layer = Capabilities.Layers.FirstOrDefault(l => l.Name == SelectedLayerName);
+        if (layer == null)
+        {
+            return;
+        }
+
+        // Extract base URL without query parameters
+        var baseUrl = Capabilities.ServiceUrl.Split('?')[0];
+
+        GeneratedConfig = new WfsLayerConfig
+        {
+            ServiceUrl = baseUrl,
+            TypeName = layer.Name,
+            Version = SelectedVersion,
+            SrsName = layer.DefaultCrs,
+            BoundingBox = layer.BoundingBox,
+            MaxFeatures = MaxFeatures,
+            AvailableLayers = Capabilities.Layers
+        };
+
+        // Invoke callback
+        OnConfigGenerated.InvokeAsync(GeneratedConfig);
+        StateHasChanged();
+    }
+}

@@ -1,0 +1,25 @@
+@using PyroGeoBlazor.Models
+@using PyroGeoBlazor.Factories
+@inject IWmtsLayerSelectorFactory WmtsFactory
+
+@WmtsFactory.CreateComponent(OnUrlTemplateGenerated, InitialUrl, InitialVersion)
+
+@code {
+    /// <summary>
+    /// Event that fires when a URL template is generated.
+    /// </summary>
+    [Parameter]
+    public EventCallback<WmtsUrlTemplate> OnUrlTemplateGenerated { get; set; }
+
+    /// <summary>
+    /// Optional initial GetCapabilities URL to populate the input field.
+    /// </summary>
+    [Parameter]
+    public string? InitialUrl { get; set; }
+
+    /// <summary>
+    /// Optional initial WMTS version to select (default: "1.0.0").
+    /// </summary>
+    [Parameter]
+    public string? InitialVersion { get; set; }
+}

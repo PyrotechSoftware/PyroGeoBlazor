@@ -1,0 +1,80 @@
+@page "/layer-selectors"
+@using PyroGeoBlazor.Components
+@using PyroGeoBlazor.Models
+
+<PageTitle>Layer Selectors</PageTitle>
+
+<h1>Layer Selectors</h1>
+
+<div class="row">
+    <div class="col-md-6">
+        <WmtsLayerSelector OnUrlTemplateGenerated="OnWmtsUrlGenerated" />
+    </div>
+    
+    <div class="col-md-6">
+        <WfsLayerSelector OnConfigGenerated="OnWfsConfigGenerated" />
+    </div>
+</div>
+
+@if (wmtsUrlTemplate != null)
+{
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="alert alert-info">
+                <h4>WMTS URL Template Result</h4>
+                <p><strong>URL Template:</strong> @wmtsUrlTemplate.UrlTemplate</p>
+                <p><strong>Layer:</strong> @wmtsUrlTemplate.Layer</p>
+                <p><strong>Tile Matrix Set:</strong> @wmtsUrlTemplate.TileMatrixSet</p>
+                <p><strong>Format:</strong> @wmtsUrlTemplate.Format</p>
+                <p><strong>Style:</strong> @wmtsUrlTemplate.Style</p>
+            </div>
+        </div>
+    </div>
+}
+
+@if (wfsConfig != null)
+{
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="alert alert-info">
+                <h4>WFS Configuration Result</h4>
+                <p><strong>Service URL:</strong> @wfsConfig.ServiceUrl</p>
+                <p><strong>Type Name:</strong> @wfsConfig.TypeName</p>
+                <p><strong>Version:</strong> @wfsConfig.Version</p>
+                <p><strong>SRS Name:</strong> @wfsConfig.SrsName</p>
+                @if (wfsConfig.MaxFeatures.HasValue)
+                {
+                    <p><strong>Max Features:</strong> @wfsConfig.MaxFeatures.Value</p>
+                }
+                @if (wfsConfig.BoundingBox != null)
+                {
+                    <p><strong>Bounding Box:</strong></p>
+                    <ul>
+                        <li>Min X: @wfsConfig.BoundingBox.MinX.ToString("F6")</li>
+                        <li>Min Y: @wfsConfig.BoundingBox.MinY.ToString("F6")</li>
+                        <li>Max X: @wfsConfig.BoundingBox.MaxX.ToString("F6")</li>
+                        <li>Max Y: @wfsConfig.BoundingBox.MaxY.ToString("F6")</li>
+                    </ul>
+                }
+                <p><strong>Available Layers:</strong> @wfsConfig.AvailableLayers.Count</p>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private WmtsUrlTemplate? wmtsUrlTemplate;
+    private WfsLayerConfig? wfsConfig;
+
+    private void OnWmtsUrlGenerated(WmtsUrlTemplate template)
+    {
+        wmtsUrlTemplate = template;
+        Console.WriteLine($"WMTS URL Template generated: {template.UrlTemplate}");
+    }
+
+    private void OnWfsConfigGenerated(WfsLayerConfig config)
+    {
+        wfsConfig = config;
+        Console.WriteLine($"WFS Configuration generated for layer: {config.TypeName}");
+    }
+}

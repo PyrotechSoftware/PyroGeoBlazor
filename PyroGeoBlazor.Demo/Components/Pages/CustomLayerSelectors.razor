@@ -1,0 +1,87 @@
+@page "/custom-layer-selectors"
+@using PyroGeoBlazor.Components
+@using PyroGeoBlazor.Models
+
+<PageTitle>Custom Layer Selectors (Factory Pattern)</PageTitle>
+
+<h1>Custom Layer Selectors via Factory Pattern</h1>
+<p>These components are instantiated through the factory, allowing you to replace them with custom implementations while maintaining the same instantiation pattern.</p>
+
+<div class="row">
+    <div class="col-md-6">
+        <h3>Using Factory via Wrapper</h3>
+        <WmtsLayerSelectorWrapper 
+            OnUrlTemplateGenerated="OnWmtsUrlGenerated"
+            InitialUrl="https://example.com/geoserver/gwc/service/wmts?REQUEST=GetCapabilities"
+            InitialVersion="1.0.0" />
+    </div>
+    
+    <div class="col-md-6">
+        <h3>Using Factory via Wrapper</h3>
+        <WfsLayerSelectorWrapper 
+            OnConfigGenerated="OnWfsConfigGenerated"
+            InitialUrl="https://example.com/geoserver/ows?SERVICE=WFS&REQUEST=GetCapabilities"
+            InitialVersion="2.0.0" />
+    </div>
+</div>
+
+@if (wmtsUrlTemplate != null)
+{
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="alert alert-success">
+                <h4>✓ WMTS URL Template Result (via Factory)</h4>
+                <p><strong>URL Template:</strong> @wmtsUrlTemplate.UrlTemplate</p>
+                <p><strong>Layer:</strong> @wmtsUrlTemplate.Layer</p>
+            </div>
+        </div>
+    </div>
+}
+
+@if (wfsConfig != null)
+{
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="alert alert-success">
+                <h4>✓ WFS Configuration Result (via Factory)</h4>
+                <p><strong>Service URL:</strong> @wfsConfig.ServiceUrl</p>
+                <p><strong>Type Name:</strong> @wfsConfig.TypeName</p>
+                <p><strong>Version:</strong> @wfsConfig.Version</p>
+            </div>
+        </div>
+    </div>
+}
+
+<div class="row mt-5">
+    <div class="col-12">
+        <div class="alert alert-info">
+            <h5>How to Replace with Custom Components:</h5>
+            <ol>
+                <li>Create your custom component that accepts the same parameters (OnUrlTemplateGenerated/OnConfigGenerated, InitialUrl, InitialVersion)</li>
+                <li>Create a custom factory implementing IWmtsLayerSelectorFactory or IWfsLayerSelectorFactory</li>
+                <li>Register your custom factory in Program.cs:
+                    <pre><code>builder.Services.AddPyroGeoBlazor&lt;MyCustomWmtsFactory, MyCustomWfsFactory&gt;();</code></pre>
+                </li>
+                <li>Use the same wrapper components - they will automatically use your custom implementation!</li>
+            </ol>
+            <p><strong>The instantiation pattern remains identical regardless of whether you use the default or custom components.</strong></p>
+        </div>
+    </div>
+</div>
+
+@code {
+    private WmtsUrlTemplate? wmtsUrlTemplate;
+    private WfsLayerConfig? wfsConfig;
+
+    private void OnWmtsUrlGenerated(WmtsUrlTemplate template)
+    {
+        wmtsUrlTemplate = template;
+        Console.WriteLine($"WMTS URL Template generated via factory: {template.UrlTemplate}");
+    }
+
+    private void OnWfsConfigGenerated(WfsLayerConfig config)
+    {
+        wfsConfig = config;
+        Console.WriteLine($"WFS Configuration generated via factory for layer: {config.TypeName}");
+    }
+}

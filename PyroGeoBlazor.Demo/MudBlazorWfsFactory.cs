@@ -2,7 +2,7 @@ namespace PyroGeoBlazor.Demo;
 
 using Microsoft.AspNetCore.Components;
 
-using PyroGeoBlazor.Demo.Components.Pages;
+using PyroGeoBlazor.Demo.Components;
 using PyroGeoBlazor.Factories;
 using PyroGeoBlazor.Models;
 

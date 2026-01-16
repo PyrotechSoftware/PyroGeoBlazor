@@ -5,6 +5,14 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <AddRazorSupportForMvc>true</AddRazorSupportForMvc>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>Nuget2.png</PackageIcon>
+    <Company>Pyrotech Software</Company>
+    <Authors>Bartthefish</Authors>
+    <Copyright>Copyright 2026 Pyrotech Software</Copyright>
+    <PackageTags>Pyrotech, Blazor, Leaflet, GIS</PackageTags>
+    <Description>A Blazor wrapper for Leaflet.js</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>
@@ -18,5 +26,12 @@
   <Target Name="RunLeafletBuild" BeforeTargets="Build" Condition="Exists('package.json')">
 	<Exec Command="npm run build" />
   </Target>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Nuget2.png" Pack="true" PackagePath="" />
+  </ItemGroup>
 	
 </Project>

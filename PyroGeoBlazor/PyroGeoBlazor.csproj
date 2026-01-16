@@ -4,6 +4,14 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>Nuget2.png</PackageIcon>
+    <Company>Pyrotech Software</Company>
+    <Authors>Bartthefish</Authors>
+    <Copyright>Copyright 2026 Pyrotech Software</Copyright>
+    <PackageTags>Pyrotech, Blazor, GIS, WMTS, WFS</PackageTags>
+    <Description>A Blazor utility component library for GIS projects</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
 
@@ -13,6 +21,13 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Nuget2.png" Pack="true" PackagePath="" />
   </ItemGroup>
 
 </Project>

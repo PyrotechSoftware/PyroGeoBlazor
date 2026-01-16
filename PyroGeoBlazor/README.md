@@ -22,7 +22,9 @@ builder.Services.AddPyroGeoBlazor();
 
 ## Usage
 
-### Using Default Components Directly
+### Using the Components
+
+Simply add the components to your Razor pages. They automatically use the registered factory implementation:
 
 ```razor
 @page "/layer-selectors"
@@ -45,44 +47,26 @@ builder.Services.AddPyroGeoBlazor();
 }
 ```
 
-### Using Factory Wrappers (Recommended for Customization)
-
-The factory wrappers allow you to use the default components or custom replacements with the same instantiation pattern:
-
-```razor
-@page "/custom-selectors"
-@using PyroGeoBlazor.Components
-@using PyroGeoBlazor.Models
-
-<WmtsLayerSelectorWrapper 
-    OnUrlTemplateGenerated="OnWmtsUrlGenerated"
-    InitialUrl="https://server.com/wmts?REQUEST=GetCapabilities"
-    InitialVersion="1.0.0" />
-
-<WfsLayerSelectorWrapper 
-    OnConfigGenerated="OnWfsConfigGenerated"
-    InitialUrl="https://server.com/wfs?REQUEST=GetCapabilities"
-    InitialVersion="2.0.0" />
-
-@code {
-    // Same event handlers as above
-}
-```
+**Key Feature**: When you use `<WmtsLayerSelector />` or `<WfsLayerSelector />`, they automatically render the implementation registered via the factory. If you register a custom factory, your custom component is used. If you don't, the default Bootstrap-based component is used.
 
 ## Customization
 
 ### Creating a Custom Component
 
-1. Create your custom component that accepts the same parameters:
+You can create custom components using any UI framework (MudBlazor, Blazorise, Radzen, etc.). Your custom component just needs to accept the same parameters:
+
+1. Create your custom component:
 
 ```razor
+@* Can use MudBlazor, Blazorise, or any other UI framework! *@
 @using PyroGeoBlazor.Models
+@using MudBlazor
 @inject HttpClient HttpClient
 
-<div class="my-custom-wmts-selector">
-    <h3>My Custom WMTS Selector</h3>
-    <!-- Your custom UI here -->
-</div>
+<MudPaper Class="pa-4">
+    <MudTextField @bind-Value="url" Label="WMTS URL" />
+    <MudButton OnClick="Generate">Generate Template</MudButton>
+</MudPaper>
 
 @code {
     [Parameter]
@@ -94,7 +78,17 @@ The factory wrappers allow you to use the default components or custom replaceme
     [Parameter]
     public string? InitialVersion { get; set; }
 
-    // Your custom implementation
+    private string url = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrEmpty(InitialUrl))
+        {
+            url = InitialUrl;
+        }
+    }
+
+    // Your custom implementation using MudBlazor components
 }
 ```
 
@@ -151,17 +145,18 @@ builder.Services.AddSingleton<IWmtsLayerSelectorFactory, MyCustomWmtsFactory>();
 builder.Services.AddSingleton<IWfsLayerSelectorFactory, DefaultWfsLayerSelectorFactory>();
 ```
 
-4. Use the wrapper components - they will automatically use your custom implementation:
+4. Use the component - it automatically renders your custom implementation:
 
 ```razor
-<WmtsLayerSelectorWrapper OnUrlTemplateGenerated="OnWmtsUrlGenerated" />
+@* This now renders your MudBlazor component! *@
+<WmtsLayerSelector OnUrlTemplateGenerated="OnWmtsUrlGenerated" />
 ```
 
-**The key benefit**: The instantiation pattern remains identical whether you're using the default or custom components!
+**The key benefit**: You always use `<WmtsLayerSelector />` and `<WfsLayerSelector />` in your code, regardless of whether you're using the default Bootstrap components or custom components with MudBlazor, Blazorise, Radzen, or any other UI framework!
 
 ## Component Parameters
 
-### WmtsLayerSelector / WmtsLayerSelectorWrapper
+### WmtsLayerSelector
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
@@ -169,7 +164,7 @@ builder.Services.AddSingleton<IWfsLayerSelectorFactory, DefaultWfsLayerSelectorF
 | InitialUrl | string? | Optional initial GetCapabilities URL |
 | InitialVersion | string? | Optional initial WMTS version (default: "1.0.0") |
 
-### WfsLayerSelector / WfsLayerSelectorWrapper
+### WfsLayerSelector
 
 | Parameter | Type | Description |
 |-----------|------|-------------|

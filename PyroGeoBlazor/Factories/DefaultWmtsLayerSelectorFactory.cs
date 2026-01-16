@@ -17,21 +17,21 @@ public class DefaultWmtsLayerSelectorFactory : IWmtsLayerSelectorFactory
     {
         return builder =>
         {
-            builder.OpenComponent<WmtsLayerSelector>(0);
+            builder.OpenComponent<DefaultWmtsLayerSelector>(0);
             
             if (onUrlTemplateGenerated.HasValue)
             {
-                builder.AddAttribute(1, nameof(WmtsLayerSelector.OnUrlTemplateGenerated), onUrlTemplateGenerated.Value);
+                builder.AddAttribute(1, nameof(DefaultWmtsLayerSelector.OnUrlTemplateGenerated), onUrlTemplateGenerated.Value);
             }
             
             if (!string.IsNullOrEmpty(initialUrl))
             {
-                builder.AddAttribute(2, nameof(WmtsLayerSelector.InitialUrl), initialUrl);
+                builder.AddAttribute(2, nameof(DefaultWmtsLayerSelector.InitialUrl), initialUrl);
             }
             
             if (!string.IsNullOrEmpty(initialVersion))
             {
-                builder.AddAttribute(3, nameof(WmtsLayerSelector.InitialVersion), initialVersion);
+                builder.AddAttribute(3, nameof(DefaultWmtsLayerSelector.InitialVersion), initialVersion);
             }
             
             builder.CloseComponent();

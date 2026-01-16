@@ -17,21 +17,21 @@ public class DefaultWfsLayerSelectorFactory : IWfsLayerSelectorFactory
     {
         return builder =>
         {
-            builder.OpenComponent<WfsLayerSelector>(0);
+            builder.OpenComponent<DefaultWfsLayerSelector>(0);
             
             if (onConfigGenerated.HasValue)
             {
-                builder.AddAttribute(1, nameof(WfsLayerSelector.OnConfigGenerated), onConfigGenerated.Value);
+                builder.AddAttribute(1, nameof(DefaultWfsLayerSelector.OnConfigGenerated), onConfigGenerated.Value);
             }
             
             if (!string.IsNullOrEmpty(initialUrl))
             {
-                builder.AddAttribute(2, nameof(WfsLayerSelector.InitialUrl), initialUrl);
+                builder.AddAttribute(2, nameof(DefaultWfsLayerSelector.InitialUrl), initialUrl);
             }
             
             if (!string.IsNullOrEmpty(initialVersion))
             {
-                builder.AddAttribute(3, nameof(WfsLayerSelector.InitialVersion), initialVersion);
+                builder.AddAttribute(3, nameof(DefaultWfsLayerSelector.InitialVersion), initialVersion);
             }
             
             builder.CloseComponent();

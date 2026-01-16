@@ -2,23 +2,23 @@
 @using PyroGeoBlazor.Components
 @using PyroGeoBlazor.Models
 
-<PageTitle>Custom Layer Selectors (Factory Pattern)</PageTitle>
+<PageTitle>Layer Selectors (Factory Pattern)</PageTitle>
 
-<h1>Custom Layer Selectors via Factory Pattern</h1>
-<p>These components are instantiated through the factory, allowing you to replace them with custom implementations while maintaining the same instantiation pattern.</p>
+<h1>Layer Selectors via Factory Pattern</h1>
+<p>These components automatically use the registered factory implementation, allowing you to replace them with custom implementations while maintaining the same usage pattern.</p>
 
 <div class="row">
     <div class="col-md-6">
-        <h3>Using Factory via Wrapper</h3>
-        <WmtsLayerSelectorWrapper 
+        <h3>WMTS Layer Selector</h3>
+        <WmtsLayerSelector 
             OnUrlTemplateGenerated="OnWmtsUrlGenerated"
             InitialUrl="https://example.com/geoserver/gwc/service/wmts?REQUEST=GetCapabilities"
             InitialVersion="1.0.0" />
     </div>
     
     <div class="col-md-6">
-        <h3>Using Factory via Wrapper</h3>
-        <WfsLayerSelectorWrapper 
+        <h3>WFS Layer Selector</h3>
+        <WfsLayerSelector 
             OnConfigGenerated="OnWfsConfigGenerated"
             InitialUrl="https://example.com/geoserver/ows?SERVICE=WFS&REQUEST=GetCapabilities"
             InitialVersion="2.0.0" />
@@ -30,7 +30,7 @@
     <div class="row mt-4">
         <div class="col-12">
             <div class="alert alert-success">
-                <h4>✓ WMTS URL Template Result (via Factory)</h4>
+                <h4>✓ WMTS URL Template Result</h4>
                 <p><strong>URL Template:</strong> @wmtsUrlTemplate.UrlTemplate</p>
                 <p><strong>Layer:</strong> @wmtsUrlTemplate.Layer</p>
             </div>
@@ -43,7 +43,7 @@
     <div class="row mt-4">
         <div class="col-12">
             <div class="alert alert-success">
-                <h4>✓ WFS Configuration Result (via Factory)</h4>
+                <h4>✓ WFS Configuration Result</h4>
                 <p><strong>Service URL:</strong> @wfsConfig.ServiceUrl</p>
                 <p><strong>Type Name:</strong> @wfsConfig.TypeName</p>
                 <p><strong>Version:</strong> @wfsConfig.Version</p>
@@ -56,15 +56,34 @@
     <div class="col-12">
         <div class="alert alert-info">
             <h5>How to Replace with Custom Components:</h5>
+            <p><strong>Key Feature:</strong> You can use <code>&lt;WmtsLayerSelector /&gt;</code> and <code>&lt;WfsLayerSelector /&gt;</code> directly, and they will automatically render your custom component if one is registered!</p>
             <ol>
-                <li>Create your custom component that accepts the same parameters (OnUrlTemplateGenerated/OnConfigGenerated, InitialUrl, InitialVersion)</li>
+                <li>Create your custom component (can use any UI framework: MudBlazor, Blazorise, etc.):
+                    <pre><code>// MyMudBlazorWmtsSelector.razor
+@@using MudBlazor
+@@using PyroGeoBlazor.Models
+
+&lt;MudPaper Class="pa-4"&gt;
+    &lt;MudTextField @@bind-Value="url" Label="WMTS URL" /&gt;
+    &lt;MudButton OnClick="Generate"&gt;Generate&lt;/MudButton&gt;
+&lt;/MudPaper&gt;
+
+@@code {
+    [Parameter] public EventCallback&lt;WmtsUrlTemplate&gt; OnUrlTemplateGenerated { get; set; }
+    [Parameter] public string? InitialUrl { get; set; }
+    [Parameter] public string? InitialVersion { get; set; }
+    // Your implementation...
+}</code></pre>
+                </li>
                 <li>Create a custom factory implementing IWmtsLayerSelectorFactory or IWfsLayerSelectorFactory</li>
                 <li>Register your custom factory in Program.cs:
-                    <pre><code>builder.Services.AddPyroGeoBlazor&lt;MyCustomWmtsFactory, MyCustomWfsFactory&gt;();</code></pre>
+                    <pre><code>builder.Services.AddPyroGeoBlazor&lt;MyMudBlazorWmtsFactory, MyBlazoriseWfsFactory&gt;();</code></pre>
                 </li>
-                <li>Use the same wrapper components - they will automatically use your custom implementation!</li>
+                <li>Use the same component tags everywhere - they automatically use your custom implementation:
+                    <pre><code>&lt;WmtsLayerSelector OnUrlTemplateGenerated="MyHandler" /&gt;</code></pre>
+                </li>
             </ol>
-            <p><strong>The instantiation pattern remains identical regardless of whether you use the default or custom components.</strong></p>
+            <p><strong>The usage pattern remains identical regardless of whether you use the default Bootstrap-based components or custom components with MudBlazor, Blazorise, or any other framework!</strong></p>
         </div>
     </div>
 </div>
@@ -76,12 +95,12 @@
     private void OnWmtsUrlGenerated(WmtsUrlTemplate template)
     {
         wmtsUrlTemplate = template;
-        Console.WriteLine($"WMTS URL Template generated via factory: {template.UrlTemplate}");
+        Console.WriteLine($"WMTS URL Template generated: {template.UrlTemplate}");
     }
 
     private void OnWfsConfigGenerated(WfsLayerConfig config)
     {
         wfsConfig = config;
-        Console.WriteLine($"WFS Configuration generated via factory for layer: {config.TypeName}");
+        Console.WriteLine($"WFS Configuration generated for layer: {config.TypeName}");
     }
 }

@@ -8,6 +8,7 @@ using PyroGeoBlazor.Leaflet.Models;
 using System.Threading.Tasks;
 using System.IO;
 using System.Text.Json;
+using PyroGeoBlazor.Models;
 
 public partial class Home : ComponentBase, IAsyncDisposable
 {

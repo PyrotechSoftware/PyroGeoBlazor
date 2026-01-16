@@ -1,7 +1,8 @@
-using Microsoft.Extensions.DependencyInjection;
-using PyroGeoBlazor.Factories;
-
 namespace PyroGeoBlazor.Extensions;
+
+using Microsoft.Extensions.DependencyInjection;
+
+using PyroGeoBlazor.Factories;
 
 /// <summary>
 /// Extension methods for registering PyroGeoBlazor services.
@@ -16,6 +17,9 @@ public static class PyroGeoBlazorServiceCollectionExtensions
     /// <returns>The service collection for chaining.</returns>
     public static IServiceCollection AddPyroGeoBlazor(this IServiceCollection services)
     {
+        // Register HttpClient for component use.
+        services.AddScoped<HttpClient>();
+
         // Register default factories as singletons since they don't hold state
         services.AddSingleton<IWmtsLayerSelectorFactory, DefaultWmtsLayerSelectorFactory>();
         services.AddSingleton<IWfsLayerSelectorFactory, DefaultWfsLayerSelectorFactory>();
@@ -34,6 +38,9 @@ public static class PyroGeoBlazorServiceCollectionExtensions
         where TWmtsFactory : class, IWmtsLayerSelectorFactory
         where TWfsFactory : class, IWfsLayerSelectorFactory
     {
+        // Register HttpClient for component use.
+        services.AddScoped<HttpClient>();
+
         services.AddSingleton<IWmtsLayerSelectorFactory, TWmtsFactory>();
         services.AddSingleton<IWfsLayerSelectorFactory, TWfsFactory>();
 

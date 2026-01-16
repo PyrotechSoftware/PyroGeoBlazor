@@ -17,6 +17,7 @@
         <label for="wmtsVersion">WMTS Version:</label>
         <select id="wmtsVersion" @bind="SelectedVersion" class="form-control">
             <option value="1.0.0">1.0.0</option>
+            <option value="1.1.1">1.1.1</option>
         </select>
     </div>
 
@@ -129,16 +130,16 @@
 </div>
 
 @code {
-    private string CapabilitiesUrl { get; set; } = string.Empty;
-    private string SelectedVersion { get; set; } = "1.0.0";
-    private bool IsLoading { get; set; }
-    private string? ErrorMessage { get; set; }
-    private WmtsCapabilities? Capabilities { get; set; }
-    private string SelectedLayerIdentifier { get; set; } = string.Empty;
-    private string SelectedTileMatrixSet { get; set; } = string.Empty;
-    private string SelectedFormat { get; set; } = string.Empty;
-    private string SelectedStyle { get; set; } = string.Empty;
-    private WmtsUrlTemplate? GeneratedUrlTemplate { get; set; }
+protected string CapabilitiesUrl { get; set; } = string.Empty;
+protected string SelectedVersion { get; set; } = "1.1.1";
+protected bool IsLoading { get; set; }
+protected string? ErrorMessage { get; set; }
+protected WmtsCapabilities? Capabilities { get; set; }
+protected string SelectedLayerIdentifier { get; set; } = string.Empty;
+protected string SelectedTileMatrixSet { get; set; } = string.Empty;
+protected string SelectedFormat { get; set; } = string.Empty;
+protected string SelectedStyle { get; set; } = string.Empty;
+protected WmtsUrlTemplate? GeneratedUrlTemplate { get; set; }
 
     /// <summary>
     /// Event that fires when a URL template is generated.
@@ -153,7 +154,7 @@
     public string? InitialUrl { get; set; }
 
     /// <summary>
-    /// Optional initial WMTS version to select (default: "1.0.0").
+    /// Optional initial WMTS version to select (default: "1.1.1").
     /// </summary>
     [Parameter]
     public string? InitialVersion { get; set; }
@@ -171,7 +172,7 @@
         }
     }
 
-    private async Task FetchCapabilities()
+    protected virtual async Task FetchCapabilities()
     {
         IsLoading = true;
         ErrorMessage = null;
@@ -207,7 +208,7 @@
         }
     }
 
-    private WmtsCapabilities ParseWmtsCapabilities(string xmlContent, string serviceUrl)
+    protected virtual WmtsCapabilities ParseWmtsCapabilities(string xmlContent, string serviceUrl)
     {
         var capabilities = new WmtsCapabilities
         {
@@ -295,7 +296,7 @@
         return capabilities;
     }
 
-    private void GenerateUrlTemplate()
+    protected virtual void GenerateUrlTemplate()
     {
         if (string.IsNullOrEmpty(SelectedLayerIdentifier) || Capabilities == null)
         {
@@ -315,12 +316,22 @@
 
         // Extract base URL without query parameters
         var baseUrl = Capabilities.ServiceUrl.Split('?')[0];
-        
-        // Determine file extension from format
-        var extension = format.Contains("png") ? "png" : format.Contains("jpeg") || format.Contains("jpg") ? "jpg" : "png";
 
-        // Build URL template (RESTful format commonly used by GeoServer)
-        var urlTemplate = $"{baseUrl}/1.0.0/{SelectedLayerIdentifier}/{style}/{tileMatrixSet}/{{z}}/{{y}}/{{x}}.{extension}";
+        // Extract workspace from layer identifier (e.g., "PlannerSpatial:Township" -> "PlannerSpatial")
+        string? workspace = null;
+        if (SelectedLayerIdentifier.Contains(':'))
+        {
+            workspace = SelectedLayerIdentifier.Split(':')[0];
+        }
+
+        // Insert workspace into URL path before /gwc/ if needed
+        if (!string.IsNullOrEmpty(workspace) && baseUrl.Contains("/gwc/") && !baseUrl.Contains($"/{workspace}/gwc/"))
+        {
+            baseUrl = baseUrl.Replace("/gwc/", $"/{workspace}/gwc/");
+        }
+
+        // Build URL template using correct WMTS KVP format (matching VectorTiles.razor.cs)
+        var urlTemplate = $"{baseUrl}?REQUEST=GetTile&SERVICE=WMTS&VERSION={SelectedVersion}&LAYER={SelectedLayerIdentifier}&STYLE={style}&TILEMATRIX={tileMatrixSet}:{{z}}&TILEMATRIXSET={tileMatrixSet}&FORMAT={format}&TILECOL={{x}}&TILEROW={{y}}";
 
         GeneratedUrlTemplate = new WmtsUrlTemplate
         {

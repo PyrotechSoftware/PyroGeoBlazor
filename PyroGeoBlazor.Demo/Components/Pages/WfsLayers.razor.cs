@@ -4,9 +4,9 @@ using Microsoft.AspNetCore.Components;
 
 using PyroGeoBlazor.Demo.Models;
 using PyroGeoBlazor.Leaflet.Models;
+using PyroGeoBlazor.Models;
 
 using System.Globalization;
-using System.Text.Json;
 
 public partial class WfsLayers : ComponentBase, IAsyncDisposable
 {
@@ -14,12 +14,12 @@ public partial class WfsLayers : ComponentBase, IAsyncDisposable
 
     protected Map? PositionMap;
     protected TileLayer OpenStreetMapsTileLayer;
-    protected WfsLayer? WfsLayer;
     protected LayersControl LayersControl;
     protected MapStateViewModel MapStateViewModel;
     protected List<Control> MapControls = [];
 
-    private bool wfsLayerAdded = false;
+    private readonly Dictionary<string, WfsLayer> dynamicLayers = new();
+    private readonly List<string> loadedLayers = [];
     private int selectedCount = 0;
     private int maxFeatures = 1000;
     private int newMaxFeatures = 1000;
@@ -69,36 +69,49 @@ public partial class WfsLayers : ComponentBase, IAsyncDisposable
         MapControls.Add(LayersControl);
     }
 
-    public async Task AddWfsLayer()
+    /// <summary>
+    /// Handles the configuration generated event from the WFS layer selector.
+    /// Creates a new WFS layer and adds it to the map.
+    /// </summary>
+    private async Task HandleConfigGenerated(WfsLayerConfig config)
     {
-        if (PositionMap is null)
+        if (PositionMap == null || string.IsNullOrEmpty(config.TypeName))
         {
-            Console.WriteLine("Cannot add WFS layer: Map not initialized");
+            return;
+        }
+
+        // Check if layer already loaded
+        if (dynamicLayers.ContainsKey(config.TypeName))
+        {
+            Console.WriteLine($"Layer {config.TypeName} is already loaded");
             return;
         }
 
         try
         {
-            // First, try to get bounds from WFS GetCapabilities and fit the map
-            var layerBounds = await GetLayerBoundsFromWFS("PlannerSpatial:vwParcelsLayer");
-            if (layerBounds != null)
+            // Try to get bounds from WFS GetCapabilities and fit the map (only for first layer)
+            if (dynamicLayers.Count == 0)
             {
-                Console.WriteLine("Fitting map to WFS layer bounds...");
-                await PositionMap.FitBounds(layerBounds, new FitBoundsOptions
+                var layerBounds = await GetLayerBoundsFromWFS(config.TypeName, config.ServiceUrl);
+                if (layerBounds != null)
                 {
-                    Padding = new Point(50, 50),
-                    MaxZoom = 12
-                });
-                
-                // Wait a moment for the map to adjust
-                await Task.Delay(500);
+                    Console.WriteLine("Fitting map to WFS layer bounds...");
+                    await PositionMap.FitBounds(layerBounds, new FitBoundsOptions
+                    {
+                        Padding = new Point(50, 50),
+                        MaxZoom = 12
+                    });
+                    
+                    // Wait a moment for the map to adjust
+                    await Task.Delay(500);
+                }
             }
 
             // Get current map bounds
             var bounds = await PositionMap.GetBounds();
 
             // Check if bounds are valid
-            if (bounds?.SouthWest is null || bounds?.NorthEast is null)
+            if (bounds?.SouthWest == null || bounds?.NorthEast == null)
             {
                 Console.WriteLine("Map bounds not available. Please wait for map to fully initialize and try again.");
                 return;
@@ -112,25 +125,27 @@ public partial class WfsLayers : ComponentBase, IAsyncDisposable
             var southLat = Math.Min(bounds.SouthWest.Lat, bounds.NorthEast.Lat);
             var northLat = Math.Max(bounds.SouthWest.Lat, bounds.NorthEast.Lat);
 
+            // Use bounding box from config or calculate from map
+            var bbox = config.BoundingBox ?? new PyroGeoBlazor.Models.WfsBoundingBox
+            {
+                MinX = westLng,
+                MinY = southLat,
+                MaxX = eastLng,
+                MaxY = northLat
+            };
+
             // Create WFS layer with options
-            WfsLayer = new WfsLayer(
-                wfsUrl: "https://lims.koleta.co.mz/geoserver/PlannerSpatial/ows",
+            var wfsLayer = new WfsLayer(
+                wfsUrl: config.ServiceUrl,
                 options: new WfsLayerOptions
                 {
                     RequestParameters = new WfsRequestParameters
                     {
-                        TypeName = "PlannerSpatial:vwParcelsLayer",
-                        MaxFeatures = maxFeatures,
-                        SrsName = "EPSG:4326",
-                        BBox = new WfsBoundingBox
-                        {
-                            MinX = westLng,
-                            MinY = southLat,
-                            MaxX = eastLng,
-                            MaxY = northLat
-                        }
+                        TypeName = config.TypeName,
+                        MaxFeatures = config.MaxFeatures ?? maxFeatures,
+                        SrsName = config.SrsName,
+                        BBox = bbox
                     },
-                    // GeoJSON layer options
                     MultipleFeatureSelection = true,
                     SelectedFeatureStyle = new PathOptions
                     {
@@ -142,7 +157,6 @@ public partial class WfsLayers : ComponentBase, IAsyncDisposable
                         Color = "rgba(255,140,0,1)",
                         Opacity = 1.0
                     },
-                    // WFS-specific options
                     AutoRefresh = true,
                     IncrementalRefresh = true,
                     RefreshDebounceMs = 1000
@@ -150,47 +164,34 @@ public partial class WfsLayers : ComponentBase, IAsyncDisposable
             );
 
             // Subscribe to events
-            WfsLayer.OnFeatureClicked += (sender, args) =>
+            wfsLayer.OnFeatureSelected += (sender, args) =>
             {
-                if (args?.Feature?.Properties is not null)
-                {
-                    Console.WriteLine($"WFS Feature clicked: {JsonSerializer.Serialize(args.Feature.Properties)}");
-                }
+                selectedCount = dynamicLayers.Values.Sum(l => l.GetSelectedFeaturesCount());
+                StateHasChanged();
             };
 
-            WfsLayer.OnFeatureSelected += (sender, args) =>
+            wfsLayer.OnFeatureUnselected += (sender, args) =>
             {
-                if (args?.Feature?.Properties is not null && WfsLayer is not null)
-                {
-                    selectedCount = WfsLayer.GetSelectedFeaturesCount();
-                    Console.WriteLine($"WFS Feature selected. Total: {selectedCount}");
-                    StateHasChanged();
-                }
-            };
-
-            WfsLayer.OnFeatureUnselected += (sender, args) =>
-            {
-                if (WfsLayer is not null)
-                {
-                    selectedCount = WfsLayer.GetSelectedFeaturesCount();
-                    Console.WriteLine($"WFS Feature unselected. Remaining: {selectedCount}");
-                    StateHasChanged();
-                }
+                selectedCount = dynamicLayers.Values.Sum(l => l.GetSelectedFeaturesCount());
+                StateHasChanged();
             };
 
             // Add to map
-            await WfsLayer.AddTo(PositionMap);
+            await wfsLayer.AddTo(PositionMap);
 
             // Load features from WFS
-            Console.WriteLine("Loading WFS features for current map bounds...");
-            await WfsLayer.LoadFeaturesAsync();
+            Console.WriteLine($"Loading WFS features for layer: {config.TypeName}");
+            await wfsLayer.LoadFeaturesAsync();
             Console.WriteLine("WFS features loaded successfully!");
 
             // Add to layer control
-            await LayersControl.AddOverlay(WfsLayer, "WFS Parcels");
+            await LayersControl.AddOverlay(wfsLayer, config.TypeName);
 
-            wfsLayerAdded = true;
-            newMaxFeatures = maxFeatures; // Initialize newMaxFeatures to current value
+            // Track the layer
+            dynamicLayers[config.TypeName] = wfsLayer;
+            loadedLayers.Add(config.TypeName);
+
+            newMaxFeatures = maxFeatures;
             StateHasChanged();
         }
         catch (HttpRequestException ex)
@@ -207,14 +208,19 @@ public partial class WfsLayers : ComponentBase, IAsyncDisposable
     /// Gets the bounding box of a layer from the WFS GetCapabilities response.
     /// </summary>
     /// <param name="typeName">The type name of the layer (e.g., "PlannerSpatial:vwParcelsLayer")</param>
+    /// <param name="serviceUrl">The WFS service URL</param>
     /// <returns>LatLngBounds for the layer, or null if not found</returns>
-    private async Task<LatLngBounds?> GetLayerBoundsFromWFS(string typeName)
+    private async Task<LatLngBounds?> GetLayerBoundsFromWFS(string typeName, string serviceUrl)
     {
         try
         {
             // Build the GetCapabilities URL
-            var baseUrl = "https://lims.koleta.co.mz/geoserver/PlannerSpatial/ows";
-            var getCapabilitiesUrl = $"{baseUrl}?service=WFS&version=2.0.0&request=GetCapabilities";
+            var getCapabilitiesUrl = serviceUrl;
+            if (!getCapabilitiesUrl.Contains("REQUEST=GetCapabilities", StringComparison.OrdinalIgnoreCase))
+            {
+                var separator = getCapabilitiesUrl.Contains('?') ? '&' : '?';
+                getCapabilitiesUrl = $"{getCapabilitiesUrl}{separator}service=WFS&version=2.0.0&request=GetCapabilities";
+            }
 
             Console.WriteLine($"Fetching WFS GetCapabilities from: {getCapabilitiesUrl}");
 
@@ -289,12 +295,12 @@ public partial class WfsLayers : ComponentBase, IAsyncDisposable
     }
 
     /// <summary>
-    /// Updates the MaxFeatures limit dynamically without recreating the layer.
+    /// Updates the MaxFeatures limit dynamically without recreating the layers.
     /// Subsequent auto-refresh requests will use the new limit.
     /// </summary>
     public async Task UpdateMaxFeatures()
     {
-        if (PositionMap is null || WfsLayer is null)
+        if (PositionMap == null || dynamicLayers.Count == 0)
         {
             return;
         }
@@ -312,13 +318,13 @@ public partial class WfsLayers : ComponentBase, IAsyncDisposable
             // Update the stored max features value
             maxFeatures = newMaxFeatures;
 
-            // Update the MaxFeatures on the existing layer (doesn't recreate the layer)
-            WfsLayer.UpdateMaxFeatures(maxFeatures);
-
-            // Optionally reload features with the new limit
-            // Clear cache and reload to immediately apply the new limit
-            WfsLayer.ClearLoadedFeatureCache();
-            await WfsLayer.LoadFeaturesAsync(clearExisting: true);
+            // Update all loaded layers
+            foreach (var layer in dynamicLayers.Values)
+            {
+                layer.UpdateMaxFeatures(maxFeatures);
+                layer.ClearLoadedFeatureCache();
+                await layer.LoadFeaturesAsync(clearExisting: true);
+            }
 
             Console.WriteLine($"MaxFeatures updated to {maxFeatures}. Subsequent requests will use this limit.");
             StateHasChanged();
@@ -329,94 +335,25 @@ public partial class WfsLayers : ComponentBase, IAsyncDisposable
         }
     }
 
-    public async Task ReloadWfsLayer()
+    public async Task ReloadWfsLayers()
     {
-        if (PositionMap is null || WfsLayer is null)
+        if (PositionMap == null || dynamicLayers.Count == 0)
         {
             return;
         }
 
         try
         {
-            Console.WriteLine("WFS: Reloading layer...");
+            Console.WriteLine("WFS: Reloading all layers...");
 
-            // Clear the feature cache
-            WfsLayer.ClearLoadedFeatureCache();
-
-            // Remove the old layer from the map
-            await WfsLayer.RemoveLayer();
-
-            // Get current bounds
-            var bounds = await PositionMap.GetBounds();
-            if (bounds?.SouthWest is null || bounds?.NorthEast is null)
+            foreach (var layer in dynamicLayers.Values)
             {
-                Console.WriteLine("WFS: Cannot reload - bounds not available");
-                return;
+                // Clear the feature cache
+                layer.ClearLoadedFeatureCache();
+                
+                // Reload features
+                await layer.LoadFeaturesAsync(clearExisting: true);
             }
-
-            // Normalize coordinates
-            var westLng = Math.Min(bounds.SouthWest.Lng, bounds.NorthEast.Lng);
-            var eastLng = Math.Max(bounds.SouthWest.Lng, bounds.NorthEast.Lng);
-            var southLat = Math.Min(bounds.SouthWest.Lat, bounds.NorthEast.Lat);
-            var northLat = Math.Max(bounds.SouthWest.Lat, bounds.NorthEast.Lat);
-
-            // Create new layer
-            WfsLayer = new WfsLayer(
-                wfsUrl: "https://lims.koleta.co.mz/geoserver/PlannerSpatial/ows",
-                options: new WfsLayerOptions
-                {
-                    RequestParameters = new WfsRequestParameters
-                    {
-                        TypeName = "PlannerSpatial:vwParcelsLayer",
-                        MaxFeatures = maxFeatures,
-                        SrsName = "EPSG:4326",
-                        BBox = new WfsBoundingBox
-                        {
-                            MinX = westLng,
-                            MinY = southLat,
-                            MaxX = eastLng,
-                            MaxY = northLat
-                        }
-                    },
-                    MultipleFeatureSelection = true,
-                    SelectedFeatureStyle = new PathOptions
-                    {
-                        Fill = true,
-                        FillColor = "rgba(255,165,0,0.6)",
-                        FillOpacity = 0.6,
-                        Stroke = true,
-                        Weight = 3,
-                        Color = "rgba(255,140,0,1)",
-                        Opacity = 1.0
-                    },
-                    AutoRefresh = true,
-                    IncrementalRefresh = true,
-                    RefreshDebounceMs = 1000
-                }
-            );
-
-            // Re-subscribe to events
-            WfsLayer.OnFeatureSelected += (sender, args) =>
-            {
-                if (WfsLayer is not null)
-                {
-                    selectedCount = WfsLayer.GetSelectedFeaturesCount();
-                    StateHasChanged();
-                }
-            };
-
-            WfsLayer.OnFeatureUnselected += (sender, args) =>
-            {
-                if (WfsLayer is not null)
-                {
-                    selectedCount = WfsLayer.GetSelectedFeaturesCount();
-                    StateHasChanged();
-                }
-            };
-
-            // Add to map and load
-            await WfsLayer.AddTo(PositionMap);
-            await WfsLayer.LoadFeaturesAsync(clearExisting: true);
 
             selectedCount = 0;
             Console.WriteLine("WFS: Reload complete!");
@@ -430,17 +367,23 @@ public partial class WfsLayers : ComponentBase, IAsyncDisposable
 
     private async Task ClearSelection()
     {
-        if (WfsLayer != null)
+        foreach (var layer in dynamicLayers.Values)
         {
-            await WfsLayer.ClearSelection();
-            selectedCount = 0;
-            StateHasChanged();
+            await layer.ClearSelection();
         }
+        selectedCount = 0;
+        StateHasChanged();
     }
 
     public async ValueTask DisposeAsync()
     {
         await OpenStreetMapsTileLayer.DisposeAsync();
+        
+        foreach (var layer in dynamicLayers.Values)
+        {
+            await layer.DisposeAsync();
+        }
+        
         if (PositionMap != null)
         {
             await PositionMap.DisposeAsync();

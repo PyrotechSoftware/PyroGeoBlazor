@@ -1,5 +1,7 @@
 namespace PyroGeoBlazor.Leaflet.Models;
 
+using PyroGeoBlazor.Models;
+
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
@@ -473,9 +475,9 @@ public class WfsLayer : GeoJsonLayer
             );
             
             sb.Append($"&bbox={bboxString}");
-            if (!string.IsNullOrWhiteSpace(Options.RequestParameters.BBox.Srs))
+            if (!string.IsNullOrWhiteSpace(Options.RequestParameters.BBox.Crs))
             {
-                sb.Append($",{Options.RequestParameters.BBox.Srs}");
+                sb.Append($",{Options.RequestParameters.BBox.Crs}");
             }
             
             Console.WriteLine($"WfsLayer: BBox normalized to: minX={minX}, minY={minY}, maxX={maxX}, maxY={maxY}");

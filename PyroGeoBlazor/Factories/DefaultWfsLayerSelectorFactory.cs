@@ -1,8 +1,9 @@
+namespace PyroGeoBlazor.Factories;
+
 using Microsoft.AspNetCore.Components;
+
 using PyroGeoBlazor.Components;
 using PyroGeoBlazor.Models;
-
-namespace PyroGeoBlazor.Factories;
 
 /// <summary>
 /// Default factory implementation for creating WFS Layer Selector components.

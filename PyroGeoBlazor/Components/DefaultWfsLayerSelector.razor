@@ -150,15 +150,15 @@
 </div>
 
 @code {
-    private string CapabilitiesUrl { get; set; } = string.Empty;
-    private string SelectedVersion { get; set; } = "2.0.0";
-    private bool IsLoading { get; set; }
-    private string? ErrorMessage { get; set; }
-    private WfsCapabilities? Capabilities { get; set; }
-    private string SelectedLayerName { get; set; } = string.Empty;
-    private string SelectedOutputFormat { get; set; } = "application/json";
-    private int? MaxFeatures { get; set; }
-    private WfsLayerConfig? GeneratedConfig { get; set; }
+protected string CapabilitiesUrl { get; set; } = string.Empty;
+protected string SelectedVersion { get; set; } = "2.0.0";
+protected bool IsLoading { get; set; }
+protected string? ErrorMessage { get; set; }
+protected WfsCapabilities? Capabilities { get; set; }
+protected string SelectedLayerName { get; set; } = string.Empty;
+protected string SelectedOutputFormat { get; set; } = "application/json";
+protected int? MaxFeatures { get; set; }
+protected WfsLayerConfig? GeneratedConfig { get; set; }
 
     /// <summary>
     /// Event that fires when a configuration is generated.
@@ -191,7 +191,7 @@
         }
     }
 
-    private async Task FetchCapabilities()
+    protected virtual async Task FetchCapabilities()
     {
         IsLoading = true;
         ErrorMessage = null;
@@ -227,7 +227,7 @@
         }
     }
 
-    private WfsCapabilities ParseWfsCapabilities(string xmlContent, string serviceUrl, string version)
+    protected virtual WfsCapabilities ParseWfsCapabilities(string xmlContent, string serviceUrl, string version)
     {
         var capabilities = new WfsCapabilities
         {
@@ -335,7 +335,7 @@
         return capabilities;
     }
 
-    private void GenerateConfig()
+    protected virtual void GenerateConfig()
     {
         if (string.IsNullOrEmpty(SelectedLayerName) || Capabilities == null)
         {

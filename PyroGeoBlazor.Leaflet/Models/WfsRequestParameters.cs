@@ -1,5 +1,7 @@
 namespace PyroGeoBlazor.Leaflet.Models;
 
+using PyroGeoBlazor.Models;
+
 /// <summary>
 /// Parameters for a WFS GetFeature request.
 /// </summary>

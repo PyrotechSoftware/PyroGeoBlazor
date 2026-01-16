@@ -2,6 +2,8 @@
 @using PyroGeoBlazor.Demo.Models
 @using PyroGeoBlazor.Leaflet.Components
 @using PyroGeoBlazor.Leaflet.Models
+@using PyroGeoBlazor.Models
+@using PyroGeoBlazor.Components
 
 <PageTitle>Vector Tiles - PyroGeoBlazor Demo</PageTitle>
 
@@ -13,31 +15,35 @@
 
             <MudCard Class="mb-3">
                 <MudCardHeader>
-                    <MudText Typo="Typo.h6">Layers</MudText>
+                    <MudText Typo="Typo.h6">Layer Selector</MudText>
                 </MudCardHeader>
                 <MudCardContent>
-                    <MudButton Variant="Variant.Outlined" Color="Color.Success" Size="Size.Small" FullWidth="true"
-                               StartIcon="@Icons.Material.Filled.Layers"
-                               OnClick="AddVectorTileLayers"
-                               Disabled="@layersAdded">
-                        Load Vector Layers
-                    </MudButton>
+                    <WmtsLayerSelector InitialUrl="https://lims.koleta.co.mz/geoserver/PlannerSpatial/gwc/service/wmts?REQUEST=GetCapabilities"
+                                       InitialVersion="1.1.1"
+                                       OnUrlTemplateGenerated="HandleUrlTemplateGenerated" />
+                </MudCardContent>
+            </MudCard>
 
-                    @if (layersAdded)
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Layer Options</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudText Typo="Typo.body2" Class="mb-2">Configure layer behavior before adding</MudText>
+                    <MudDivider Class="my-2" />
+                    <MudStack Spacing="1">
+                        <MudSwitch T="bool" Color="Color.Primary" Label="@($"Interactive ({(isInteractive ? "On" : "Off")})")"
+                                   @bind-Value="@isInteractive" Dense="true" />
+                        <MudSwitch T="bool" Color="Color.Primary" Label="@($"Selection ({(selectionEnabled ? "On" : "Off")})")"
+                                   @bind-Value="@selectionEnabled" 
+                                   Disabled="@(!isInteractive)" Dense="true" />
+                        <MudSwitch T="bool" Color="Color.Primary" Label="@($"Multi-Select ({(multiSelectEnabled ? "On" : "Off")})")"
+                                   @bind-Value="@multiSelectEnabled" 
+                                   Disabled="@(!selectionEnabled)" Dense="true" />
+                    </MudStack>
+
+                    @if (loadedLayers.Count > 0)
                     {
-                        <MudDivider Class="my-2" />
-                        <MudText Typo="Typo.subtitle2" Class="mb-2">Interactivity</MudText>
-                        <MudStack Spacing="1">
-                            <MudSwitch T="bool" Color="Color.Primary" Label="@($"Interactive ({(isInteractive ? "On" : "Off")})")"
-                                       @bind-Value="@isInteractive" Dense="true" />
-                            <MudSwitch T="bool" Color="Color.Primary" Label="@($"Selection ({(selectionEnabled ? "On" : "Off")})")"
-                                       @bind-Value="@selectionEnabled" 
-                                       Disabled="@(!isInteractive)" Dense="true" />
-                            <MudSwitch T="bool" Color="Color.Primary" Label="@($"Multi-Select ({(multiSelectEnabled ? "On" : "Off")})")"
-                                       @bind-Value="@multiSelectEnabled" 
-                                       Disabled="@(!selectionEnabled)" Dense="true" />
-                        </MudStack>
-
                         <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" FullWidth="true"
                                    StartIcon="@Icons.Material.Filled.Clear"
                                    OnClick="ClearSelection"
@@ -48,6 +54,25 @@
                     }
                 </MudCardContent>
             </MudCard>
+
+            @if (loadedLayers.Count > 0)
+            {
+                <MudCard Class="mb-3">
+                    <MudCardHeader>
+                        <MudText Typo="Typo.h6">Loaded Layers (@loadedLayers.Count)</MudText>
+                    </MudCardHeader>
+                    <MudCardContent>
+                        <MudList Dense="true" T="string">
+                            @foreach (var layer in loadedLayers)
+                            {
+                                <MudListItem>
+                                    <MudText Typo="Typo.body2">@layer</MudText>
+                                </MudListItem>
+                            }
+                        </MudList>
+                    </MudCardContent>
+                </MudCard>
+            }
 
             <MudCard Class="mb-3">
                 <MudCardHeader>

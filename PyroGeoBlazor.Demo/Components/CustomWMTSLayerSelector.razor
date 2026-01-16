@@ -1,0 +1,130 @@
+@using PyroGeoBlazor.Models
+@using PyroGeoBlazor.Components
+@inherits DefaultWmtsLayerSelector
+
+<MudCard Elevation="3">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">
+                <MudIcon Icon="@Icons.Material.Filled.Layers" Class="mr-2" />
+                WMTS Layer Selector
+            </MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+
+    <MudCardContent>
+        <MudTextField @bind-Value="CapabilitiesUrl"
+                      Label="GetCapabilities URL"
+                      Variant="Variant.Outlined"
+                      HelperText="Enter the WMTS GetCapabilities endpoint"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Link"
+                      Class="mb-3" />
+
+        <MudSelect @bind-Value="SelectedVersion"
+                   Label="WMTS Version"
+                   Variant="Variant.Outlined"
+                   Class="mb-3">
+            <MudSelectItem Value="@("1.0.0")">1.0.0</MudSelectItem>
+            <MudSelectItem Value="@("1.1.1")">1.1.1</MudSelectItem>
+        </MudSelect>
+
+        <MudButton OnClick="FetchCapabilities"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.CloudDownload"
+                   FullWidth="true"
+                   Disabled="@IsLoading">
+            @if (IsLoading)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Loading...</span>
+            }
+            else
+            {
+                <span>Get Capabilities</span>
+            }
+        </MudButton>
+
+        @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3" Dense="true">
+                @ErrorMessage
+            </MudAlert>
+        }
+
+        @if (Capabilities != null && Capabilities.Layers.Count > 0)
+        {
+            <MudDivider Class="my-3" />
+
+            <MudSelect @bind-Value="SelectedLayerIdentifier"
+                       Label="Available Layers"
+                       Variant="Variant.Outlined"
+                       AnchorOrigin="Origin.BottomCenter">
+                @foreach (var layer in Capabilities.Layers)
+                {
+                    <MudSelectItem Value="@layer.Identifier">
+                        <MudText Typo="Typo.body2">@layer.Title</MudText>
+                        <MudText Typo="Typo.caption">@layer.Identifier</MudText>
+                    </MudSelectItem>
+                }
+            </MudSelect>
+
+            @if (!string.IsNullOrEmpty(SelectedLayerIdentifier))
+            {
+                var selectedLayer = Capabilities.Layers.FirstOrDefault(l => l.Identifier == SelectedLayerIdentifier);
+                if (selectedLayer != null)
+                {
+                    <MudPaper Class="pa-3 mt-3" Outlined="true">
+                        <MudText Typo="Typo.subtitle2" GutterBottom="true">Layer Details</MudText>
+
+                        @if (selectedLayer.TileMatrixSets.Count > 0)
+                        {
+                            <MudSelect @bind-Value="SelectedTileMatrixSet"
+                                       Label="Tile Matrix Set"
+                                       Variant="Variant.Outlined"
+                                       Class="mb-2">
+                                @foreach (var tms in selectedLayer.TileMatrixSets)
+                                {
+                                    <MudSelectItem Value="@tms">@tms</MudSelectItem>
+                                }
+                            </MudSelect>
+                        }
+
+                        @if (selectedLayer.Formats.Count > 0)
+                        {
+                            <MudSelect @bind-Value="SelectedFormat"
+                                       Label="Format"
+                                       Variant="Variant.Outlined"
+                                       Class="mb-2">
+                                @foreach (var format in selectedLayer.Formats)
+                                {
+                                    <MudSelectItem Value="@format">@format</MudSelectItem>
+                                }
+                            </MudSelect>
+                        }
+
+                        <MudButton OnClick="GenerateUrlTemplate"
+                                   Variant="Variant.Filled"
+                                   Color="Color.Success"
+                                   StartIcon="@Icons.Material.Filled.CheckCircle"
+                                   FullWidth="true"
+                                   Class="mt-2">
+                            Generate URL Template
+                        </MudButton>
+                    </MudPaper>
+
+                    @if (GeneratedUrlTemplate != null)
+                    {
+                        <MudAlert Severity="Severity.Success" Class="mt-3">
+                            <MudText Typo="Typo.subtitle2">✓ URL Template Generated!</MudText>
+                            <MudText Typo="Typo.caption" Class="mt-2">
+                                <code style="word-break: break-all;">@GeneratedUrlTemplate.UrlTemplate</code>
+                            </MudText>
+                        </MudAlert>
+                    }
+                }
+            }
+        }
+    </MudCardContent>
+</MudCard>

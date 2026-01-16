@@ -1,0 +1,237 @@
+@using PyroGeoBlazor.Components
+@using PyroGeoBlazor.Models
+@inherits DefaultWfsLayerSelector
+
+<MudCard Elevation="3">
+    <MudCardHeader>
+        <CardHeaderContent>
+            <MudText Typo="Typo.h6">
+                <MudIcon Icon="@Icons.Material.Filled.Map" Class="mr-2" />
+                WFS Layer Selector
+            </MudText>
+        </CardHeaderContent>
+    </MudCardHeader>
+
+    <MudCardContent>
+        <MudTextField @bind-Value="CapabilitiesUrl"
+                      Label="GetCapabilities URL"
+                      Variant="Variant.Outlined"
+                      HelperText="Enter the WFS GetCapabilities endpoint"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Link"
+                      Class="mb-3" />
+
+        <MudSelect @bind-Value="SelectedVersion"
+                   Label="WFS Version"
+                   Variant="Variant.Outlined"
+                   Class="mb-3">
+            <MudSelectItem Value="@("1.0.0")">1.0.0</MudSelectItem>
+            <MudSelectItem Value="@("1.1.0")">1.1.0</MudSelectItem>
+            <MudSelectItem Value="@("2.0.0")">2.0.0</MudSelectItem>
+        </MudSelect>
+
+        <MudButton OnClick="FetchCapabilities"
+                   Variant="Variant.Filled"
+                   Color="Color.Primary"
+                   StartIcon="@Icons.Material.Filled.CloudDownload"
+                   FullWidth="true"
+                   Disabled="@IsLoading">
+            @if (IsLoading)
+            {
+                <MudProgressCircular Size="Size.Small" Indeterminate="true" Class="mr-2" />
+                <span>Loading...</span>
+            }
+            else
+            {
+                <span>Get Capabilities</span>
+            }
+        </MudButton>
+
+        @if (!string.IsNullOrEmpty(ErrorMessage))
+        {
+            <MudAlert Severity="Severity.Error" Class="mt-3" Dense="true">
+                @ErrorMessage
+            </MudAlert>
+        }
+
+        @if (Capabilities != null && Capabilities.Layers.Count > 0)
+        {
+            <MudDivider Class="my-3" />
+
+            <MudSelect @bind-Value="SelectedLayerName"
+                       Label="Available Layers"
+                       Variant="Variant.Outlined"
+                       AnchorOrigin="Origin.BottomCenter">
+                @foreach (var layer in Capabilities.Layers)
+                {
+                    <MudSelectItem Value="@layer.Name">
+                        <MudText Typo="Typo.body2">@layer.Title</MudText>
+                        <MudText Typo="Typo.caption">@layer.Name</MudText>
+                    </MudSelectItem>
+                }
+            </MudSelect>
+
+            @if (!string.IsNullOrEmpty(SelectedLayerName))
+            {
+                var selectedLayer = Capabilities.Layers.FirstOrDefault(l => l.Name == SelectedLayerName);
+                if (selectedLayer != null)
+                {
+                    <MudPaper Class="pa-3 mt-3" Outlined="true">
+                        <MudText Typo="Typo.subtitle2" GutterBottom="true">Layer Details</MudText>
+
+                        <MudText Typo="Typo.body2" Class="mb-2">
+                            <strong>Name:</strong> @selectedLayer.Name
+                        </MudText>
+                        <MudText Typo="Typo.body2" Class="mb-2">
+                            <strong>Title:</strong> @selectedLayer.Title
+                        </MudText>
+
+                        @if (!string.IsNullOrEmpty(selectedLayer.Abstract))
+                        {
+                            <MudText Typo="Typo.body2" Class="mb-2">
+                                <strong>Description:</strong> @selectedLayer.Abstract
+                            </MudText>
+                        }
+
+                        <MudText Typo="Typo.body2" Class="mb-2">
+                            <strong>Default CRS:</strong> @selectedLayer.DefaultCrs
+                        </MudText>
+
+                        @if (selectedLayer.OtherCrs.Count > 0)
+                        {
+                            <MudText Typo="Typo.body2" Class="mb-2">
+                                <strong>Other CRS:</strong> @string.Join(", ", selectedLayer.OtherCrs)
+                            </MudText>
+                        }
+
+                        @if (selectedLayer.BoundingBox != null)
+                        {
+                            <MudExpansionPanels Class="mt-2">
+                                <MudExpansionPanel Text="Bounding Box">
+                                    <MudList T="string" Dense="true">
+                                        <MudListItem>
+                                            <MudText Typo="Typo.body2">
+                                                <strong>Min X (West):</strong> @selectedLayer.BoundingBox.MinX.ToString("F6")
+                                            </MudText>
+                                        </MudListItem>
+                                        <MudListItem>
+                                            <MudText Typo="Typo.body2">
+                                                <strong>Min Y (South):</strong> @selectedLayer.BoundingBox.MinY.ToString("F6")
+                                            </MudText>
+                                        </MudListItem>
+                                        <MudListItem>
+                                            <MudText Typo="Typo.body2">
+                                                <strong>Max X (East):</strong> @selectedLayer.BoundingBox.MaxX.ToString("F6")
+                                            </MudText>
+                                        </MudListItem>
+                                        <MudListItem>
+                                            <MudText Typo="Typo.body2">
+                                                <strong>Max Y (North):</strong> @selectedLayer.BoundingBox.MaxY.ToString("F6")
+                                            </MudText>
+                                        </MudListItem>
+                                        <MudListItem>
+                                            <MudText Typo="Typo.body2">
+                                                <strong>CRS:</strong> @selectedLayer.BoundingBox.Crs
+                                            </MudText>
+                                        </MudListItem>
+                                    </MudList>
+                                </MudExpansionPanel>
+                            </MudExpansionPanels>
+                        }
+
+                        @if (selectedLayer.OutputFormats.Count > 0)
+                        {
+                            <MudSelect @bind-Value="SelectedOutputFormat"
+                                       Label="Output Format"
+                                       Variant="Variant.Outlined"
+                                       Class="mt-3">
+                                @foreach (var format in selectedLayer.OutputFormats)
+                                {
+                                    <MudSelectItem Value="@format">@format</MudSelectItem>
+                                }
+                            </MudSelect>
+                        }
+
+                        <MudNumericField @bind-Value="MaxFeatures"
+                                         Label="Max Features (optional)"
+                                         Variant="Variant.Outlined"
+                                         Min="1"
+                                         HideSpinButtons="true"
+                                         HelperText="Leave empty for no limit"
+                                         Class="mt-3" />
+
+                        <MudButton OnClick="GenerateConfig"
+                                   Variant="Variant.Filled"
+                                   Color="Color.Success"
+                                   StartIcon="@Icons.Material.Filled.CheckCircle"
+                                   FullWidth="true"
+                                   Class="mt-3">
+                            Generate Configuration
+                        </MudButton>
+                    </MudPaper>
+
+                    @if (GeneratedConfig != null)
+                    {
+                        <MudAlert Severity="Severity.Success" Class="mt-3">
+                            <MudText Typo="Typo.subtitle2" GutterBottom="true">✓ WFS Configuration Generated!</MudText>
+
+                            <MudList T="string" Dense="true">
+                                <MudListItem>
+                                    <MudText Typo="Typo.body2">
+                                        <strong>Service URL:</strong> @GeneratedConfig.ServiceUrl
+                                    </MudText>
+                                </MudListItem>
+                                <MudListItem>
+                                    <MudText Typo="Typo.body2">
+                                        <strong>Type Name:</strong> @GeneratedConfig.TypeName
+                                    </MudText>
+                                </MudListItem>
+                                <MudListItem>
+                                    <MudText Typo="Typo.body2">
+                                        <strong>Version:</strong> @GeneratedConfig.Version
+                                    </MudText>
+                                </MudListItem>
+                                <MudListItem>
+                                    <MudText Typo="Typo.body2">
+                                        <strong>SRS Name:</strong> @GeneratedConfig.SrsName
+                                    </MudText>
+                                </MudListItem>
+                                @if (GeneratedConfig.MaxFeatures.HasValue)
+                                {
+                                    <MudListItem>
+                                        <MudText Typo="Typo.body2">
+                                            <strong>Max Features:</strong> @GeneratedConfig.MaxFeatures.Value
+                                        </MudText>
+                                    </MudListItem>
+                                }
+                                @if (GeneratedConfig.BoundingBox != null)
+                                {
+                                    <MudListItem>
+                                        <MudText Typo="Typo.body2">
+                                            <strong>Bounding Box:</strong>
+                                        </MudText>
+                                    </MudListItem>
+                                    <MudListItem>
+                                        <MudText Typo="Typo.caption" Class="ml-4">
+                                            Min X: @GeneratedConfig.BoundingBox.MinX.ToString("F6")<br />
+                                            Min Y: @GeneratedConfig.BoundingBox.MinY.ToString("F6")<br />
+                                            Max X: @GeneratedConfig.BoundingBox.MaxX.ToString("F6")<br />
+                                            Max Y: @GeneratedConfig.BoundingBox.MaxY.ToString("F6")
+                                        </MudText>
+                                    </MudListItem>
+                                }
+                                <MudListItem>
+                                    <MudText Typo="Typo.body2">
+                                        <strong>Total Available Layers:</strong> @GeneratedConfig.AvailableLayers.Count
+                                    </MudText>
+                                </MudListItem>
+                            </MudList>
+                        </MudAlert>
+                    }
+                }
+            }
+        }
+    </MudCardContent>
+</MudCard>
+
+

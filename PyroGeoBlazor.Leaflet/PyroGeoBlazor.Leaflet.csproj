@@ -11,6 +11,10 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\PyroGeoBlazor\PyroGeoBlazor.csproj" />
+  </ItemGroup>
+
   <Target Name="RunLeafletBuild" BeforeTargets="Build" Condition="Exists('package.json')">
 	<Exec Command="npm run build" />
   </Target>

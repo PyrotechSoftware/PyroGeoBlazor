@@ -36,24 +36,23 @@ jobs:
       - name: Install JS dependencies and build
         working-directory: PyroGeoBlazor.Leaflet
         run: |
-          npm ci
+          # Use npm ci when a lockfile exists for reproducible installs; otherwise fall back to npm install
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            npm ci --silent
+          else
+            npm install --silent
+          fi
           npm run build
 
       - name: Run JS tests
         working-directory: PyroGeoBlazor.Leaflet
         run: |
-          npm ci --silent
           npm test --silent
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
-
-      - name: Install jq
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y jq
 
       - name: Cache NuGet
         uses: actions/cache@v4

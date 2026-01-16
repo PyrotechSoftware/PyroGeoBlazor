@@ -194,13 +194,27 @@ jobs:
           ID_TOKEN=${{ steps.id-token.outputs.id-token }}
           echo "Exchanging ID token for temporary NuGet API key"
           # NuGet trusted publishing temporary API key endpoint
-          RESP=$(curl -sS -X POST "https://api.nuget.org/v3/account/temporaryapikey" -H "Content-Type: application/json" -d "{\"id_token\":\"$ID_TOKEN\",\"audience\":\"api.nuget.org\"}")
-          # Try multiple possible response fields
-          API_KEY=$(echo "$RESP" | jq -r '.apiKey // .key // .value // .temporaryApiKey // .temporaryKey // empty')
+          RESP=$(curl -sS -X POST "https://api.nuget.org/v3/account/temporaryapikey" -H "Content-Type: application/json" -d "{\"id_token\":\"$ID_TOKEN\",\"audience\":\"api.nuget.org\"}" ) || true
+          echo "NuGet response (truncated to 4000 chars):"
+          echo "$RESP" | sed -n '1,4000p'
+
+          # If response is valid JSON, parse with jq; otherwise try regex extraction
+          API_KEY=""
+          if echo "$RESP" | jq -e . >/dev/null 2>&1; then
+            API_KEY=$(echo "$RESP" | jq -r '.apiKey // .key // .value // .temporaryApiKey // .temporaryKey // empty')
+          else
+            echo "Response is not valid JSON; attempting regex extraction of an API key-like token"
+            # Look for a plausible API key token (alphanumeric, length >= 16)
+            API_KEY=$(echo "$RESP" | grep -oE '[A-Za-z0-9_-]{16,}' | head -n 1 || true)
+          fi
+
           if [ -z "$API_KEY" ]; then
-            echo "Failed to obtain temporary NuGet API key from nuget.org. Response: $RESP"
+            echo "Failed to obtain temporary NuGet API key from nuget.org. Full response:"
+            echo "$RESP"
+            echo "Ensure Trusted Publishing is configured on nuget.org for this repository and workflow file name (release.yml)."
             exit 1
           fi
+
           echo "nuget_api_key=$API_KEY" >> $GITHUB_OUTPUT
 
       - name: Push packages to nuget.org (Trusted Publishing)

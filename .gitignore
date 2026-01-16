@@ -367,3 +367,4 @@ FodyWeavers.xsd
 
 /PyroGeoBlazor.Leaflet/wwwroot/leafletMap.js
 /PyroGeoBlazor.Leaflet/wwwroot/leafletMap.js.map
+/PyroGeoBlazor.Leaflet/package-lock.json

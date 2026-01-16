@@ -222,6 +222,7 @@ public class NewComponentTests : TestContext
     {
         // Arrange
         var jsModule = JSInterop.SetupModule("./_content/PyroGeoBlazor.Leaflet/leafletMap.js");
+        // Note: This project uses SetupModule on the returned jsModule object - see existing tests for this pattern
         jsModule.SetupModule("LeafletMap.Method.name", _ => true);
         
         // Act

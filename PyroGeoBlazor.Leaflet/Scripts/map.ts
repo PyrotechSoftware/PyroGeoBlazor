@@ -13,6 +13,28 @@ export const Map = {
 
         if (handlerMappings && handlerMappings.dotNetRef && handlerMappings.events) {
             const keys = Object.keys(handlerMappings.events);
+            if (keys.indexOf('layeradd') > -1) {
+                map.on('layeradd', function (ev: any) {
+                    var methodName = handlerMappings.events['layeradd'];
+                    try {
+                        let payload = LeafletEvents.LeafletLayerEventArgs.fromLeaflet(ev).toDto();
+                        handlerMappings.dotNetRef!.invokeMethodAsync(methodName, payload);
+                    } catch (e) {
+                        console.error('Error invoking layeradd handler:', e);
+                    }
+                });
+            }
+            if (keys.indexOf('layerremove') > -1) {
+                map.on('layerremove', function (ev: any) {
+                    var methodName = handlerMappings.events['layerremove'];
+                    try {
+                        let payload = LeafletEvents.LeafletLayerEventArgs.fromLeaflet(ev).toDto();
+                        handlerMappings.dotNetRef!.invokeMethodAsync(methodName, payload);
+                    } catch (e) {
+                        console.error('Error invoking layerremove handler:', e);
+                    }
+                });
+            }
             if (keys.indexOf('resize') > -1) {
                 map.on('resize', function (ev: L.ResizeEvent) {
                     var methodName = handlerMappings.events['resize'];
@@ -119,6 +141,61 @@ export const Map = {
                     Lng: ne.lng
                 }
             };
+        };
+        mapWrapper.setPaneZIndex = function(mapRef: any, paneName: string, zIndex: number) {
+            try {
+                if (!mapRef || !paneName) return;
+                const pane = mapRef.getPane ? mapRef.getPane(paneName) : null;
+                if (!pane) return;
+                if (pane.style) {
+                    pane.style.zIndex = String(zIndex);
+                }
+            }
+            catch (e) {
+                console.error('Error setting pane zIndex:', e);
+            }
+        };
+
+        mapWrapper.getLeafletId = function(layerRef: any) {
+            try {
+                if (!layerRef) return null;
+                return (layerRef as any)._leaflet_id ?? null;
+            }
+            catch (e) {
+                console.error('Error getting leaflet id:', e);
+                return null;
+            }
+        };
+
+        mapWrapper.moveLayerToIndex = function(mapRef: any, layerRef: any, index: number) {
+            try {
+                const map = mapRef as any;
+                const target = layerRef as any;
+                if (!map || !target) return;
+
+                // Collect current layers in insertion order
+                const layers: any[] = [];
+                map.eachLayer(function (l: any) { layers.push(l); });
+
+                const currentIndex = layers.indexOf(target);
+                if (currentIndex === -1) return;
+
+                // Remove target from list and insert at new index
+                layers.splice(currentIndex, 1);
+                const boundedIndex = Math.max(0, Math.min(index, layers.length));
+                layers.splice(boundedIndex, 0, target);
+
+                // Remove all layers from map then re-add in new order
+                for (const l of layers) {
+                    try { map.removeLayer(l); } catch (e) { /* ignore */ }
+                }
+                for (const l of layers) {
+                    try { l.addTo(map); } catch (e) { /* ignore */ }
+                }
+            }
+            catch (e) {
+                console.error('Error moving layer to index:', e);
+            }
         };
 
         // Guarded fitBounds that accepts several input formats from .NET and normalizes them
@@ -230,5 +307,66 @@ export const Map = {
         };
 
         return mapWrapper;
+    }
+    ,
+    setPaneZIndex(mapRef: any, paneName: string, zIndex: number) {
+        try {
+            if (!mapRef || !paneName) return;
+            const pane = mapRef.getPane ? mapRef.getPane(paneName) : null;
+            if (!pane) return;
+            if (pane.style) {
+                pane.style.zIndex = String(zIndex);
+            }
+        }
+        catch (e) {
+            console.error('Error setting pane zIndex:', e);
+        }
+    },
+
+    moveLayerToIndex(mapRef: any, layerRef: any, index: number) {
+        try {
+            const map = mapRef as any;
+            const target = layerRef as any;
+            if (!map || !target) return;
+
+            // Collect current layers in insertion order
+            const layers: any[] = [];
+            map.eachLayer(function (l: any) { layers.push(l); });
+
+            const currentIndex = layers.indexOf(target);
+            if (currentIndex === -1) return;
+
+            const boundedIndex = Math.max(0, Math.min(index, layers.length - 1));
+            if (boundedIndex === currentIndex) return;
+
+            const start = Math.min(currentIndex, boundedIndex);
+            const end = Math.max(currentIndex, boundedIndex);
+
+            // Extract affected range
+            const affected = layers.slice(start, end + 1);
+
+            // Remove only affected layers
+            for (const l of affected) {
+                try { map.removeLayer(l); } catch (e) { /* ignore */ }
+            }
+
+            // Build new ordering for affected range
+            let newAffected: any[] = [];
+            if (currentIndex < boundedIndex) {
+                // moving forward: shift left the ones after target and place target at end
+                newAffected = affected.slice(1).concat([affected[0]]);
+            } else {
+                // moving backward: place target at start and shift right the preceding ones
+                newAffected = [affected[affected.length - 1]].concat(affected.slice(0, affected.length - 1));
+            }
+
+            // Re-add layers: add unchanged prefix layers (they were not removed), then newAffected in order
+            for (const l of newAffected) {
+                try { l.addTo(map); } catch (e) { /* ignore */ }
+            }
+        }
+        catch (e) {
+            console.error('Error moving layer to index:', e);
+        }
     }
 };

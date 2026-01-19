@@ -58,6 +58,18 @@ public abstract class Layer : InteropObject
         return this;
     }
 
+    /// <summary>
+    /// Moves this layer to the specified insertion index on the given map.
+    /// Convenience wrapper around <see cref="Map.MoveLayerToIndex"/>.
+    /// </summary>
+    /// <param name="map">The map containing the layer.</param>
+    /// <param name="index">The zero-based insertion index.</param>
+    public async Task<Map> MoveToIndex(Map map, int index)
+    {
+        if (map is null) throw new ArgumentNullException(nameof(map));
+        return await map.MoveLayerToIndex(this, index);
+    }
+
     #region Events
 
     [JSInvokable]

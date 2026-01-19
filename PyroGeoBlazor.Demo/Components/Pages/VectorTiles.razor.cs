@@ -70,6 +70,32 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
         MapControls.Add(LayersControl);
     }
 
+    private async Task MoveTopLayerDown()
+    {
+        if (PositionMap == null) return;
+        if (loadedLayers.Count <= 1) return;
+
+        // Top layer is last in loadedLayers
+        var topLayerName = loadedLayers[^1];
+        if (!dynamicLayers.TryGetValue(topLayerName, out var topLayer)) return;
+
+        // Request move to index = count-2 (one below top)
+        var targetIndex = loadedLayers.Count - 2;
+        try
+        {
+            await topLayer.MoveToIndex(PositionMap, targetIndex);
+
+            // Reorder our local list to reflect the new order
+            loadedLayers.RemoveAt(loadedLayers.Count - 1);
+            loadedLayers.Insert(targetIndex, topLayerName);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error moving layer: {ex.Message}");
+        }
+    }
+
     /// <summary>
     /// Handles the URL template generated event from the layer selector.
     /// Creates a new vector tile layer and adds it to the map.
@@ -96,6 +122,9 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
             ? urlTemplate.Layer.Split(':')[1] 
             : urlTemplate.Layer;
 
+        // Decide fill opacity: make the first layer added fully opaque
+        var defaultFillOpacity = dynamicLayers.Count == 0 ? 1.0 : 0.4;
+
         // Create the vector tile layer
         var layer = new ProtobufVectorTileLayer(
             urlTemplate.UrlTemplate,
@@ -113,7 +142,7 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
                     {
                         Fill = true,
                         FillColor = fillColor,
-                        FillOpacity = 0.4,
+                        FillOpacity = defaultFillOpacity,
                         Stroke = true,
                         Color = strokeColor,
                         Weight = 2,

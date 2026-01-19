@@ -21,6 +21,14 @@
                     <WmtsLayerSelector InitialUrl="https://lims.koleta.co.mz/geoserver/PlannerSpatial/gwc/service/wmts?REQUEST=GetCapabilities"
                                        InitialVersion="1.1.1"
                                        OnUrlTemplateGenerated="HandleUrlTemplateGenerated" />
+                    
+                    <MudDivider Class="my-2" />
+                    <MudStack Direction="Row" Spacing="1">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small"
+                                   Disabled="@(loadedLayers.Count <= 1)" OnClick="MoveTopLayerDown">
+                            Move top layer down
+                        </MudButton>
+                    </MudStack>
                 </MudCardContent>
             </MudCard>
 
@@ -110,7 +118,9 @@
         </MudContainer>
     </div>
 
-    <div style="flex: 1 1 70%; min-width: 0; overflow: hidden;">
+    <div style="flex: 1 1 70%; min-width: 0; overflow: hidden; position: relative;">
         <LeafletMap Height="100%" Map="PositionMap" TileLayer="OpenStreetMapsTileLayer" Controls="MapControls" />
+
+        
     </div>
 </div>

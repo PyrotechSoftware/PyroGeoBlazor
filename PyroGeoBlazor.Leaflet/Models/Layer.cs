@@ -59,15 +59,89 @@ public abstract class Layer : InteropObject
     }
 
     /// <summary>
-    /// Moves this layer to the specified insertion index on the given map.
-    /// Convenience wrapper around <see cref="Map.MoveLayerToIndex"/>.
+    /// Adds this layer to a map with managed ordering support.
+    /// Convenience wrapper around <see cref="Map.AddLayerManaged"/>.
     /// </summary>
-    /// <param name="map">The map containing the layer.</param>
-    /// <param name="index">The zero-based insertion index.</param>
-    public async Task<Map> MoveToIndex(Map map, int index)
+    /// <param name="map">The map to add the layer to.</param>
+    /// <param name="layerId">Optional unique identifier for the layer. If null, a GUID is generated.</param>
+    /// <returns>The Map instance.</returns>
+    public async Task<Map> AddToManaged(Map map, string? layerId = null)
     {
         if (map is null) throw new ArgumentNullException(nameof(map));
-        return await map.MoveLayerToIndex(this, index);
+        return await map.AddLayerManaged(this, layerId);
+    }
+
+    /// <summary>
+    /// Removes this layer from a map's managed layer registry.
+    /// Convenience wrapper around <see cref="Map.RemoveLayerManaged(Layer)"/>.
+    /// </summary>
+    /// <param name="map">The map to remove the layer from.</param>
+    /// <returns>The Map instance.</returns>
+    public async Task<Map> RemoveFromManaged(Map map)
+    {
+        if (map is null) throw new ArgumentNullException(nameof(map));
+        return await map.RemoveLayerManaged(this);
+    }
+
+    /// <summary>
+    /// Reorders this layer to a new position in the managed layer stack.
+    /// Convenience wrapper around <see cref="Map.ReorderLayer(Layer, int)"/>.
+    /// </summary>
+    /// <param name="map">The map containing the layer.</param>
+    /// <param name="newIndex">The zero-based target index.</param>
+    /// <returns>The Map instance.</returns>
+    public async Task<Map> ReorderManaged(Map map, int newIndex)
+    {
+        if (map is null) throw new ArgumentNullException(nameof(map));
+        return await map.ReorderLayer(this, newIndex);
+    }
+
+    /// <summary>
+    /// Moves this layer to the top of the managed layer stack.
+    /// Convenience wrapper around <see cref="Map.MoveLayerManagedToTop(Layer)"/>.
+    /// </summary>
+    /// <param name="map">The map containing the layer.</param>
+    /// <returns>The Map instance.</returns>
+    public async Task<Map> MoveToTopManaged(Map map)
+    {
+        if (map is null) throw new ArgumentNullException(nameof(map));
+        return await map.MoveLayerManagedToTop(this);
+    }
+
+    /// <summary>
+    /// Moves this layer to the bottom of the managed layer stack.
+    /// Convenience wrapper around <see cref="Map.MoveLayerManagedToBottom(Layer)"/>.
+    /// </summary>
+    /// <param name="map">The map containing the layer.</param>
+    /// <returns>The Map instance.</returns>
+    public async Task<Map> MoveToBottomManaged(Map map)
+    {
+        if (map is null) throw new ArgumentNullException(nameof(map));
+        return await map.MoveLayerManagedToBottom(this);
+    }
+
+    /// <summary>
+    /// Moves this layer up one position in the managed layer stack.
+    /// Convenience wrapper around <see cref="Map.MoveLayerManagedUp(Layer)"/>.
+    /// </summary>
+    /// <param name="map">The map containing the layer.</param>
+    /// <returns>The Map instance.</returns>
+    public async Task<Map> MoveUpManaged(Map map)
+    {
+        if (map is null) throw new ArgumentNullException(nameof(map));
+        return await map.MoveLayerManagedUp(this);
+    }
+
+    /// <summary>
+    /// Moves this layer down one position in the managed layer stack.
+    /// Convenience wrapper around <see cref="Map.MoveLayerManagedDown(Layer)"/>.
+    /// </summary>
+    /// <param name="map">The map containing the layer.</param>
+    /// <returns>The Map instance.</returns>
+    public async Task<Map> MoveDownManaged(Map map)
+    {
+        if (map is null) throw new ArgumentNullException(nameof(map));
+        return await map.MoveLayerManagedDown(this);
     }
 
     #region Events

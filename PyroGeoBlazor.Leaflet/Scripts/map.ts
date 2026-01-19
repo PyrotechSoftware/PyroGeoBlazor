@@ -321,52 +321,6 @@ export const Map = {
         catch (e) {
             console.error('Error setting pane zIndex:', e);
         }
-    },
-
-    moveLayerToIndex(mapRef: any, layerRef: any, index: number) {
-        try {
-            const map = mapRef as any;
-            const target = layerRef as any;
-            if (!map || !target) return;
-
-            // Collect current layers in insertion order
-            const layers: any[] = [];
-            map.eachLayer(function (l: any) { layers.push(l); });
-
-            const currentIndex = layers.indexOf(target);
-            if (currentIndex === -1) return;
-
-            const boundedIndex = Math.max(0, Math.min(index, layers.length - 1));
-            if (boundedIndex === currentIndex) return;
-
-            const start = Math.min(currentIndex, boundedIndex);
-            const end = Math.max(currentIndex, boundedIndex);
-
-            // Extract affected range
-            const affected = layers.slice(start, end + 1);
-
-            // Remove only affected layers
-            for (const l of affected) {
-                try { map.removeLayer(l); } catch (e) { /* ignore */ }
-            }
-
-            // Build new ordering for affected range
-            let newAffected: any[] = [];
-            if (currentIndex < boundedIndex) {
-                // moving forward: shift left the ones after target and place target at end
-                newAffected = affected.slice(1).concat([affected[0]]);
-            } else {
-                // moving backward: place target at start and shift right the preceding ones
-                newAffected = [affected[affected.length - 1]].concat(affected.slice(0, affected.length - 1));
-            }
-
-            // Re-add layers: add unchanged prefix layers (they were not removed), then newAffected in order
-            for (const l of newAffected) {
-                try { l.addTo(map); } catch (e) { /* ignore */ }
-            }
-        }
-        catch (e) {
-            console.error('Error moving layer to index:', e);
-        }
     }
 };
+

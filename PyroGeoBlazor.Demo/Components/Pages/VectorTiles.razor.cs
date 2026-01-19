@@ -14,7 +14,6 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
 
     protected Map? PositionMap;
     protected TileLayer OpenStreetMapsTileLayer;
-    protected LayersControl LayersControl;
     protected MapStateViewModel MapStateViewModel;
     protected List<Control> MapControls = [];
 
@@ -24,6 +23,18 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
     private bool selectionEnabled = true;
     private bool multiSelectEnabled = false;
     private readonly Random random = new();
+    private PathOptions currentLayerStyle = new PathOptions
+    {
+        Stroke = true,
+        Color = "#3388ff",
+        Weight = 3,
+        Opacity = 1.0,
+        Fill = true,
+        FillColor = "#3388ff",
+        FillOpacity = 0.2,
+        LineCap = "round",
+        LineJoin = "round"
+    };
 
     public VectorTiles()
     {
@@ -53,47 +64,85 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
                     @"<a href=""https://creativecommons.org/licenses/by-sa/2.0/"">CC-BY-SA</a>"
             }
         );
-
-        LayersControl = new LayersControl(
-            baseLayers: [],
-            overlays: [],
-            options: new LayersControlOptions()
-            {
-                Collapsed = false,
-                Position = "topright",
-                HideSingleBase = false,
-                AutoZIndex = true,
-                SortLayers = false
-            }
-        );
-
-        MapControls.Add(LayersControl);
     }
 
-    private async Task MoveTopLayerDown()
+    private async Task MoveLayerUp(string layerName)
     {
-        if (PositionMap == null) return;
-        if (loadedLayers.Count <= 1) return;
+        if (PositionMap == null || !dynamicLayers.TryGetValue(layerName, out var layer))
+            return;
 
-        // Top layer is last in loadedLayers
-        var topLayerName = loadedLayers[^1];
-        if (!dynamicLayers.TryGetValue(topLayerName, out var topLayer)) return;
-
-        // Request move to index = count-2 (one below top)
-        var targetIndex = loadedLayers.Count - 2;
         try
         {
-            await topLayer.MoveToIndex(PositionMap, targetIndex);
+            await layer.MoveUpManaged(PositionMap);
 
-            // Reorder our local list to reflect the new order
-            loadedLayers.RemoveAt(loadedLayers.Count - 1);
-            loadedLayers.Insert(targetIndex, topLayerName);
+            // Update local list to match
+            var index = loadedLayers.IndexOf(layerName);
+            if (index >= 0 && index < loadedLayers.Count - 1)
+            {
+                loadedLayers.RemoveAt(index);
+                loadedLayers.Insert(index + 1, layerName);
+            }
+
             StateHasChanged();
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Error moving layer: {ex.Message}");
+            Console.WriteLine($"Error moving layer up: {ex.Message}");
         }
+    }
+
+    private async Task MoveLayerDown(string layerName)
+    {
+        if (PositionMap == null || !dynamicLayers.TryGetValue(layerName, out var layer))
+            return;
+
+        try
+        {
+            await layer.MoveDownManaged(PositionMap);
+
+            // Update local list to match
+            var index = loadedLayers.IndexOf(layerName);
+            if (index > 0)
+            {
+                loadedLayers.RemoveAt(index);
+                loadedLayers.Insert(index - 1, layerName);
+            }
+
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error moving layer down: {ex.Message}");
+        }
+    }
+
+    private async Task RemoveLayerByName(string layerName)
+    {
+        if (PositionMap == null || !dynamicLayers.TryGetValue(layerName, out var layer))
+            return;
+
+        try
+        {
+            await layer.RemoveFromManaged(PositionMap);
+            dynamicLayers.Remove(layerName);
+            loadedLayers.Remove(layerName);
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error removing layer: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Handles the apply style event from the LayerStyle control.
+    /// Updates the current layer style to be used for new layers.
+    /// </summary>
+    private Task HandleApplyStyle(PathOptions newStyle)
+    {
+        currentLayerStyle = newStyle;
+        StateHasChanged();
+        return Task.CompletedTask;
     }
 
     /// <summary>
@@ -114,25 +163,19 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
             return;
         }
 
-        // Generate random colors for the layer
-        var (fillColor, strokeColor) = GenerateRandomColors();
-
         // Extract layer name without workspace prefix for style key
         var layerStyleKey = urlTemplate.Layer.Contains(':') 
             ? urlTemplate.Layer.Split(':')[1] 
             : urlTemplate.Layer;
 
-        // Decide fill opacity: make the first layer added fully opaque
-        var defaultFillOpacity = dynamicLayers.Count == 0 ? 1.0 : 0.4;
-
-        // Create the vector tile layer
+        // Create the vector tile layer using the current style from LayerStyle control
         var layer = new ProtobufVectorTileLayer(
             urlTemplate.UrlTemplate,
             new ProtobufVectorTileLayerOptions
             {
                 Attribution = "",
                 TileSize = 256,
-                Opacity = 0.6,
+                Opacity = 1.0, // Use full opacity at layer level - stroke/fill opacity controls transparency
                 MinZoom = 1,
                 Interactive = isInteractive,
                 EnableFeatureSelection = selectionEnabled,
@@ -140,13 +183,17 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
                 {
                     [layerStyleKey] = new PathOptions
                     {
-                        Fill = true,
-                        FillColor = fillColor,
-                        FillOpacity = defaultFillOpacity,
-                        Stroke = true,
-                        Color = strokeColor,
-                        Weight = 2,
-                        Opacity = 1.0
+                        Fill = currentLayerStyle.Fill,
+                        FillColor = currentLayerStyle.FillColor,
+                        FillOpacity = currentLayerStyle.FillOpacity,
+                        Stroke = currentLayerStyle.Stroke,
+                        Color = currentLayerStyle.Color,
+                        Weight = currentLayerStyle.Weight,
+                        Opacity = currentLayerStyle.Opacity,
+                        LineCap = currentLayerStyle.LineCap,
+                        LineJoin = currentLayerStyle.LineJoin,
+                        DashArray = currentLayerStyle.DashArray,
+                        ClassName = currentLayerStyle.ClassName
                     }
                 },
                 SelectedFeatureStyle = new PathOptions
@@ -162,9 +209,9 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
             }
         );
 
-        // Add to map and layer control
-        await layer.AddTo(PositionMap);
-        await LayersControl.AddOverlay(layer, urlTemplate.Layer);
+        // Add to map using managed layer system and layer control
+        await layer.AddToManaged(PositionMap, urlTemplate.Layer);
+        //await LayersControl.AddOverlay(layer, urlTemplate.Layer);
 
         // Track the layer
         dynamicLayers[urlTemplate.Layer] = layer;

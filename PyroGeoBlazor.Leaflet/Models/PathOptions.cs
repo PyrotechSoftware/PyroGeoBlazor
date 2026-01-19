@@ -82,7 +82,6 @@ public class PathOptions : InteractiveLayerOptions
     /// <summary>
     /// Fill opacity
     /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public double FillOpacity { get; set; } = 0.2;
 
     /// <summary>

@@ -28,6 +28,18 @@ public class Map : InteropObject
     public MapOptions Options { get; }
 
     /// <summary>
+    /// Internal ordered list of layers as reported by Leaflet layeradd/layerremove events.
+    /// This represents the order layers were added to the map. Use this to determine and manipulate
+    /// layer stacking from .NET side.
+    /// </summary>
+    private readonly List<LayerInfo> _layerOrder = new();
+
+    /// <summary>
+    /// Read-only view of the current layer order on the map. Updated when layeradd/layerremove events fire.
+    /// </summary>
+    public IReadOnlyList<LayerInfo> LayerOrder => _layerOrder.AsReadOnly();
+
+    /// <summary>
     /// The options for interaction with the Map.
     /// </summary>
     protected readonly DomEventHandlerMapping<Map>? EventHandlerMapping;
@@ -70,6 +82,14 @@ public class Map : InteropObject
             // Always subscribe to zoomend and moveend for WFS auto-refresh and other features
             EventHandlerMapping.Events.Add("zoomend", nameof(this.ZoomEnd));
             EventHandlerMapping.Events.Add("moveend", nameof(this.MoveEnd));
+            if (Options.EventOptions.LayerAdd)
+            {
+                EventHandlerMapping.Events.Add("layeradd", nameof(this.LayerAdd));
+            }
+            if (Options.EventOptions.LayerRemove)
+            {
+                EventHandlerMapping.Events.Add("layerremove", nameof(this.LayerRemove));
+            }
         }
     }
 
@@ -686,6 +706,81 @@ public class Map : InteropObject
         return await JSObjectReference!.InvokeAsync<object>("getContainer");
     }
 
+    /// <summary>
+    /// Moves the given layer to the specified insertion index in the map's layer stack.
+    /// This attempts a deterministic re-order by removing and re-adding layers in the requested order.
+    /// Note: visual stacking ultimately depends on panes and layer types; use panes for strict z-order control.
+    /// </summary>
+    /// <param name="layer">The layer to move.</param>
+    /// <param name="index">The zero-based target insertion index.</param>
+    /// <returns>The Map.</returns>
+    public async Task<Map> MoveLayerToIndex(Layer layer, int index)
+    {
+        GuardAgainstNullBinding("Cannot reorder layers. No JavaScript binding has been set up for this Map object.");
+        if (layer.JSBinder is null)
+        {
+            await layer.BindJsObjectReference(JSBinder!);
+        }
+        layer.GuardAgainstNullBinding("Cannot reorder layer. No JavaScript binding has been set up for the layer parameter.");
+
+        var module = await JSBinder!.GetLeafletMapModule();
+        await module.InvokeVoidAsync("LeafletMap.Map.moveLayerToIndex", JSObjectReference, layer.JSObjectReference, index);
+        return this;
+    }
+
+    /// <summary>
+    /// Moves the given layer to the top of the map's layer stack.
+    /// Top is defined as the most recently added / highest insertion index.
+    /// </summary>
+    public async Task<Map> MoveLayerToTop(Layer layer)
+    {
+        if (layer is null) throw new ArgumentNullException(nameof(layer));
+        var target = _layerOrder.FirstOrDefault(x => x.LeafletId == GetLeafletIdSafe(layer));
+        var targetIndex = _layerOrder.Count - 1;
+        if (target is null)
+        {
+            // If we don't know the current order, just request move to end
+            return await MoveLayerToIndex(layer, targetIndex);
+        }
+
+        var currentIndex = _layerOrder.IndexOf(target);
+        if (currentIndex == targetIndex) return this;
+        return await MoveLayerToIndex(layer, targetIndex);
+    }
+
+    /// <summary>
+    /// Moves the given layer to the bottom of the map's layer stack (index 0).
+    /// </summary>
+    public async Task<Map> MoveLayerToBottom(Layer layer)
+    {
+        if (layer is null) throw new ArgumentNullException(nameof(layer));
+        var target = _layerOrder.FirstOrDefault(x => x.LeafletId == GetLeafletIdSafe(layer));
+        if (target is null)
+        {
+            return await MoveLayerToIndex(layer, 0);
+        }
+
+        var currentIndex = _layerOrder.IndexOf(target);
+        if (currentIndex == 0) return this;
+        return await MoveLayerToIndex(layer, 0);
+    }
+
+    private int? GetLeafletIdSafe(Layer layer)
+    {
+        try
+        {
+            // Try to read the Leaflet id from the LayerInfo if available in LayerOrder
+            // Otherwise, attempt to access the JSObjectReference to get id via JS if bound.
+            var info = _layerOrder.FirstOrDefault(x => x.Type == layer.GetType().Name);
+            if (info?.LeafletId is not null) return info.LeafletId;
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     #endregion
 
     #endregion
@@ -735,6 +830,39 @@ public class Map : InteropObject
     public Task MoveEnd(LeafletEventArgs args)
     {
         OnMoveEnd?.Invoke(this, args);
+        return Task.CompletedTask;
+    }
+
+    public event EventHandler<LeafletLayerEventArgs>? OnLayerAdd;
+    public event EventHandler<LeafletLayerEventArgs>? OnLayerRemove;
+
+    [JSInvokable]
+    public Task LayerAdd(LeafletLayerEventArgs args)
+    {
+        // Update internal layer order: append the layer info when a layer is added
+        if (args?.Layer is not null)
+        {
+            var existing = _layerOrder.FirstOrDefault(x => x.LeafletId == args.Layer.LeafletId);
+            if (existing is null)
+            {
+                _layerOrder.Add(args.Layer);
+            }
+        }
+
+        OnLayerAdd?.Invoke(this, args);
+        return Task.CompletedTask;
+    }
+
+    [JSInvokable]
+    public Task LayerRemove(LeafletLayerEventArgs args)
+    {
+        // Update internal layer order: remove the layer info when a layer is removed
+        if (args?.Layer is not null)
+        {
+            _layerOrder.RemoveAll(x => x.LeafletId == args.Layer.LeafletId);
+        }
+
+        OnLayerRemove?.Invoke(this, args);
         return Task.CompletedTask;
     }
 

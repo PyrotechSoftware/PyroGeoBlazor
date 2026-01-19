@@ -52,4 +52,14 @@ public class MapEventOptions
     /// Gets or sets a value indicating whether Geo-location events are enabled.
     /// </summary>
     public bool LocationEvents { get; set; } = true;
+
+    /// <summary>
+    /// If true the Map will fire LayerAdd events to .NET when layers are added.
+    /// </summary>
+    public bool LayerAdd { get; set; } = true;
+
+    /// <summary>
+    /// If true the Map will fire LayerRemove events to .NET when layers are removed.
+    /// </summary>
+    public bool LayerRemove { get; set; } = true;
 }

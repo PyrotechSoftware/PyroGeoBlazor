@@ -89,5 +89,8 @@
       <Pack>false</Pack>
     </None>
   </ItemGroup>
+  <ItemGroup>
+    <Folder Include="Utilities\" />
+  </ItemGroup>
 	
 </Project>

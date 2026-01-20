@@ -540,6 +540,319 @@ public class Map : InteropObject
 
     #region Layers and Controls
 
+    #region Managed Layer Operations
+
+    /// <summary>
+    /// Adds a layer to the map with managed ordering support.
+    /// The layer is tracked in an internal registry for deterministic reordering operations.
+    /// </summary>
+    /// <param name="layer">The layer to add.</param>
+    /// <param name="layerId">Optional unique identifier for the layer. If null, a GUID is generated.</param>
+    /// <returns>The Map instance.</returns>
+    public async Task<Map> AddLayer(Layer layer, string? layerId = null)
+    {
+        ArgumentNullException.ThrowIfNull(layer);
+        if (layer is Marker)
+        {
+            await layer.AddToInternal(this); // Markers are not managed layers
+            return this;
+        }
+
+        layerId ??= Guid.NewGuid().ToString();
+
+        // If layer with this ID already exists, remove it first
+        if (_managedLayers.ContainsKey(layerId))
+        {
+            await RemoveLayer(layerId);
+        }
+
+        // Add layer to map
+        await layer.AddToInternal(this);
+
+        // Track in registry
+        _managedLayers[layerId] = layer;
+        _managedLayerOrder.Add(layerId);
+
+        return this;
+    }
+
+    /// <summary>
+    /// Gets the layer ID for a managed layer, if it exists in the registry.
+    /// </summary>
+    /// <param name="layer">The layer to find.</param>
+    /// <returns>The layer ID if found, otherwise null.</returns>
+    public string? GetLayerId(Layer layer)
+    {
+        if (layer is null) return null;
+
+        foreach (var kvp in _managedLayers)
+        {
+            if (ReferenceEquals(kvp.Value, layer))
+            {
+                return kvp.Key;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Gets a managed layer by its ID.
+    /// </summary>
+    /// <param name="layerId">The layer ID.</param>
+    /// <returns>The layer if found, otherwise null.</returns>
+    public Layer? GetLayer(string layerId)
+    {
+        return _managedLayers.TryGetValue(layerId, out var layer) ? layer : null;
+    }
+
+    /// <summary>
+    /// Gets the current order of managed layer IDs.
+    /// </summary>
+    public IReadOnlyList<string> ManagedLayerOrder => _managedLayerOrder.AsReadOnly();
+
+    /// <summary>
+    /// Gets an enumerable of managed layers in their current order.
+    /// Each item contains the layer ID and the layer instance.
+    /// This collection reflects the visual stacking order (first = bottom, last = top).
+    /// </summary>
+    public IEnumerable<(string Id, Layer Layer)> ManagedLayers =>
+        _managedLayerOrder.Select(id => (id, _managedLayers[id]));
+
+    /// <summary>
+    /// Removes a managed layer from the map by its ID.
+    /// </summary>
+    /// <param name="layerId">The ID of the layer to remove.</param>
+    /// <returns>The Map instance.</returns>
+    public async Task<Map> RemoveLayer(string layerId)
+    {
+        if (!_managedLayers.TryGetValue(layerId, out var layer))
+        {
+            return this;
+        }
+
+        // Remove from map
+        await layer.RemoveLayer();
+
+        // Remove from registry
+        _managedLayers.Remove(layerId);
+        _managedLayerOrder.Remove(layerId);
+
+        return this;
+    }
+
+    /// <summary>
+    /// Removes a managed layer from the map by its instance reference.
+    /// </summary>
+    /// <param name="layer">The layer to remove.</param>
+    /// <returns>The Map instance.</returns>
+    public async Task<Map> RemoveLayer(Layer layer)
+    {
+        ArgumentNullException.ThrowIfNull(layer);
+
+        var layerId = GetLayerId(layer);
+        if (layerId is null)
+        {
+            // Layer not in managed registry, just remove it directly
+            await layer.RemoveLayer();
+            return this;
+        }
+
+        return await RemoveLayer(layerId);
+    }
+
+    /// <summary>
+    /// Reorders a managed layer to a new position in the layer stack.
+    /// This removes and re-adds layers in the correct order to achieve the desired stacking.
+    /// </summary>
+    /// <param name="layerId">The ID of the layer to reorder.</param>
+    /// <param name="newIndex">The zero-based target index.</param>
+    /// <returns>The Map instance.</returns>
+    public async Task<Map> ReorderLayer(string layerId, int newIndex)
+    {
+        if (!_managedLayers.ContainsKey(layerId))
+        {
+            throw new ArgumentException($"Layer with ID '{layerId}' is not in the managed layer registry.", nameof(layerId));
+        }
+
+        var currentIndex = _managedLayerOrder.IndexOf(layerId);
+        if (currentIndex == -1)
+        {
+            throw new InvalidOperationException($"Layer with ID '{layerId}' is in registry but not in order list.");
+        }
+
+        // Bound the new index
+        var boundedIndex = Math.Max(0, Math.Min(newIndex, _managedLayerOrder.Count - 1));
+
+        // If already at target position, nothing to do
+        if (currentIndex == boundedIndex)
+        {
+            return this;
+        }
+
+        // Update the order list
+        _managedLayerOrder.RemoveAt(currentIndex);
+        _managedLayerOrder.Insert(boundedIndex, layerId);
+
+        // Remove all managed layers from the map
+        foreach (var id in _managedLayerOrder)
+        {
+            var layer = _managedLayers[id];
+            await layer.RemoveLayer();
+        }
+
+        // Re-add all layers in the new order
+        foreach (var id in _managedLayerOrder)
+        {
+            var layer = _managedLayers[id];
+            await layer.AddToInternal(this);
+        }
+
+        return this;
+    }
+
+    /// <summary>
+    /// Reorders a managed layer to a new position in the layer stack.
+    /// </summary>
+    /// <param name="layer">The layer to reorder.</param>
+    /// <param name="newIndex">The zero-based target index.</param>
+    /// <returns>The Map instance.</returns>
+    public async Task<Map> ReorderLayer(Layer layer, int newIndex)
+    {
+        ArgumentNullException.ThrowIfNull(layer);
+
+        var layerId = GetLayerId(layer)
+            ?? throw new ArgumentException("Layer is not in the managed layer registry.", nameof(layer));
+
+        return await ReorderLayer(layerId, newIndex);
+    }
+
+    /// <summary>
+    /// Moves a managed layer to the top of the layer stack (highest index).
+    /// </summary>
+    /// <param name="layerId">The ID of the layer to move.</param>
+    /// <returns>The Map instance.</returns>
+    public async Task<Map> MoveLayerToTop(string layerId)
+    {
+        return await ReorderLayer(layerId, _managedLayerOrder.Count - 1);
+    }
+
+    /// <summary>
+    /// Moves a managed layer to the top of the layer stack (highest index).
+    /// </summary>
+    /// <param name="layer">The layer to move.</param>
+    /// <returns>The Map instance.</returns>
+    public async Task<Map> MoveLayerToTop(Layer layer)
+    {
+        ArgumentNullException.ThrowIfNull(layer);
+
+        var layerId = GetLayerId(layer)
+            ?? throw new ArgumentException("Layer is not in the managed layer registry.", nameof(layer));
+
+        return await MoveLayerToTop(layerId);
+    }
+
+    /// <summary>
+    /// Moves a managed layer to the bottom of the layer stack (index 0).
+    /// </summary>
+    /// <param name="layerId">The ID of the layer to move.</param>
+    /// <returns>The Map instance.</returns>
+    public async Task<Map> MoveLayerToBottom(string layerId)
+    {
+        return await ReorderLayer(layerId, 0);
+    }
+
+    /// <summary>
+    /// Moves a managed layer to the bottom of the layer stack (index 0).
+    /// </summary>
+    /// <param name="layer">The layer to move.</param>
+    /// <returns>The Map instance.</returns>
+    public async Task<Map> MoveLayerToBottom(Layer layer)
+    {
+        ArgumentNullException.ThrowIfNull(layer);
+
+        var layerId = GetLayerId(layer)
+            ?? throw new ArgumentException("Layer is not in the managed layer registry.", nameof(layer));
+
+        return await MoveLayerToBottom(layerId);
+    }
+
+    /// <summary>
+    /// Moves a managed layer up one position in the layer stack.
+    /// If the layer is already at the top, no change is made.
+    /// </summary>
+    /// <param name="layerId">The ID of the layer to move.</param>
+    /// <returns>The Map instance.</returns>
+    public async Task<Map> MoveLayerUp(string layerId)
+    {
+        if (!_managedLayers.ContainsKey(layerId))
+        {
+            throw new ArgumentException($"Layer with ID '{layerId}' is not in the managed layer registry.", nameof(layerId));
+        }
+
+        var currentIndex = _managedLayerOrder.IndexOf(layerId);
+        return currentIndex == -1
+            ? throw new InvalidOperationException($"Layer with ID '{layerId}' is in registry but not in order list.")
+            : currentIndex == _managedLayerOrder.Count - 1
+                ? this // Already at top, nothing to do
+                : await ReorderLayer(layerId, currentIndex + 1);
+    }
+
+    /// <summary>
+    /// Moves a managed layer up one position in the layer stack.
+    /// If the layer is already at the top, no change is made.
+    /// </summary>
+    /// <param name="layer">The layer to move.</param>
+    /// <returns>The Map instance.</returns>
+    public async Task<Map> MoveLayerUp(Layer layer)
+    {
+        ArgumentNullException.ThrowIfNull(layer);
+
+        var layerId = GetLayerId(layer)
+            ?? throw new ArgumentException("Layer is not in the managed layer registry.", nameof(layer));
+
+        return await MoveLayerUp(layerId);
+    }
+
+    /// <summary>
+    /// Moves a managed layer down one position in the layer stack.
+    /// If the layer is already at the bottom, no change is made.
+    /// </summary>
+    /// <param name="layerId">The ID of the layer to move.</param>
+    /// <returns>The Map instance.</returns>
+    public async Task<Map> MoveLayerDown(string layerId)
+    {
+        if (!_managedLayers.ContainsKey(layerId))
+        {
+            throw new ArgumentException($"Layer with ID '{layerId}' is not in the managed layer registry.", nameof(layerId));
+        }
+
+        var currentIndex = _managedLayerOrder.IndexOf(layerId);
+        return currentIndex == -1
+            ? throw new InvalidOperationException($"Layer with ID '{layerId}' is in registry but not in order list.")
+            : currentIndex == 0
+                ? this // Already at bottom, nothing to do
+                : await ReorderLayer(layerId, currentIndex - 1);
+    }
+
+    /// <summary>
+    /// Moves a managed layer down one position in the layer stack.
+    /// If the layer is already at the bottom, no change is made.
+    /// </summary>
+    /// <param name="layer">The layer to move.</param>
+    /// <returns>The Map instance.</returns>
+    public async Task<Map> MoveLayerDown(Layer layer)
+    {
+        ArgumentNullException.ThrowIfNull(layer);
+
+        var layerId = GetLayerId(layer)
+            ?? throw new ArgumentException("Layer is not in the managed layer registry.", nameof(layer));
+
+        return await MoveLayerDown(layerId);
+    }
+
+    #endregion
+
     /// <summary>
     /// Adds the given control to the map.
     /// </summary>
@@ -568,11 +881,12 @@ public class Map : InteropObject
     }
 
     /// <summary>
-    /// Adds the given layer to the map
+    /// Adds the given layer to the map.
+    /// This is only visible to derived classes.
     /// </summary>
     /// <param name="layer">The layer to add to the map.</param>
     /// <returns>The Map.</returns>
-    public async Task<Map> AddLayer(Layer layer)
+    protected async Task<Map> AddLayerOld(Layer layer)
     {
         GuardAgainstNullBinding("Cannot add layer to map. No JavaScript binding has been set up for this Map object.");
         if (layer.JSBinder is null)
@@ -585,10 +899,11 @@ public class Map : InteropObject
 
     /// <summary>
     /// Removes the given layer from the map.
+    /// This is only visible to derived classes.
     /// </summary>
     /// <param name="layer">The layer to remove.</param>
     /// <returns>The Map.</returns>
-    public async Task<Map> RemoveLayer(Layer layer)
+    protected async Task<Map> RemoveLayerOld(Layer layer)
     {
         GuardAgainstNullBinding("Cannot remove layer from map. No JavaScript binding has been set up for this Map object.");
         await JSObjectReference!.InvokeVoidAsync("removeLayer", layer);
@@ -716,335 +1031,6 @@ public class Map : InteropObject
         GuardAgainstNullBinding("Cannot get pane. No JavaScript binding has been set up for this Map object");
         return await JSObjectReference!.InvokeAsync<object>("getContainer");
     }
-
-    #region Managed Layer Operations
-
-    /// <summary>
-    /// Adds a layer to the map with managed ordering support.
-    /// The layer is tracked in an internal registry for deterministic reordering operations.
-    /// </summary>
-    /// <param name="layer">The layer to add.</param>
-    /// <param name="layerId">Optional unique identifier for the layer. If null, a GUID is generated.</param>
-    /// <returns>The Map instance.</returns>
-    public async Task<Map> AddLayerManaged(Layer layer, string? layerId = null)
-    {
-        if (layer is null) throw new ArgumentNullException(nameof(layer));
-
-        layerId ??= Guid.NewGuid().ToString();
-
-        // If layer with this ID already exists, remove it first
-        if (_managedLayers.ContainsKey(layerId))
-        {
-            await RemoveLayerManaged(layerId);
-        }
-
-        // Add layer to map
-        await layer.AddTo(this);
-
-        // Track in registry
-        _managedLayers[layerId] = layer;
-        _managedLayerOrder.Add(layerId);
-
-        return this;
-    }
-
-    /// <summary>
-    /// Gets the layer ID for a managed layer, if it exists in the registry.
-    /// </summary>
-    /// <param name="layer">The layer to find.</param>
-    /// <returns>The layer ID if found, otherwise null.</returns>
-    public string? GetLayerId(Layer layer)
-    {
-        if (layer is null) return null;
-
-        foreach (var kvp in _managedLayers)
-        {
-            if (ReferenceEquals(kvp.Value, layer))
-            {
-                return kvp.Key;
-            }
-        }
-
-        return null;
-    }
-
-    /// <summary>
-    /// Gets a managed layer by its ID.
-    /// </summary>
-    /// <param name="layerId">The layer ID.</param>
-    /// <returns>The layer if found, otherwise null.</returns>
-    public Layer? GetManagedLayer(string layerId)
-    {
-        return _managedLayers.TryGetValue(layerId, out var layer) ? layer : null;
-    }
-
-    /// <summary>
-    /// Gets the current order of managed layer IDs.
-    /// </summary>
-    public IReadOnlyList<string> ManagedLayerOrder => _managedLayerOrder.AsReadOnly();
-
-    /// <summary>
-    /// Removes a managed layer from the map by its ID.
-    /// </summary>
-    /// <param name="layerId">The ID of the layer to remove.</param>
-    /// <returns>The Map instance.</returns>
-    public async Task<Map> RemoveLayerManaged(string layerId)
-    {
-        if (!_managedLayers.TryGetValue(layerId, out var layer))
-        {
-            return this;
-        }
-
-        // Remove from map
-        await layer.RemoveLayer();
-
-        // Remove from registry
-        _managedLayers.Remove(layerId);
-        _managedLayerOrder.Remove(layerId);
-
-        return this;
-    }
-
-    /// <summary>
-    /// Removes a managed layer from the map by its instance reference.
-    /// </summary>
-    /// <param name="layer">The layer to remove.</param>
-    /// <returns>The Map instance.</returns>
-    public async Task<Map> RemoveLayerManaged(Layer layer)
-    {
-        if (layer is null) throw new ArgumentNullException(nameof(layer));
-
-        var layerId = GetLayerId(layer);
-        if (layerId is null)
-        {
-            // Layer not in managed registry, just remove it directly
-            await layer.RemoveLayer();
-            return this;
-        }
-
-        return await RemoveLayerManaged(layerId);
-    }
-
-    /// <summary>
-    /// Reorders a managed layer to a new position in the layer stack.
-    /// This removes and re-adds layers in the correct order to achieve the desired stacking.
-    /// </summary>
-    /// <param name="layerId">The ID of the layer to reorder.</param>
-    /// <param name="newIndex">The zero-based target index.</param>
-    /// <returns>The Map instance.</returns>
-    public async Task<Map> ReorderLayer(string layerId, int newIndex)
-    {
-        if (!_managedLayers.ContainsKey(layerId))
-        {
-            throw new ArgumentException($"Layer with ID '{layerId}' is not in the managed layer registry.", nameof(layerId));
-        }
-
-        var currentIndex = _managedLayerOrder.IndexOf(layerId);
-        if (currentIndex == -1)
-        {
-            throw new InvalidOperationException($"Layer with ID '{layerId}' is in registry but not in order list.");
-        }
-
-        // Bound the new index
-        var boundedIndex = Math.Max(0, Math.Min(newIndex, _managedLayerOrder.Count - 1));
-
-        // If already at target position, nothing to do
-        if (currentIndex == boundedIndex)
-        {
-            return this;
-        }
-
-        // Update the order list
-        _managedLayerOrder.RemoveAt(currentIndex);
-        _managedLayerOrder.Insert(boundedIndex, layerId);
-
-        // Remove all managed layers from the map
-        foreach (var id in _managedLayerOrder)
-        {
-            var layer = _managedLayers[id];
-            await layer.RemoveLayer();
-        }
-
-        // Re-add all layers in the new order
-        foreach (var id in _managedLayerOrder)
-        {
-            var layer = _managedLayers[id];
-            await layer.AddTo(this);
-        }
-
-        return this;
-    }
-
-    /// <summary>
-    /// Reorders a managed layer to a new position in the layer stack.
-    /// </summary>
-    /// <param name="layer">The layer to reorder.</param>
-    /// <param name="newIndex">The zero-based target index.</param>
-    /// <returns>The Map instance.</returns>
-    public async Task<Map> ReorderLayer(Layer layer, int newIndex)
-    {
-        if (layer is null) throw new ArgumentNullException(nameof(layer));
-
-        var layerId = GetLayerId(layer);
-        if (layerId is null)
-        {
-            throw new ArgumentException("Layer is not in the managed layer registry.", nameof(layer));
-        }
-
-        return await ReorderLayer(layerId, newIndex);
-    }
-
-    /// <summary>
-    /// Moves a managed layer to the top of the layer stack (highest index).
-    /// </summary>
-    /// <param name="layerId">The ID of the layer to move.</param>
-    /// <returns>The Map instance.</returns>
-    public async Task<Map> MoveLayerManagedToTop(string layerId)
-    {
-        return await ReorderLayer(layerId, _managedLayerOrder.Count - 1);
-    }
-
-    /// <summary>
-    /// Moves a managed layer to the top of the layer stack (highest index).
-    /// </summary>
-    /// <param name="layer">The layer to move.</param>
-    /// <returns>The Map instance.</returns>
-    public async Task<Map> MoveLayerManagedToTop(Layer layer)
-    {
-        if (layer is null) throw new ArgumentNullException(nameof(layer));
-
-        var layerId = GetLayerId(layer);
-        if (layerId is null)
-        {
-            throw new ArgumentException("Layer is not in the managed layer registry.", nameof(layer));
-        }
-
-        return await MoveLayerManagedToTop(layerId);
-    }
-
-    /// <summary>
-    /// Moves a managed layer to the bottom of the layer stack (index 0).
-    /// </summary>
-    /// <param name="layerId">The ID of the layer to move.</param>
-    /// <returns>The Map instance.</returns>
-    public async Task<Map> MoveLayerManagedToBottom(string layerId)
-    {
-        return await ReorderLayer(layerId, 0);
-    }
-
-    /// <summary>
-    /// Moves a managed layer to the bottom of the layer stack (index 0).
-    /// </summary>
-    /// <param name="layer">The layer to move.</param>
-    /// <returns>The Map instance.</returns>
-    public async Task<Map> MoveLayerManagedToBottom(Layer layer)
-    {
-        if (layer is null) throw new ArgumentNullException(nameof(layer));
-
-        var layerId = GetLayerId(layer);
-        if (layerId is null)
-        {
-            throw new ArgumentException("Layer is not in the managed layer registry.", nameof(layer));
-        }
-
-        return await MoveLayerManagedToBottom(layerId);
-    }
-
-    /// <summary>
-    /// Moves a managed layer up one position in the layer stack.
-    /// If the layer is already at the top, no change is made.
-    /// </summary>
-    /// <param name="layerId">The ID of the layer to move.</param>
-    /// <returns>The Map instance.</returns>
-    public async Task<Map> MoveLayerManagedUp(string layerId)
-    {
-        if (!_managedLayers.ContainsKey(layerId))
-        {
-            throw new ArgumentException($"Layer with ID '{layerId}' is not in the managed layer registry.", nameof(layerId));
-        }
-
-        var currentIndex = _managedLayerOrder.IndexOf(layerId);
-        if (currentIndex == -1)
-        {
-            throw new InvalidOperationException($"Layer with ID '{layerId}' is in registry but not in order list.");
-        }
-
-        // Already at top, nothing to do
-        if (currentIndex == _managedLayerOrder.Count - 1)
-        {
-            return this;
-        }
-
-        return await ReorderLayer(layerId, currentIndex + 1);
-    }
-
-    /// <summary>
-    /// Moves a managed layer up one position in the layer stack.
-    /// If the layer is already at the top, no change is made.
-    /// </summary>
-    /// <param name="layer">The layer to move.</param>
-    /// <returns>The Map instance.</returns>
-    public async Task<Map> MoveLayerManagedUp(Layer layer)
-    {
-        if (layer is null) throw new ArgumentNullException(nameof(layer));
-
-        var layerId = GetLayerId(layer);
-        if (layerId is null)
-        {
-            throw new ArgumentException("Layer is not in the managed layer registry.", nameof(layer));
-        }
-
-        return await MoveLayerManagedUp(layerId);
-    }
-
-    /// <summary>
-    /// Moves a managed layer down one position in the layer stack.
-    /// If the layer is already at the bottom, no change is made.
-    /// </summary>
-    /// <param name="layerId">The ID of the layer to move.</param>
-    /// <returns>The Map instance.</returns>
-    public async Task<Map> MoveLayerManagedDown(string layerId)
-    {
-        if (!_managedLayers.ContainsKey(layerId))
-        {
-            throw new ArgumentException($"Layer with ID '{layerId}' is not in the managed layer registry.", nameof(layerId));
-        }
-
-        var currentIndex = _managedLayerOrder.IndexOf(layerId);
-        if (currentIndex == -1)
-        {
-            throw new InvalidOperationException($"Layer with ID '{layerId}' is in registry but not in order list.");
-        }
-
-        // Already at bottom, nothing to do
-        if (currentIndex == 0)
-        {
-            return this;
-        }
-
-        return await ReorderLayer(layerId, currentIndex - 1);
-    }
-
-    /// <summary>
-    /// Moves a managed layer down one position in the layer stack.
-    /// If the layer is already at the bottom, no change is made.
-    /// </summary>
-    /// <param name="layer">The layer to move.</param>
-    /// <returns>The Map instance.</returns>
-    public async Task<Map> MoveLayerManagedDown(Layer layer)
-    {
-        if (layer is null) throw new ArgumentNullException(nameof(layer));
-
-        var layerId = GetLayerId(layer);
-        if (layerId is null)
-        {
-            throw new ArgumentException("Layer is not in the managed layer registry.", nameof(layer));
-        }
-
-        return await MoveLayerManagedDown(layerId);
-    }
-
-    #endregion
 
     #endregion
 

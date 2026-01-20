@@ -80,5 +80,43 @@ export const Layer = {
 
     remove(layer: L.Layer): void {
         layer.remove();
+    },
+
+    setVisibility(layer: L.Layer, visible: boolean): void {
+        if (!layer) return;
+        
+        const container = (layer as any).getContainer ? (layer as any).getContainer() : null;
+        const element = (layer as any).getElement ? (layer as any).getElement() : null;
+        const pane = (layer as any).getPane ? (layer as any).getPane() : null;
+        
+        // Try different approaches depending on layer type
+        if (container) {
+            // For layers with a container (like tile layers)
+            container.style.display = visible ? '' : 'none';
+        } else if (element) {
+            // For layers with an element (like markers)
+            element.style.display = visible ? '' : 'none';
+        } else if (pane) {
+            // For layers in a specific pane
+            const paneElement = pane;
+            if (paneElement && paneElement.style) {
+                paneElement.style.display = visible ? '' : 'none';
+            }
+        } else if ((layer as any)._container) {
+            // Direct access to _container for some layer types
+            (layer as any)._container.style.display = visible ? '' : 'none';
+        } else if ((layer as any)._icon) {
+            // For marker icons
+            (layer as any)._icon.style.display = visible ? '' : 'none';
+        } else if ((layer as any)._path) {
+            // For vector layers with SVG paths
+            (layer as any)._path.style.display = visible ? '' : 'none';
+        }
+        
+        // Also set opacity as a fallback for layers that don't respond to display
+        if ((layer as any).setOpacity) {
+            (layer as any).setOpacity(visible ? 1 : 0);
+        }
     }
 };
+

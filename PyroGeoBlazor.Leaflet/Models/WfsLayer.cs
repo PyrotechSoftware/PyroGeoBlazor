@@ -43,7 +43,7 @@ public class WfsLayer : GeoJsonLayer
     /// <summary>
     /// Adds the layer to a map and automatically sets up refresh behavior if enabled.
     /// </summary>
-    public override async Task<Layer> AddTo(Map map)
+    public override async Task<Map> AddTo(Map map, string? layerId = null)
     {
         // Call base implementation to add the layer to the map
         await base.AddTo(map);
@@ -59,7 +59,7 @@ public class WfsLayer : GeoJsonLayer
             Console.WriteLine($"WfsLayer: Auto-refresh enabled (debounce: {Options.RefreshDebounceMs}ms)");
         }
 
-        return this;
+        return map;
     }
 
     /// <summary>

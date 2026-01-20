@@ -11,7 +11,7 @@
             <MudStack>
                 <MudText Typo="Typo.subtitle2">Stroke</MudText>
                 <MudStack Row Spacing="2" AlignItems="AlignItems.Center">
-                    <MudSwitch @bind-Value="_stroke" @bind-Value:after="ApplyChanges" Color="Color.Primary" />
+                    <MudIcon Icon="@Icons.Material.Filled.Square" Style="@($"color: {_color}")" Size="Size.Large" />
                     <MudColorPicker Value="_color" ValueChanged="OnColorChanged" ShowToolbar ShowAlpha="false" Label="Stroke Color" Placeholder="#3388ff" />
                 </MudStack>
                 <MudStack Row Spacing="2">
@@ -30,7 +30,7 @@
             <MudStack>
                 <MudText Typo="Typo.subtitle2">Fill</MudText>
                 <MudStack Row Spacing="2" AlignItems="AlignItems.Center">
-                    <MudSwitch @bind-Value="_fill" @bind-Value:after="ApplyChanges" Color="Color.Primary" />
+                    <MudIcon Icon="@Icons.Material.Filled.Square" Style="@($"color: {_fillColor}")" Size="Size.Large" />
                     <MudColorPicker Value="_fillColor" ValueChanged="OnFillColorChanged" Label="Fill Color" ShowToolbar ShowAlpha="false" Placeholder="#3388ff" ColorPickerMode="ColorPickerMode.RGB" />
                     <MudNumericField T="double" @bind-Value="_fillOpacity" @bind-Value:after="ApplyChanges" Label="Fill Opacity" Min="0" Max="1" Step="0.1" Immediate="true" />
                 </MudStack>
@@ -42,136 +42,67 @@
 </MudCard>
 
 @code {
-[Parameter]
-public PathOptions? Style { get; set; }
+    [Parameter] public PathOptions? Style { get; set; }
 
-[Parameter]
-public EventCallback<PathOptions> ApplyStyle { get; set; }
+    [Parameter] public EventCallback<PathOptions> ApplyStyle { get; set; }
 
-// Local editable fields to avoid mutating the incoming object until Apply
-private bool _stroke = true;
-private MudColor _color = "#3388ff";
-private double _weight = 3;
-private double _opacity = 1.0;
-private bool _fill = true;
-private MudColor _fillColor = "#3388ff";
-private double _fillOpacity = 0.2;
-private string? _lineCap = "round";
-private string? _lineJoin = "round";
-private string? _dashArray;
-private string? _className;
-
-// Track the last Style parameter we synced from to avoid overwriting user changes
-private PathOptions? _lastSyncedStyle;
-
-protected override void OnParametersSet()
-{
-    // Only sync from Style parameter if it's actually a new/different instance
-    // This prevents overwriting user's local changes when parent re-renders
-    if (Style is not null && !ReferenceEquals(Style, _lastSyncedStyle))
+    public void SetStyle(PathOptions style)
     {
-        _lastSyncedStyle = Style;
-        _stroke = Style.Stroke;
-        // Convert HSL/HSLA to rgba if needed before parsing
-        var colorString = Style.Color;
-        if (!string.IsNullOrWhiteSpace(colorString) && colorString != "*")
+        Style = new PathOptions
         {
-            colorString = ConvertHslToRgbaIfNeeded(colorString);
-            _color = MudColor.Parse(colorString);
-        }
-        _weight = Style.Weight;
-        _opacity = Style.Opacity;
-        _fill = Style.Fill ?? _fill;
-        var fillColorString = Style.FillColor;
-        if (!string.IsNullOrWhiteSpace(fillColorString) && fillColorString != "*")
-        {
-            fillColorString = ConvertHslToRgbaIfNeeded(fillColorString);
-            _fillColor = MudColor.Parse(fillColorString) ?? _fillColor;
-        }
-        _fillOpacity = Style.FillOpacity;
-        _lineCap = Style.LineCap ?? _lineCap;
-        _lineJoin = Style.LineJoin ?? _lineJoin;
-        _dashArray = Style.DashArray;
-        _className = Style.ClassName;
-    }
-}
-
-    private static string ConvertHslToRgbaIfNeeded(string input)
-    {
-        if (string.IsNullOrWhiteSpace(input)) return input;
-
-        var s = input.Trim();
-        if (!s.StartsWith("hsl", StringComparison.OrdinalIgnoreCase)) return input;
-
-        // Expect formats: hsl(h, s%, l%) or hsla(h, s%, l%, a)
-        var start = s.IndexOf('(');
-        var end = s.IndexOf(')');
-        if (start < 0 || end < 0 || end <= start) return input;
-
-        var inner = s.Substring(start + 1, end - start - 1);
-        var parts = inner.Split(',').Select(p => p.Trim()).ToArray();
-        if (parts.Length < 3) return input;
-
-        if (!double.TryParse(parts[0].TrimEnd('°'), System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var h)) return input;
-
-        var sPart = parts[1].TrimEnd('%');
-        var lPart = parts[2].TrimEnd('%');
-        if (!double.TryParse(sPart, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var sat)) return input;
-        if (!double.TryParse(lPart, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var light)) return input;
-
-        double a = 1.0;
-        if (parts.Length >= 4)
-        {
-            var aPart = parts[3];
-            if (!double.TryParse(aPart, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out a))
-            {
-                a = 1.0;
-            }
-        }
-
-        // Convert HSL to RGB
-        var hNorm = (h % 360 + 360) % 360 / 360.0; // 0..1
-        var sNorm = sat / 100.0;
-        var lNorm = light / 100.0;
-
-        double r, g, b;
-        if (sNorm == 0)
-        {
-            r = g = b = lNorm; // achromatic
-        }
-        else
-        {
-            double q = lNorm < 0.5 ? lNorm * (1 + sNorm) : lNorm + sNorm - lNorm * sNorm;
-            double p = 2 * lNorm - q;
-            r = HueToRgb(p, q, hNorm + 1.0 / 3.0);
-            g = HueToRgb(p, q, hNorm);
-            b = HueToRgb(p, q, hNorm - 1.0 / 3.0);
-        }
-
-        int ri = (int)Math.Round(r * 255);
-        int gi = (int)Math.Round(g * 255);
-        int bi = (int)Math.Round(b * 255);
-
-        if (a >= 0 && a < 1)
-        {
-            return $"rgba({ri}, {gi}, {bi}, {a.ToString(System.Globalization.CultureInfo.InvariantCulture)})";
-        }
-        else
-        {
-            return $"rgb({ri}, {gi}, {bi})";
-        }
+            Stroke = style.Stroke,
+            Color = style.Color,
+            Weight = style.Weight,
+            Opacity = style.Opacity,
+            Fill = style.Fill,
+            FillColor = style.FillColor,
+            FillOpacity = style.FillOpacity,
+            LineCap = style.LineCap,
+            LineJoin = style.LineJoin,
+            DashArray = style.DashArray,
+            ClassName = style.ClassName
+        };
+        OnParametersSet();
+        StateHasChanged();
     }
 
-    private static double HueToRgb(double p, double q, double t)
-    {
-        if (t < 0) t += 1;
-        if (t > 1) t -= 1;
-        if (t < 1.0 / 6.0) return p + (q - p) * 6 * t;
-        if (t < 1.0 / 2.0) return q;
-        if (t < 2.0 / 3.0) return p + (q - p) * (2.0 / 3.0 - t) * 6;
-        return p;
-    }
+    // Local editable fields to avoid mutating the incoming object until Apply
+    private bool _stroke = true;
+    private MudColor _color = "#3388ff";
+    private double _weight = 3;
+    private double _opacity = 1.0;
+    private bool _fill = true;
+    private MudColor _fillColor = "#3388ff";
+    private double _fillOpacity = 0.2;
+    private string? _lineCap = "round";
+    private string? _lineJoin = "round";
+    private string? _dashArray;
+    private string? _className;
 
+    // Track the last Style parameter we synced from to avoid overwriting user changes
+    private PathOptions? _lastSyncedStyle;
+
+    protected override void OnParametersSet()
+    {
+        // Only sync from Style parameter if it's actually a new/different instance
+        // This prevents overwriting user's local changes when parent re-renders
+        if (Style is not null && !ReferenceEquals(Style, _lastSyncedStyle))
+        {
+            _lastSyncedStyle = Style;
+            _stroke = Style.Stroke;
+            _color = MudColor.Parse(Style.Color) ?? _color;
+            _weight = Style.Weight;
+            _opacity = Style.Opacity;
+            _fill = Style.Fill ?? _fill;
+            _fillColor = MudColor.Parse(Style.FillColor) ?? _fillColor;
+            _fillOpacity = Style.FillOpacity;
+            _lineCap = Style.LineCap ?? _lineCap;
+            _lineJoin = Style.LineJoin ?? _lineJoin;
+            _dashArray = Style.DashArray;
+            _className = Style.ClassName;
+        }
+    }
+    
     private async Task ApplyChanges()
     {
         var result = new PathOptions

@@ -24,7 +24,7 @@
                 </MudCardContent>
             </MudCard>
 
-            <LayerStyle Style="@currentLayerStyle" ApplyStyle="@HandleApplyStyle" />
+            <LayerStyle Style="@currentLayerStyle" ApplyStyle="@HandleApplyStyle" @ref="layerStyleControl" />
 
             <MudCard Class="mb-3">
                 <MudCardHeader>
@@ -44,7 +44,7 @@
                                    Disabled="@(!selectionEnabled)" />
                     </MudStack>
 
-                    @if (loadedLayers.Count > 0)
+                    @if (PositionMap?.ManagedLayers.Any() == true)
                     {
                         <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" FullWidth="true"
                                    StartIcon="@Icons.Material.Filled.Clear"
@@ -57,43 +57,56 @@
                 </MudCardContent>
             </MudCard>
 
-            @if (loadedLayers.Count > 0)
+            @if (PositionMap?.ManagedLayers.Any() == true)
             {
                 <MudCard Class="mb-3">
                     <MudCardHeader>
-                        <MudText Typo="Typo.h6">Layer Manager (@loadedLayers.Count)</MudText>
+                        <MudText Typo="Typo.h6">Layer Manager (@PositionMap.ManagedLayers.Count())</MudText>
                     </MudCardHeader>
                     <MudCardContent>
                         <MudList Dense="true" T="string">
-                            @for (int i = loadedLayers.Count - 1; i >= 0; i--)
-                            {
-                                var index = i;
-                                var layerName = loadedLayers[index];
-                                var isTop = index == loadedLayers.Count - 1;
-                                var isBottom = index == 0;
-                                
-                                <MudListItem>
-                                    <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
-                                        <MudStack Spacing="0" Style="min-width: 40px;">
-                                            <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward" 
-                                                          Size="Size.Small" 
-                                                          Disabled="@isTop"
-                                                          OnClick="@(() => MoveLayerUp(layerName))"
-                                                          Title="Move layer up" />
-                                            <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward" 
-                                                          Size="Size.Small" 
-                                                          Disabled="@isBottom"
-                                                          OnClick="@(() => MoveLayerDown(layerName))"
-                                                          Title="Move layer down" />
+                            @{
+                                var layers = PositionMap.ManagedLayers.ToList();
+                                for (int i = layers.Count - 1; i >= 0; i--)
+                                {
+                                    var index = i;
+                                    var (layerId, layer) = layers[index];
+                                    var isTop = index == layers.Count - 1;
+                                    var isBottom = index == 0;
+                                    var isVisible = layer.IsVisible;
+                                    
+                                    <MudListItem>
+                                        <MudStack Row AlignItems="AlignItems.Center" Spacing="1">
+                                            <MudTooltip Text="@(isVisible ? "Hide layer" : "Show layer")">
+                                                <MudIconButton Icon="@(isVisible? Icons.Material.Filled.Visibility : Icons.Material.Filled.VisibilityOff)"
+                                                               Size="Size.Small"
+                                                               Color="@(isVisible ? Color.Primary : Color.Default)"
+                                                               OnClick="@(() => ToggleLayerVisibility(layerId))" />
+                                            </MudTooltip>
+                                            <MudStack Spacing="0" Style="min-width: 40px;">
+                                                <MudTooltip Text="Move layer up">
+                                                    <MudIconButton Icon="@Icons.Material.Filled.ArrowUpward"
+                                                                   Size="Size.Small"
+                                                                   Disabled="@isTop"
+                                                                   OnClick="@(() => MoveLayerUp(layerId))" />
+                                                </MudTooltip>
+                                                <MudTooltip Text="Move layer down">
+                                                    <MudIconButton Icon="@Icons.Material.Filled.ArrowDownward"
+                                                                   Size="Size.Small"
+                                                                   Disabled="@isBottom"
+                                                                   OnClick="@(() => MoveLayerDown(layerId))" />
+                                                </MudTooltip>
+                                            </MudStack>
+                                            <MudText Typo="Typo.body2" Style="flex: 1;">@layerId</MudText>
+                                            <MudTooltip Text="Remove layer">
+                                                <MudIconButton Icon="@Icons.Material.Filled.Delete"
+                                                               Size="Size.Small"
+                                                               Color="Color.Error"
+                                                               OnClick="@(() => RemoveLayerByName(layerId))" />
+                                            </MudTooltip>
                                         </MudStack>
-                                        <MudText Typo="Typo.body2" Style="flex: 1;">@layerName</MudText>
-                                        <MudIconButton Icon="@Icons.Material.Filled.Delete" 
-                                                      Size="Size.Small" 
-                                                      Color="Color.Error"
-                                                      OnClick="@(() => RemoveLayerByName(layerName))"
-                                                      Title="Remove layer" />
-                                    </MudStack>
-                                </MudListItem>
+                                    </MudListItem>
+                                }
                             }
                         </MudList>
                     </MudCardContent>
@@ -137,8 +150,9 @@
     </div>
 
     <div style="flex: 1 1 70%; min-width: 0; overflow: hidden; position: relative;">
-        <LeafletMap Height="100%" Map="PositionMap" TileLayer="OpenStreetMapsTileLayer" Controls="MapControls" />
+        <LeafletMap Height="100%" Map="PositionMap" TileLayer="OpenStreetMapsTileLayer" Controls="MapControls" OnMapReady="@OnMapReady" />
 
         
     </div>
 </div>
+

@@ -7,7 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Layer visibility control methods: `SetVisibility`, `Show`, `Hide`, and `ToggleVisibility` with JavaScript interop support
+- `IsVisible` property on `Layer` class to track layer visibility state
+- `ManagedLayers` enumerable property on `Map` for ordered iteration of layers
+- `ColorUtilities` static class in PyroGeoBlazor library for random color generation and HSL to HEX conversion
+- Layer visibility toggle UI in VectorTiles demo with eye icon indicators
+- New tests for layer visibility features in `MapManagedLayerTests`
+
 ### Changed
+- **BREAKING**: Unified managed layer API - replaced `AddLayerManaged`/`RemoveLayerManaged` with `AddLayer`/`RemoveLayer`
+- **BREAKING**: Updated layer ordering methods for improved consistency (`MoveUpManaged`, `MoveDownManaged`, `RemoveFromManaged`)
+- Refactored VectorTiles demo UI to use new managed layer registry and visibility controls
+- Updated LayerStyle component for improved integration with new API
+- Enhanced managed layer system with improved ordering and visibility management
+- Updated all tests to use new unified layer management API
 - Restored CustomWfsLayerSelector.razor with full WFS layer selection and configuration UI using MudBlazor
 - Updated PyroGeoBlazor.Leaflet.csproj to exclude npm/build files from NuGet package, preventing unnecessary dev dependencies for consumers
 

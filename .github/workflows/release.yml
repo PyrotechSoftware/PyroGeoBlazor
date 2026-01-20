@@ -123,6 +123,12 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'release' && startsWith(github.event.release.tag_name, 'v') }}
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
       - name: Download packages
         uses: actions/download-artifact@v4
         with:
@@ -132,6 +138,85 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
+
+      - name: Update CHANGELOG.md with release version and date
+        env:
+          TAG_NAME: ${{ github.event.release.tag_name }}
+        run: |
+          set -e
+          if [ ! -f CHANGELOG.md ]; then
+            echo "No CHANGELOG.md found, skipping changelog update"
+            exit 0
+          fi
+          
+          # Extract version (strip leading v/V)
+          VERSION=${TAG_NAME#v}
+          VERSION=${VERSION#V}
+          
+          # Get current date in YYYY-MM-DD format
+          DATE=$(date +%Y-%m-%d)
+          
+          echo "Updating CHANGELOG.md: Unreleased -> [$VERSION] - $DATE"
+          
+          # Create a temporary file
+          TMP_FILE=$(mktemp)
+          
+          # Process the changelog
+          awk -v version="$VERSION" -v date="$DATE" '
+          BEGIN { 
+            unreleased_found = 0
+            in_unreleased = 0
+            unreleased_content = ""
+          }
+          
+          # Match the Unreleased header
+          /^## \[Unreleased\]/ {
+            if (!unreleased_found) {
+              unreleased_found = 1
+              in_unreleased = 1
+              # Print new Unreleased section
+              print "## [Unreleased]"
+              print ""
+              # Print the version header
+              print "## [" version "] - " date
+              next
+            }
+          }
+          
+          # Match next version header (end of Unreleased section)
+          /^## \[/ && in_unreleased {
+            in_unreleased = 0
+          }
+          
+          # Update comparison links at the bottom
+          /^\[Unreleased\]:/ {
+            print "[Unreleased]: https://github.com/${{ github.repository }}/compare/v" version "...HEAD"
+            print "[" version "]: https://github.com/${{ github.repository }}/releases/tag/v" version
+            next
+          }
+          
+          # Print all other lines
+          { print }
+          ' CHANGELOG.md > "$TMP_FILE"
+          
+          # Replace original file
+          mv "$TMP_FILE" CHANGELOG.md
+          
+          echo "CHANGELOG.md updated successfully"
+          
+          # Configure git
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Commit and push changes
+          git add CHANGELOG.md
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Update CHANGELOG.md for release $VERSION"
+            git push origin HEAD:${{ github.event.release.target_commitish }}
+            echo "CHANGELOG.md committed and pushed"
+          fi
 
       - name: Upload packages as GitHub Release assets
         if: ${{ github.event_name == 'release' && github.event.release.upload_url != '' }}

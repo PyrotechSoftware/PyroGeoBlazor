@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-01-20
+
 ### Added
 - Layer visibility control methods: `SetVisibility`, `Show`, `Hide`, and `ToggleVisibility` with JavaScript interop support
 - `IsVisible` property on `Layer` class to track layer visibility state
@@ -76,5 +78,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed GeoJSON selection with two-way sync and runtime toggling
 - Improved JS install logic in CI workflow
 
-[Unreleased]: https://github.com/PyrotechSoftware/PyroGeoBlazor/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/PyrotechSoftware/PyroGeoBlazor/compare/v1.0.2...HEAD
+[1.0.2]: https://github.com/PyrotechSoftware/PyroGeoBlazor/releases/tag/v1.0.2
 [1.0.0]: https://github.com/PyrotechSoftware/PyroGeoBlazor/releases/tag/v1.0.0

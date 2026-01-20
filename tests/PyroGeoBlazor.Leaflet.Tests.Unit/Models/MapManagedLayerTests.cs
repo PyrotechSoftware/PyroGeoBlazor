@@ -26,13 +26,13 @@ public class MapManagedLayerTests : BunitContext
         var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
 
         // Act
-        await map.AddLayerManaged(layer);
+        await map.AddLayer(layer);
 
         // Assert
         map.ManagedLayerOrder.Should().HaveCount(1);
         var layerId = map.GetLayerId(layer);
         layerId.Should().NotBeNullOrEmpty();
-        map.GetManagedLayer(layerId!).Should().BeSameAs(layer);
+        map.GetLayer(layerId!).Should().BeSameAs(layer);
     }
 
     [Fact]
@@ -50,12 +50,12 @@ public class MapManagedLayerTests : BunitContext
         var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
 
         // Act
-        await map.AddLayerManaged(layer, "custom-id");
+        await map.AddLayer(layer, "custom-id");
 
         // Assert
         map.ManagedLayerOrder.Should().HaveCount(1);
         map.ManagedLayerOrder[0].Should().Be("custom-id");
-        map.GetManagedLayer("custom-id").Should().BeSameAs(layer);
+        map.GetLayer("custom-id").Should().BeSameAs(layer);
     }
 
     [Fact]
@@ -75,12 +75,12 @@ public class MapManagedLayerTests : BunitContext
         var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
 
         // Act
-        await map.AddLayerManaged(layer1, "duplicate-id");
-        await map.AddLayerManaged(layer2, "duplicate-id");
+        await map.AddLayer(layer1, "duplicate-id");
+        await map.AddLayer(layer2, "duplicate-id");
 
         // Assert
         map.ManagedLayerOrder.Should().HaveCount(1);
-        map.GetManagedLayer("duplicate-id").Should().BeSameAs(layer2);
+        map.GetLayer("duplicate-id").Should().BeSameAs(layer2);
     }
 
     [Fact]
@@ -98,14 +98,14 @@ public class MapManagedLayerTests : BunitContext
 
         var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
 
-        await map.AddLayerManaged(layer, "test-id");
+        await map.AddLayer(layer, "test-id");
 
         // Act
-        await map.RemoveLayerManaged("test-id");
+        await map.RemoveLayer("test-id");
 
         // Assert
         map.ManagedLayerOrder.Should().BeEmpty();
-        map.GetManagedLayer("test-id").Should().BeNull();
+        map.GetLayer("test-id").Should().BeNull();
     }
 
     [Fact]
@@ -123,10 +123,10 @@ public class MapManagedLayerTests : BunitContext
 
         var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
 
-        await map.AddLayerManaged(layer, "test-id");
+        await map.AddLayer(layer, "test-id");
 
         // Act
-        await map.RemoveLayerManaged(layer);
+        await map.RemoveLayer(layer);
 
         // Assert
         map.ManagedLayerOrder.Should().BeEmpty();
@@ -150,9 +150,9 @@ public class MapManagedLayerTests : BunitContext
 
         var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
 
-        await map.AddLayerManaged(layer1, "layer-1");
-        await map.AddLayerManaged(layer2, "layer-2");
-        await map.AddLayerManaged(layer3, "layer-3");
+        await map.AddLayer(layer1, "layer-1");
+        await map.AddLayer(layer2, "layer-2");
+        await map.AddLayer(layer3, "layer-3");
 
         // Act - move layer-3 to position 1 (between layer-1 and layer-2)
         await map.ReorderLayer("layer-3", 1);
@@ -181,9 +181,9 @@ public class MapManagedLayerTests : BunitContext
 
         var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
 
-        await map.AddLayerManaged(layer1, "layer-1");
-        await map.AddLayerManaged(layer2, "layer-2");
-        await map.AddLayerManaged(layer3, "layer-3");
+        await map.AddLayer(layer1, "layer-1");
+        await map.AddLayer(layer2, "layer-2");
+        await map.AddLayer(layer3, "layer-3");
 
         // Act
         await map.ReorderLayer(layer3, 0);
@@ -211,12 +211,12 @@ public class MapManagedLayerTests : BunitContext
 
         var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
 
-        await map.AddLayerManaged(layer1, "layer-1");
-        await map.AddLayerManaged(layer2, "layer-2");
-        await map.AddLayerManaged(layer3, "layer-3");
+        await map.AddLayer(layer1, "layer-1");
+        await map.AddLayer(layer2, "layer-2");
+        await map.AddLayer(layer3, "layer-3");
 
         // Act
-        await map.MoveLayerManagedToTop(layer1);
+        await map.MoveLayerToTop(layer1);
 
         // Assert
         map.ManagedLayerOrder[0].Should().Be("layer-2");
@@ -241,12 +241,12 @@ public class MapManagedLayerTests : BunitContext
 
         var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
 
-        await map.AddLayerManaged(layer1, "layer-1");
-        await map.AddLayerManaged(layer2, "layer-2");
-        await map.AddLayerManaged(layer3, "layer-3");
+        await map.AddLayer(layer1, "layer-1");
+        await map.AddLayer(layer2, "layer-2");
+        await map.AddLayer(layer3, "layer-3");
 
         // Act
-        await map.MoveLayerManagedToBottom(layer3);
+        await map.MoveLayerToBottom(layer3);
 
         // Assert
         map.ManagedLayerOrder[0].Should().Be("layer-3");
@@ -269,11 +269,11 @@ public class MapManagedLayerTests : BunitContext
         var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
 
         // Act
-        await layer.AddToManaged(map, "test-id");
+        await layer.AddTo(map, "test-id");
 
         // Assert
         map.ManagedLayerOrder.Should().Contain("test-id");
-        map.GetManagedLayer("test-id").Should().BeSameAs(layer);
+        map.GetLayer("test-id").Should().BeSameAs(layer);
     }
 
     [Fact]
@@ -291,7 +291,7 @@ public class MapManagedLayerTests : BunitContext
 
         var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
 
-        await layer.AddToManaged(map, "test-id");
+        await layer.AddTo(map, "test-id");
 
         // Act
         await layer.RemoveFromManaged(map);
@@ -316,8 +316,8 @@ public class MapManagedLayerTests : BunitContext
 
         var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
 
-        await layer1.AddToManaged(map, "layer-1");
-        await layer2.AddToManaged(map, "layer-2");
+        await layer1.AddTo(map, "layer-1");
+        await layer2.AddTo(map, "layer-2");
 
         // Act
         await layer1.MoveToTopManaged(map);
@@ -356,12 +356,12 @@ public class MapManagedLayerTests : BunitContext
 
         var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
 
-        await map.AddLayerManaged(layer1, "layer-1");
-        await map.AddLayerManaged(layer2, "layer-2");
-        await map.AddLayerManaged(layer3, "layer-3");
+        await map.AddLayer(layer1, "layer-1");
+        await map.AddLayer(layer2, "layer-2");
+        await map.AddLayer(layer3, "layer-3");
 
         // Act - move layer-1 up (from index 0 to index 1)
-        await map.MoveLayerManagedUp("layer-1");
+        await map.MoveLayerUp("layer-1");
 
         // Assert
         map.ManagedLayerOrder[0].Should().Be("layer-2");
@@ -384,11 +384,11 @@ public class MapManagedLayerTests : BunitContext
 
         var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
 
-        await map.AddLayerManaged(layer1, "layer-1");
-        await map.AddLayerManaged(layer2, "layer-2");
+        await map.AddLayer(layer1, "layer-1");
+        await map.AddLayer(layer2, "layer-2");
 
         // Act - layer-2 is already at top
-        await map.MoveLayerManagedUp(layer2);
+        await map.MoveLayerUp(layer2);
 
         // Assert - order unchanged
         map.ManagedLayerOrder[0].Should().Be("layer-1");
@@ -412,12 +412,12 @@ public class MapManagedLayerTests : BunitContext
 
         var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
 
-        await map.AddLayerManaged(layer1, "layer-1");
-        await map.AddLayerManaged(layer2, "layer-2");
-        await map.AddLayerManaged(layer3, "layer-3");
+        await map.AddLayer(layer1, "layer-1");
+        await map.AddLayer(layer2, "layer-2");
+        await map.AddLayer(layer3, "layer-3");
 
         // Act - move layer-3 down (from index 2 to index 1)
-        await map.MoveLayerManagedDown("layer-3");
+        await map.MoveLayerDown("layer-3");
 
         // Assert
         map.ManagedLayerOrder[0].Should().Be("layer-1");
@@ -440,11 +440,11 @@ public class MapManagedLayerTests : BunitContext
 
         var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
 
-        await map.AddLayerManaged(layer1, "layer-1");
-        await map.AddLayerManaged(layer2, "layer-2");
+        await map.AddLayer(layer1, "layer-1");
+        await map.AddLayer(layer2, "layer-2");
 
         // Act - layer-1 is already at bottom
-        await map.MoveLayerManagedDown(layer1);
+        await map.MoveLayerDown(layer1);
 
         // Assert - order unchanged
         map.ManagedLayerOrder[0].Should().Be("layer-1");
@@ -467,8 +467,8 @@ public class MapManagedLayerTests : BunitContext
 
         var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
 
-        await layer1.AddToManaged(map, "layer-1");
-        await layer2.AddToManaged(map, "layer-2");
+        await layer1.AddTo(map, "layer-1");
+        await layer2.AddTo(map, "layer-2");
 
         // Act
         await layer1.MoveUpManaged(map);
@@ -493,8 +493,8 @@ public class MapManagedLayerTests : BunitContext
 
         var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
 
-        await layer1.AddToManaged(map, "layer-1");
-        await layer2.AddToManaged(map, "layer-2");
+        await layer1.AddTo(map, "layer-1");
+        await layer2.AddTo(map, "layer-2");
 
         // Act
         await layer2.MoveDownManaged(map);
@@ -502,5 +502,150 @@ public class MapManagedLayerTests : BunitContext
         // Assert
         map.ManagedLayerOrder[0].Should().Be("layer-2");
     }
+
+    [Fact]
+    public async Task Layer_SetVisibility_ChangesIsVisibleProperty()
+    {
+        // Arrange
+        var jsModule = JSInterop.SetupModule("./_content/PyroGeoBlazor.Leaflet/leafletMap.js");
+        jsModule.SetupModule("LeafletMap.Map.createMap", _ => true);
+        jsModule.SetupModule("LeafletMap.TileLayer.createTileLayer", _ => true);
+        jsModule.SetupVoid("LeafletMap.Layer.addTo", _ => true).SetVoidResult();
+        jsModule.SetupVoid("LeafletMap.Layer.setVisibility", _ => true).SetVoidResult();
+
+        var map = new Map("test-map", new MapOptions());
+        var layer = new TileLayer("http://example/{z}/{x}/{y}.png");
+
+        var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
+        
+        // Initialize the layer by adding it to the map
+        await layer.AddTo(map);
+
+        // Act & Assert - Initial state
+        layer.IsVisible.Should().BeTrue();
+
+        // Act - Hide layer
+        await layer.SetVisibility(false);
+
+        // Assert
+        layer.IsVisible.Should().BeFalse();
+        JSInterop.Invocations.Should().Contain(inv =>
+            inv.Identifier == "LeafletMap.Layer.setVisibility" &&
+            inv.Arguments.Count > 1 &&
+            inv.Arguments[1] is bool && (bool)inv.Arguments[1] == false);
+    }
+
+    [Fact]
+    public async Task Layer_Show_SetsVisibilityToTrue()
+    {
+        // Arrange
+        var jsModule = JSInterop.SetupModule("./_content/PyroGeoBlazor.Leaflet/leafletMap.js");
+        jsModule.SetupModule("LeafletMap.Map.createMap", _ => true);
+        jsModule.SetupModule("LeafletMap.TileLayer.createTileLayer", _ => true);
+        jsModule.SetupVoid("LeafletMap.Layer.addTo", _ => true).SetVoidResult();
+        jsModule.SetupVoid("LeafletMap.Layer.setVisibility", _ => true).SetVoidResult();
+
+        var map = new Map("test-map", new MapOptions());
+        var layer = new TileLayer("http://example/{z}/{x}/{y}.png");
+
+        var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
+        
+        // Initialize the layer by adding it to the map
+        await layer.AddTo(map);
+
+        // First hide it
+        await layer.SetVisibility(false);
+
+        // Act - Show layer
+        await layer.Show();
+
+        // Assert
+        layer.IsVisible.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Layer_Hide_SetsVisibilityToFalse()
+    {
+        // Arrange
+        var jsModule = JSInterop.SetupModule("./_content/PyroGeoBlazor.Leaflet/leafletMap.js");
+        jsModule.SetupModule("LeafletMap.Map.createMap", _ => true);
+        jsModule.SetupModule("LeafletMap.TileLayer.createTileLayer", _ => true);
+        jsModule.SetupVoid("LeafletMap.Layer.addTo", _ => true).SetVoidResult();
+        jsModule.SetupVoid("LeafletMap.Layer.setVisibility", _ => true).SetVoidResult();
+
+        var map = new Map("test-map", new MapOptions());
+        var layer = new TileLayer("http://example/{z}/{x}/{y}.png");
+
+        var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
+        
+        // Initialize the layer by adding it to the map
+        await layer.AddTo(map);
+
+        // Act - Hide layer
+        await layer.Hide();
+
+        // Assert
+        layer.IsVisible.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Layer_ToggleVisibility_TogglesState()
+    {
+        // Arrange
+        var jsModule = JSInterop.SetupModule("./_content/PyroGeoBlazor.Leaflet/leafletMap.js");
+        jsModule.SetupModule("LeafletMap.Map.createMap", _ => true);
+        jsModule.SetupModule("LeafletMap.TileLayer.createTileLayer", _ => true);
+        jsModule.SetupVoid("LeafletMap.Layer.addTo", _ => true).SetVoidResult();
+        jsModule.SetupVoid("LeafletMap.Layer.setVisibility", _ => true).SetVoidResult();
+
+        var map = new Map("test-map", new MapOptions());
+        var layer = new TileLayer("http://example/{z}/{x}/{y}.png");
+
+        var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
+        
+        // Initialize the layer by adding it to the map
+        await layer.AddTo(map);
+
+        // Act & Assert - Initial state is visible
+        layer.IsVisible.Should().BeTrue();
+
+        // Toggle to hidden
+        await layer.ToggleVisibility();
+        layer.IsVisible.Should().BeFalse();
+
+        // Toggle back to visible
+        await layer.ToggleVisibility();
+        layer.IsVisible.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Layer_SetVisibility_SkipsJSCallWhenAlreadyInDesiredState()
+    {
+        // Arrange
+        var jsModule = JSInterop.SetupModule("./_content/PyroGeoBlazor.Leaflet/leafletMap.js");
+        jsModule.SetupModule("LeafletMap.Map.createMap", _ => true);
+        jsModule.SetupModule("LeafletMap.TileLayer.createTileLayer", _ => true);
+        jsModule.SetupVoid("LeafletMap.Layer.addTo", _ => true).SetVoidResult();
+        jsModule.SetupVoid("LeafletMap.Layer.setVisibility", _ => true).SetVoidResult();
+
+        var map = new Map("test-map", new MapOptions());
+        var layer = new TileLayer("http://example/{z}/{x}/{y}.png");
+
+        var cut = Render<LeafletMap>(parameters => parameters.Add(p => p.Map, map));
+        
+        // Initialize the layer by adding it to the map
+        await layer.AddTo(map);
+
+        // Act - Set visibility to true (already the default)
+        await layer.SetVisibility(true);
+
+        // Assert - No setVisibility call should have been made (only addTo)
+        var setVisibilityInvocations = JSInterop.Invocations.Count(inv => inv.Identifier == "LeafletMap.Layer.setVisibility");
+        setVisibilityInvocations.Should().Be(0);
+        layer.IsVisible.Should().BeTrue();
+    }
 }
+
+
+
 

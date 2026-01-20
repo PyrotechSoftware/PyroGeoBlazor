@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Components;
 using PyroGeoBlazor.Demo.Models;
 using PyroGeoBlazor.Leaflet.Models;
 using PyroGeoBlazor.Models;
+using PyroGeoBlazor.Utilities;
 
 using System.Globalization;
 
@@ -17,13 +18,11 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
     protected MapStateViewModel MapStateViewModel;
     protected List<Control> MapControls = [];
 
-    private readonly Dictionary<string, ProtobufVectorTileLayer> dynamicLayers = new();
-    private readonly List<string> loadedLayers = [];
     private bool isInteractive = true;
     private bool selectionEnabled = true;
     private bool multiSelectEnabled = false;
-    private readonly Random random = new();
-    private PathOptions currentLayerStyle = new PathOptions
+    private LayerStyle? layerStyleControl;
+    private PathOptions currentLayerStyle = new()
     {
         Stroke = true,
         Color = "#3388ff",
@@ -66,23 +65,25 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
         );
     }
 
+    private async Task OnMapReady()
+    {
+        if (PositionMap == null)
+            return;
+        await OpenStreetMapsTileLayer.AddTo(PositionMap);
+    }
+
     private async Task MoveLayerUp(string layerName)
     {
-        if (PositionMap == null || !dynamicLayers.TryGetValue(layerName, out var layer))
+        if (PositionMap == null)
+            return;
+
+        var layer = PositionMap.GetLayer(layerName);
+        if (layer == null)
             return;
 
         try
         {
             await layer.MoveUpManaged(PositionMap);
-
-            // Update local list to match
-            var index = loadedLayers.IndexOf(layerName);
-            if (index >= 0 && index < loadedLayers.Count - 1)
-            {
-                loadedLayers.RemoveAt(index);
-                loadedLayers.Insert(index + 1, layerName);
-            }
-
             StateHasChanged();
         }
         catch (Exception ex)
@@ -93,21 +94,16 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
 
     private async Task MoveLayerDown(string layerName)
     {
-        if (PositionMap == null || !dynamicLayers.TryGetValue(layerName, out var layer))
+        if (PositionMap == null)
+            return;
+
+        var layer = PositionMap.GetLayer(layerName);
+        if (layer == null)
             return;
 
         try
         {
             await layer.MoveDownManaged(PositionMap);
-
-            // Update local list to match
-            var index = loadedLayers.IndexOf(layerName);
-            if (index > 0)
-            {
-                loadedLayers.RemoveAt(index);
-                loadedLayers.Insert(index - 1, layerName);
-            }
-
             StateHasChanged();
         }
         catch (Exception ex)
@@ -118,19 +114,41 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
 
     private async Task RemoveLayerByName(string layerName)
     {
-        if (PositionMap == null || !dynamicLayers.TryGetValue(layerName, out var layer))
+        if (PositionMap == null)
+            return;
+
+        var layer = PositionMap.GetLayer(layerName);
+        if (layer == null)
             return;
 
         try
         {
             await layer.RemoveFromManaged(PositionMap);
-            dynamicLayers.Remove(layerName);
-            loadedLayers.Remove(layerName);
             StateHasChanged();
         }
         catch (Exception ex)
         {
             Console.WriteLine($"Error removing layer: {ex.Message}");
+        }
+    }
+
+    private async Task ToggleLayerVisibility(string layerName)
+    {
+        if (PositionMap == null)
+            return;
+
+        var layer = PositionMap.GetLayer(layerName);
+        if (layer == null)
+            return;
+
+        try
+        {
+            await layer.ToggleVisibility();
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error toggling layer visibility: {ex.Message}");
         }
     }
 
@@ -157,7 +175,7 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
         }
 
         // Check if layer already loaded
-        if (dynamicLayers.ContainsKey(urlTemplate.Layer))
+        if (PositionMap.GetLayer(urlTemplate.Layer) != null)
         {
             Console.WriteLine($"Layer {urlTemplate.Layer} is already loaded");
             return;
@@ -209,13 +227,8 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
             }
         );
 
-        // Add to map using managed layer system and layer control
-        await layer.AddToManaged(PositionMap, urlTemplate.Layer);
-        //await LayersControl.AddOverlay(layer, urlTemplate.Layer);
-
-        // Track the layer
-        dynamicLayers[urlTemplate.Layer] = layer;
-        loadedLayers.Add(urlTemplate.Layer);
+        // Add to map using managed layer system
+        await layer.AddTo(PositionMap, urlTemplate.Layer);
 
         // Try to fit bounds to the layer
         try
@@ -225,7 +238,7 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
                 : urlTemplate.Layer;
                 
             var bounds = await GetLayerBoundsFromWMTS(layerIdentifier);
-            if (bounds != null && dynamicLayers.Count == 1)
+            if (bounds != null && PositionMap.ManagedLayers.Count() == 2)
             {
                 await PositionMap.FitBounds(bounds);
             }
@@ -235,23 +248,12 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
             Console.WriteLine($"Error fitting bounds: {ex.Message}");
         }
 
+        var color = ColorUtilities.GenerateRandomColor();
+        currentLayerStyle.FillColor = color;
+        currentLayerStyle.Color = color;
+        layerStyleControl?.SetStyle(currentLayerStyle);
+
         StateHasChanged();
-    }
-
-    /// <summary>
-    /// Generates random colors for layer styling.
-    /// </summary>
-    private (string fillColor, string strokeColor) GenerateRandomColors()
-    {
-        var hue = random.Next(0, 360);
-        var saturation = random.Next(40, 70);
-        var lightnessFill = random.Next(65, 80);
-        var lightnessStroke = random.Next(35, 50);
-
-        var fillColor = $"hsl({hue}, {saturation}%, {lightnessFill}%)";
-        var strokeColor = $"hsl({hue}, {saturation}%, {lightnessStroke}%)";
-
-        return (fillColor, strokeColor);
     }
 
     /// <summary>
@@ -348,9 +350,14 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
     {
         isInteractive = (bool)(e.Value ?? false);
         
-        foreach (var layer in dynamicLayers.Values)
+        if (PositionMap == null) return;
+
+        foreach (var (_, layer) in PositionMap.ManagedLayers)
         {
-            await layer.SetInteractive(isInteractive);
+            if (layer is ProtobufVectorTileLayer vectorLayer)
+            {
+                await vectorLayer.SetInteractive(isInteractive);
+            }
         }
     }
 
@@ -358,9 +365,14 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
     {
         selectionEnabled = (bool)(e.Value ?? false);
         
-        foreach (var layer in dynamicLayers.Values)
+        if (PositionMap == null) return;
+
+        foreach (var (_, layer) in PositionMap.ManagedLayers)
         {
-            await layer.SetEnableFeatureSelection(selectionEnabled);
+            if (layer is ProtobufVectorTileLayer vectorLayer)
+            {
+                await vectorLayer.SetEnableFeatureSelection(selectionEnabled);
+            }
         }
     }
 
@@ -368,17 +380,27 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
     {
         multiSelectEnabled = (bool)(e.Value ?? false);
         
-        foreach (var layer in dynamicLayers.Values)
+        if (PositionMap == null) return;
+
+        foreach (var (_, layer) in PositionMap.ManagedLayers)
         {
-            await layer.SetMultipleFeatureSelection(multiSelectEnabled);
+            if (layer is ProtobufVectorTileLayer vectorLayer)
+            {
+                await vectorLayer.SetMultipleFeatureSelection(multiSelectEnabled);
+            }
         }
     }
 
     private async Task ClearSelection()
     {
-        foreach (var layer in dynamicLayers.Values)
+        if (PositionMap == null) return;
+
+        foreach (var (_, layer) in PositionMap.ManagedLayers)
         {
-            await layer.ClearSelection();
+            if (layer is ProtobufVectorTileLayer vectorLayer)
+            {
+                await vectorLayer.ClearSelection();
+            }
         }
     }
 
@@ -386,13 +408,14 @@ public partial class VectorTiles : ComponentBase, IAsyncDisposable
     {
         await OpenStreetMapsTileLayer.DisposeAsync();
         
-        foreach (var layer in dynamicLayers.Values)
-        {
-            await layer.DisposeAsync();
-        }
-        
         if (PositionMap != null)
         {
+            // Dispose all managed layers
+            foreach (var (_, layer) in PositionMap.ManagedLayers.ToList())
+            {
+                await layer.DisposeAsync();
+            }
+
             await PositionMap.DisposeAsync();
         }
 

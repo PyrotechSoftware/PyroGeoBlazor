@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <SupportedPlatform Include="browser" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.2" />
+  </ItemGroup>
+
+  <!-- Exclude TypeScript source files and build artifacts from compilation -->
+  <ItemGroup>
+    <Content Remove="Scripts\**\*.ts" />
+    <Content Remove="node_modules\**" />
+    <Content Remove="package.json" />
+    <Content Remove="package-lock.json" />
+    <Content Remove="tsconfig.json" />
+    <Content Remove="vite.config.ts" />
+    <Content Remove="vitest.config.ts" />
+    <Content Remove="vite-build.mjs" />
+  </ItemGroup>
+
+  <!-- Build TypeScript before C# compilation -->
+  <Target Name="BuildTypeScript" BeforeTargets="BeforeBuild">
+    <Message Text="Building TypeScript for PyroGeoBlazor.DeckGL..." Importance="high" />
+    <Exec Command="npm install" WorkingDirectory="$(ProjectDir)" Condition="!Exists('$(ProjectDir)node_modules')" />
+    <Exec Command="npm run build" WorkingDirectory="$(ProjectDir)" />
+  </Target>
+
+</Project>

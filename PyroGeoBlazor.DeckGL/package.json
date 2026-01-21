@@ -1,0 +1,33 @@
+{
+  "name": "pyrogeoblazor-deckgl",
+  "version": "0.1.0",
+  "description": "Blazor wrapper for deck.gl - WebGL-powered data visualization",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "node ./vite-build.mjs",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest --coverage"
+  },
+  "dependencies": {
+    "@deck.gl-community/editable-layers": "^9.1.1",
+    "@deck.gl/aggregation-layers": "^9.1.3",
+    "@deck.gl/core": "^9.1.3",
+    "@deck.gl/extensions": "^9.2.6",
+    "@deck.gl/geo-layers": "^9.1.3",
+    "@deck.gl/layers": "^9.1.3",
+    "deck.gl": "^9.1.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@vitest/ui": "^2.1.0",
+    "esbuild": "^0.25.11",
+    "eslint": "^9.39.2",
+    "jsdom": "^25.0.0",
+    "typescript": "^5.7.0",
+    "vite": "^6.0.0",
+    "vitest": "^2.1.0"
+  }
+}

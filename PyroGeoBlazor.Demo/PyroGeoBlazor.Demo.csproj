@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\PyroGeoBlazor.Leaflet\PyroGeoBlazor.Leaflet.csproj" />
+    <ProjectReference Include="..\PyroGeoBlazor.DeckGL\PyroGeoBlazor.DeckGL.csproj" />
     <PackageReference Include="MudBlazor" Version="8.15.0" />
     <PackageReference Include="NetTopologySuite" Version="2.6.0" />
     <PackageReference Include="NetTopologySuite.Features" Version="2.2.0" />

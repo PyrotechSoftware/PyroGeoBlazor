@@ -1,0 +1,441 @@
+@page "/deckgl-demo"
+@using PyroGeoBlazor.DeckGL.Components
+@using PyroGeoBlazor.DeckGL.Models
+
+<PageTitle>Deck.GL Demo - PyroGeoBlazor</PageTitle>
+
+<h3>Deck.GL Bridge Demo</h3>
+
+<div style="display: flex; gap: 20px; margin-bottom: 20px;">
+    <div>
+        <label>
+            <input type="checkbox" @bind="showOsmBaseLayer" @bind:after="UpdateLayers" />
+            Show OSM Base Layer
+        </label>
+    </div>
+    <div>
+        <label>
+            <input type="checkbox" @bind="showGeoJsonLayer" @bind:after="UpdateLayers" />
+            Show GeoJSON Layer
+        </label>
+    </div>
+    <div>
+        <label>
+            <input type="checkbox" @bind="showScatterplotLayer" @bind:after="UpdateLayers" />
+            Show Scatterplot Layer
+        </label>
+    </div>
+    <div>
+        <label>
+            <input type="checkbox" @bind="showMvtLayer" @bind:after="UpdateLayers" />
+            Show MVT Layer (GeoServer)
+        </label>
+    </div>
+    <div>
+        <button @onclick="ClearCache">Clear Cache</button>
+    </div>
+</div>
+
+<div style="display: flex; gap: 20px; margin-bottom: 20px;">
+    <div>
+        <h4 style="margin: 0 0 10px 0;">Layer Visibility Controls</h4>
+        <button @onclick="@(() => ToggleLayerVisibilityAsync("geojson-layer"))">
+            Toggle GeoJSON Layer
+        </button>
+        <button @onclick="@(() => ToggleLayerVisibilityAsync("scatterplot-layer"))">
+            Toggle Scatterplot Layer
+        </button>
+    </div>
+</div>
+
+<div style="width: 100%; height: 600px; border: 1px solid #ccc;">
+    <DeckGLView @ref="deckGLView"
+                ContainerId="demo-deckgl"
+                InitialViewState="@initialViewState"
+                Controller="true"
+                EnableTooltips="true"
+                Layers="@layers"
+                OnViewStateChanged="@OnViewStateChanged"
+                OnLayerClick="@OnLayerClick"
+                OnLayerHover="@OnLayerHover"
+                OnFeaturesSelectedCallback="@OnFeaturesSelected" />
+</div>
+
+<div style="margin-top: 20px;">
+    <h4>View State</h4>
+    <p>Longitude: @viewState.Longitude.ToString("F4")</p>
+    <p>Latitude: @viewState.Latitude.ToString("F4")</p>
+    <p>Zoom: @viewState.Zoom.ToString("F2")</p>
+</div>
+
+<button @onclick="ToggleDrawingMode">
+    @(isDrawingMode ? "Cancel Selection Mode" : "Start Polygon Selection")
+</button>
+
+@if (isDrawingMode)
+{
+    <div style="margin-top: 10px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">
+        <strong>Drawing Mode Active:</strong> Click to add polygon vertices. Double-click to complete and select features. Draw another polygon or click "Cancel Selection Mode" to exit.
+    </div>
+}
+
+@if (lastSelectionResult != null)
+{
+    <div style="margin-top: 10px; padding: 10px; background-color: #d4edda; border: 1px solid #28a745; border-radius: 4px;">
+        <strong>Selection Complete:</strong> @lastSelectionResult.FeatureCount features selected
+        <button @onclick="ClearSelectionAsync" style="margin-left: 10px;">Clear Selection</button>
+    </div>
+}
+
+<div style="margin-top: 10px;">
+    <h4>Global Selection Style</h4>
+    <button @onclick="() => SetGlobalSelectionStyleAsync(FeatureStyle.Yellow)">Yellow (Default)</button>
+    <button @onclick="() => SetGlobalSelectionStyleAsync(FeatureStyle.Red)">Red</button>
+    <button @onclick="() => SetGlobalSelectionStyleAsync(FeatureStyle.Green)">Green</button>
+    <button @onclick="() => SetGlobalSelectionStyleAsync(FeatureStyle.Blue)">Blue</button>
+</div>
+
+<div style="margin-top: 10px;">
+    <h4>Layer Feature Styles</h4>
+    <button @onclick="() => SetLayerFeatureStyleAsync(FeatureStyle.Orange)">Set GeoJSON Layer to Orange</button>
+    <button @onclick="() => SetLayerFeatureStyleAsync(FeatureStyle.Purple)">Set GeoJSON Layer to Purple</button>
+    <button @onclick="ResetLayerStyle">Reset GeoJSON Layer Style</button>
+</div>
+
+<div style="margin-top: 10px;">
+    <h4>Custom Style Example</h4>
+    <button @onclick="SetCustomStyle">Set Custom Style (Cyan with 30% opacity)</button>
+</div>
+
+<div style="margin-top: 10px;">
+    <h4>Tooltip Configuration</h4>
+    <button @onclick="SetTooltipForProperties">Show Specific Properties</button>
+    <button @onclick="SetTooltipFormatted">Use Formatted Tooltip</button>
+    <button @onclick="DisableTooltips">Disable Tooltips</button>
+    <button @onclick="ResetTooltips">Reset to Default</button>
+</div>
+
+@code {
+private DeckGLView? deckGLView;
+private ViewState initialViewState = new()
+{
+    Longitude = -123.13,  // Vancouver coordinates
+    Latitude = 49.28,
+    Zoom = 11,
+    Pitch = 0,
+    Bearing = 0
+};
+private ViewState viewState = new()
+{
+    Longitude = -123.13,
+    Latitude = 49.28,
+    Zoom = 11
+};
+
+private List<LayerConfig> layers = [];
+private bool showGeoJsonLayer = true;
+private bool showScatterplotLayer = false;
+private bool showOsmBaseLayer = true;  // OSM base layer enabled by default
+private bool showMvtLayer = false;  // MVT layer disabled by default (requires GeoServer)
+private bool isDrawingMode = false;
+private FeatureSelectionResult? lastSelectionResult = null;
+
+protected override void OnInitialized()
+{
+    UpdateLayers();
+}
+
+private void UpdateLayers()
+{
+    layers.Clear();
+
+    // Add OpenStreetMap base layer first (renders underneath)
+    if (showOsmBaseLayer)
+    {
+        var osmLayer = TileLayerConfig.OpenStreetMap("osm-base");
+        layers.Add(osmLayer);
+    }
+
+    if (showGeoJsonLayer)
+    {
+        // Example: GeoJSON layer fetching data from an API
+        var geoJsonLayer = new GeoJsonLayerConfig
+        {
+            Id = "geojson-layer",
+            DataUrl = "https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/geojson/vancouver-blocks.json",
+            Pickable = true,
+            Stroked = true,
+            Filled = true,
+            Extruded = false,
+            LineWidthScale = 20,
+            LineWidthMinPixels = 2,
+            FillColor = [160, 160, 180, 100],
+            LineColor = [80, 80, 80, 255],
+            
+            // Set layer-specific selection style (red for this layer)
+            SelectionStyle = FeatureStyle.Red,
+            
+            // Set hover style (light blue for this layer)
+            HoverStyle = new FeatureStyle
+            {
+                FillColor = "#4FC3F7",  // Light blue
+                FillOpacity = 0.7,
+                LineColor = "#0288D1",   // Darker blue
+                Opacity = 1.0,
+                LineWidth = 2
+            },
+            
+            // Set tooltip to show specific attributes
+            TooltipConfig = TooltipConfig.ForProperties("valuePerSqm")
+        };
+        layers.Add(geoJsonLayer);
+    }
+
+    if (showScatterplotLayer)
+    {
+        // Example: Scatterplot layer with inline data
+        var scatterplotLayer = new ScatterplotLayerConfig
+        {
+            Id = "scatterplot-layer",
+            Pickable = true,
+            Opacity = 0.8,
+            Stroked = true,
+            Filled = true,
+            RadiusScale = 30,
+            RadiusMinPixels = 5,
+            RadiusMaxPixels = 500,
+            LineWidthMinPixels = 2,
+            FillColor = [255, 140, 0, 200],
+            LineColor = [0, 0, 0, 255],
+            
+            // Set layer-specific selection style (green for this layer)
+            SelectionStyle = FeatureStyle.Green
+        };
+
+            // Sample data
+            scatterplotLayer.Data = new[]
+            {
+                new { position = new[] { -123.13, 49.28 }, radius = 100 },
+                new { position = new[] { -123.14, 49.29 }, radius = 80 },
+                new { position = new[] { -123.12, 49.27 }, radius = 120 }
+            };
+
+            layers.Add(scatterplotLayer);
+        }
+
+    // Add MVT layer example (commented out - requires GeoServer)
+    if (showMvtLayer)
+    {
+        // Example: MVT layer from GeoServer
+        // Replace with your GeoServer URL, workspace, and layer name
+        var mvtLayer = MVTLayerConfig.FromGeoServer(
+            id: "mvt-layer",
+            geoserverUrl: "https://lims.koleta.co.mz/geoserver",
+            workspace: "PlannerSpatial",
+            layerName: "vwParcelsLayer"
+        );
+                
+        // IMPORTANT: Specify the property to use as unique ID for feature deduplication
+        // MVT features that span multiple tiles will appear multiple times,
+        // but this ensures they are treated as a single feature
+        mvtLayer.UniqueIdProperty = "GeoPropertyID";
+        
+        // Optional: Customize styling
+        mvtLayer.FillColor = [100, 150, 200, 150];
+        mvtLayer.LineColor = [50, 50, 50, 255];
+        mvtLayer.SelectionStyle = FeatureStyle.Blue;
+        mvtLayer.HoverStyle = new FeatureStyle
+        {
+            FillColor = "#FFD700",  // Gold
+            FillOpacity = 0.8,
+            LineColor = "#FF8C00",
+            Opacity = 1.0
+        };
+        mvtLayer.TooltipConfig = TooltipConfig.ForProperties("CustomIdentifier", "GeoPropertyID");
+        
+        layers.Add(mvtLayer);
+    }
+
+        // Notify the component to update
+        if (deckGLView != null)
+        {
+            InvokeAsync(async () => await deckGLView.UpdateLayers());
+        }
+    }
+
+    private void OnViewStateChanged(ViewState newViewState)
+    {
+        viewState = newViewState;
+        StateHasChanged();
+    }
+
+    private void OnLayerClick(LayerClickEventArgs args)
+    {
+        Console.WriteLine($"Layer clicked: {args.LayerId}");
+        Console.WriteLine($"Object: {System.Text.Json.JsonSerializer.Serialize(args.Object)}");
+    }
+
+    private void OnLayerHover(LayerHoverEventArgs args)
+    {
+        // Console.WriteLine($"Layer hovered: {args.LayerId}");
+    }
+
+    private async Task ClearCache()
+    {
+        if (deckGLView != null)
+        {
+            await deckGLView.ClearCache();
+            Console.WriteLine("Cache cleared");
+        }
+    }
+
+    private async Task ToggleDrawingMode()
+    {
+        if (isDrawingMode)
+        {
+            // Cancel drawing mode and clear selection
+            isDrawingMode = false;
+            
+            if (deckGLView != null)
+            {
+                await deckGLView.SetDrawingMode(false);
+                // Optionally clear selection when exiting drawing mode
+                // await deckGLView.ClearSelection();
+                // lastSelectionResult = null;
+            }
+        }
+        else
+        {
+            // Start drawing mode
+            isDrawingMode = true;
+            
+            if (deckGLView != null)
+            {
+                await deckGLView.SetDrawingMode(true);
+            }
+        }
+        
+        StateHasChanged();
+    }
+
+    private void OnFeaturesSelected(FeatureSelectionResult result)
+    {
+        lastSelectionResult = result;
+        // Keep drawing mode active - don't automatically exit
+        // isDrawingMode = false;
+        
+        Console.WriteLine($"✅ Selected {result.FeatureCount} features!");
+        foreach (var feature in result.Features)
+        {
+            Console.WriteLine($"  Layer: {feature.LayerId}");
+            Console.WriteLine($"  Feature: {System.Text.Json.JsonSerializer.Serialize(feature.Feature)}");
+        }
+        
+        StateHasChanged();
+    }
+
+    private async Task ClearSelectionAsync()
+    {
+        if (deckGLView != null)
+        {
+            await deckGLView.ClearSelection();
+            lastSelectionResult = null;
+            StateHasChanged();
+        }
+    }
+
+    private async Task SetGlobalSelectionStyleAsync(FeatureStyle style)
+    {
+        if (deckGLView != null)
+        {
+            await deckGLView.SetGlobalSelectionStyle(style);
+        }
+    }
+
+    private async Task SetLayerFeatureStyleAsync(FeatureStyle style)
+    {
+        if (deckGLView != null)
+        {
+            await deckGLView.SetLayerFeatureStyle("geojson-layer", style);
+        }
+    }
+
+    private async Task ResetLayerStyle()
+    {
+        if (deckGLView != null)
+        {
+            // Reset by setting original colors (using hex)
+            await deckGLView.SetLayerFeatureStyle("geojson-layer", new FeatureStyle
+            {
+                FillColor = "#A0A0B4",  // rgb(160, 160, 180)
+                FillOpacity = 0.4,       // ~100/255
+                LineColor = "#505050",   // rgb(80, 80, 80)
+                Opacity = 1.0
+            });
+        }
+    }
+
+    private async Task SetCustomStyle()
+    {
+        if (deckGLView != null)
+        {
+            // Example: Custom cyan color with low opacity
+            await deckGLView.SetLayerFeatureStyle("geojson-layer", new FeatureStyle
+            {
+                FillColor = "#00FFFF",  // Cyan
+                FillOpacity = 0.3,       // 30% opacity
+                LineColor = "#00AAAA",   // Darker cyan
+                Opacity = 0.8,           // 80% opacity for borders
+                LineWidth = 2
+            });
+        }
+    }
+
+    private async Task ToggleLayerVisibilityAsync(string layerId)
+    {
+        if (deckGLView != null)
+        {
+            var newVisibility = await deckGLView.ToggleLayerVisibility(layerId);
+            Console.WriteLine($"Layer {layerId} visibility toggled to: {newVisibility}");
+            StateHasChanged();
+        }
+    }
+
+    private async Task SetTooltipForProperties()
+    {
+        if (deckGLView != null)
+        {
+            // Show only specific properties from GeoJSON features
+            var config = TooltipConfig.ForProperties("AREA_S_CD", "FEATURE_AREA_SQM");
+            await deckGLView.SetLayerTooltipConfig("geojson-layer", config);
+        }
+    }
+
+    private async Task SetTooltipFormatted()
+    {
+        if (deckGLView != null)
+        {
+            // Use a formatted string
+            var config = TooltipConfig.WithFormat(
+                "Area Code: {AREA_S_CD}\\nArea: {FEATURE_AREA_SQM} m²"
+            );
+            await deckGLView.SetLayerTooltipConfig("geojson-layer", config);
+        }
+    }
+
+    private async Task DisableTooltips()
+    {
+        if (deckGLView != null)
+        {
+            await deckGLView.SetLayerTooltipConfig("geojson-layer", TooltipConfig.Disabled);
+        }
+    }
+
+    private async Task ResetTooltips()
+    {
+        if (deckGLView != null)
+        {
+            await deckGLView.SetLayerTooltipConfig("geojson-layer", null);
+        }
+    }
+}

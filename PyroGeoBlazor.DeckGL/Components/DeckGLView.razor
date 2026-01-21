@@ -1,0 +1,450 @@
+@namespace PyroGeoBlazor.DeckGL.Components
+@using PyroGeoBlazor.DeckGL.Models
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IJSRuntime JSRuntime
+
+<div id="@ContainerId" style="width: 100%; height: 100%; position: relative;"></div>
+
+@code {
+    private DeckGLJSBinder? _jsBinder;
+    private IJSObjectReference? _deckGLViewRef;
+    private DotNetObjectReference<DeckGLView>? _dotNetRef;
+
+    /// <summary>
+    /// Unique identifier for the deck.gl container element
+    /// </summary>
+    [Parameter]
+    public string ContainerId { get; set; } = $"deckgl-{Guid.NewGuid():N}";
+
+    /// <summary>
+    /// Initial view state (camera position and zoom)
+    /// </summary>
+    [Parameter]
+    public ViewState InitialViewState { get; set; } = new ViewState
+    {
+        Longitude = -122.45,
+        Latitude = 37.8,
+        Zoom = 12
+    };
+
+    /// <summary>
+    /// Enable map controls (pan, zoom, rotate)
+    /// </summary>
+    [Parameter]
+    public bool Controller { get; set; } = true;
+
+    /// <summary>
+    /// Enable tooltips
+    /// </summary>
+    [Parameter]
+    public bool EnableTooltips { get; set; } = true;
+
+    /// <summary>
+    /// Callback when view state changes (camera moves)
+    /// </summary>
+    [Parameter]
+    public EventCallback<ViewState> OnViewStateChanged { get; set; }
+
+    /// <summary>
+    /// Callback when a layer is clicked
+    /// </summary>
+    [Parameter]
+    public EventCallback<LayerClickEventArgs> OnLayerClick { get; set; }
+
+    /// <summary>
+    /// Callback when a layer is hovered
+    /// </summary>
+    [Parameter]
+    public EventCallback<LayerHoverEventArgs> OnLayerHover { get; set; }
+
+    /// <summary>
+    /// List of layer configurations to render
+    /// </summary>
+    [Parameter]
+    public List<LayerConfig> Layers { get; set; } = [];
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await InitializeDeckGL();
+        }
+    }
+
+    private async Task InitializeDeckGL()
+    {
+        try
+        {
+            _jsBinder = new DeckGLJSBinder(JSRuntime);
+            var module = await _jsBinder.GetDeckGLModule();
+
+            var config = new DeckGLViewOptions
+            {
+                ContainerId = ContainerId,
+                InitialViewState = InitialViewState,
+                Controller = Controller,
+                EnableTooltips = EnableTooltips
+            };
+
+            _dotNetRef = DotNetObjectReference.Create(this);
+            
+            _deckGLViewRef = await module.InvokeAsync<IJSObjectReference>(
+                "DeckGL.DeckGLView.createDeckGLView",
+                config,
+                _dotNetRef
+            );
+
+            Console.WriteLine($"DeckGL view initialized: {ContainerId}");
+
+            // Update layers if any were provided
+            if (Layers.Count > 0)
+            {
+                await UpdateLayers();
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error initializing DeckGL: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Update the layers rendered in the view
+    /// </summary>
+    public async Task UpdateLayers()
+    {
+        if (_deckGLViewRef != null && Layers != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("updateLayers", Layers);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error updating layers: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Update the view state (camera position)
+    /// </summary>
+    public async Task SetViewState(ViewState viewState)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("setViewState", viewState);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error setting view state: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Get the current view state
+    /// </summary>
+    public async Task<ViewState?> GetViewState()
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                return await _deckGLViewRef.InvokeAsync<ViewState>("getViewState");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting view state: {ex.Message}");
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Clear the data cache
+    /// </summary>
+    public async Task ClearCache()
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("clearCache");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error clearing cache: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Called from JavaScript when view state changes
+    /// </summary>
+    [JSInvokable]
+    public async Task OnViewStateChangedCallback(ViewState viewState)
+    {
+        if (OnViewStateChanged.HasDelegate)
+        {
+            await OnViewStateChanged.InvokeAsync(viewState);
+        }
+    }
+
+    /// <summary>
+    /// Called from JavaScript when a layer is clicked
+    /// </summary>
+    [JSInvokable]
+    public async Task OnLayerClickCallback(LayerClickEventArgs args)
+    {
+        if (OnLayerClick.HasDelegate)
+        {
+            await OnLayerClick.InvokeAsync(args);
+        }
+    }
+
+    /// <summary>
+    /// Callback when features are selected by polygon
+    /// </summary>
+    [Parameter]
+    public EventCallback<FeatureSelectionResult> OnFeaturesSelectedCallback { get; set; }
+
+    /// <summary>
+    /// Enable or disable polygon drawing mode for feature selection.
+    /// When enabled, click on the map to add vertices, double-click to complete the polygon.
+    /// The temporary drawing layer is automatically destroyed after selection completes.
+    /// </summary>
+    public async Task SetDrawingMode(bool enabled)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("setDrawingMode", enabled);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error setting drawing mode: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Set the visual style for selected features (global)
+    /// </summary>
+    public async Task SetGlobalSelectionStyle(FeatureStyle style)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("setGlobalSelectionStyle", style);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error setting global selection style: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Set the base feature style for a specific layer
+    /// </summary>
+    public async Task SetLayerFeatureStyle(string layerId, FeatureStyle style)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("setLayerFeatureStyle", layerId, style);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error setting layer feature style: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Set the selection style for a specific layer
+    /// </summary>
+    public async Task SetLayerSelectionStyle(string layerId, FeatureStyle style)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("setLayerSelectionStyle", layerId, style);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error setting layer selection style: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Set the visibility of a specific layer
+    /// </summary>
+    public async Task SetLayerVisibility(string layerId, bool visible)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("setLayerVisibility", layerId, visible);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error setting layer visibility: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Get the visibility of a specific layer
+    /// </summary>
+    public async Task<bool> GetLayerVisibility(string layerId)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                return await _deckGLViewRef.InvokeAsync<bool>("getLayerVisibility", layerId);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error getting layer visibility: {ex.Message}");
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Toggle the visibility of a specific layer
+    /// </summary>
+    public async Task<bool> ToggleLayerVisibility(string layerId)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                return await _deckGLViewRef.InvokeAsync<bool>("toggleLayerVisibility", layerId);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error toggling layer visibility: {ex.Message}");
+                return false;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Set which features are currently selected
+    /// </summary>
+    public async Task SetSelectedFeatures(string[] featureIds)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("setSelectedFeatures", featureIds);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error setting selected features: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Clear all selected features
+    /// </summary>
+    public async Task ClearSelection()
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("clearSelection");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error clearing selection: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Configure tooltip display behavior for a specific layer
+    /// </summary>
+    public async Task SetLayerTooltipConfig(string layerId, TooltipConfig? config)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("setLayerTooltipConfig", layerId, config);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error setting layer tooltip config: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Called from JavaScript when features are selected
+    /// </summary>
+    [JSInvokable]
+    public async Task OnFeaturesSelected(FeatureSelectionResult result)
+    {
+        if (OnFeaturesSelectedCallback.HasDelegate)
+        {
+            await OnFeaturesSelectedCallback.InvokeAsync(result);
+        }
+    }
+
+
+    /// <summary>
+    /// Called from JavaScript when a layer is hovered
+    /// </summary>
+    [JSInvokable]
+    public async Task OnLayerHoverCallback(LayerHoverEventArgs args)
+    {
+        if (OnLayerHover.HasDelegate)
+        {
+            await OnLayerHover.InvokeAsync(args);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("dispose");
+                await _deckGLViewRef.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Swallow - page is being refreshed
+            }
+        }
+
+        if (_jsBinder != null)
+        {
+            await _jsBinder.DisposeAsync();
+        }
+
+        _dotNetRef?.Dispose();
+
+        GC.SuppressFinalize(this);
+    }
+}

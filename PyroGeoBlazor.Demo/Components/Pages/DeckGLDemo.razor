@@ -4,115 +4,222 @@
 
 <PageTitle>Deck.GL Demo - PyroGeoBlazor</PageTitle>
 
-<h3>Deck.GL Bridge Demo</h3>
+<div style="display: flex; flex-direction: row; height: 100%; overflow: hidden;">
+    <div style="flex: 0 0 30%; overflow-y: auto; overflow-x: hidden;">
+        <MudContainer MaxWidth="MaxWidth.False" Class="pa-4">
+            <MudText Typo="Typo.h4" Class="mb-2">Deck.GL Bridge</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-4">High-performance WebGL-powered visualization with Deck.GL</MudText>
 
-<div style="display: flex; gap: 20px; margin-bottom: 20px;">
-    <div>
-        <label>
-            <input type="checkbox" @bind="showOsmBaseLayer" @bind:after="UpdateLayers" />
-            Show OSM Base Layer
-        </label>
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Layer Controls</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudStack Spacing="1">
+                        <MudSwitch T="bool" Color="Color.Primary" Label="@($"OSM Base Layer ({(showOsmBaseLayer ? "On" : "Off")})")"
+                                   Value="@showOsmBaseLayer" ValueChanged="value => { showOsmBaseLayer = value; UpdateLayers(); }" />
+                        <MudSwitch T="bool" Color="Color.Primary" Label="@($"GeoJSON Layer ({(showGeoJsonLayer ? "On" : "Off")})")"
+                                   Value="@showGeoJsonLayer" ValueChanged="value => { showGeoJsonLayer = value; UpdateLayers(); }" />
+                        <MudSwitch T="bool" Color="Color.Primary" Label="@($"Scatterplot Layer ({(showScatterplotLayer ? "On" : "Off")})")"
+                                   Value="@showScatterplotLayer" ValueChanged="value => { showScatterplotLayer = value; UpdateLayers(); }" />
+                        <MudSwitch T="bool" Color="Color.Primary" Label="@($"MVT Layer ({(showMvtLayer ? "On" : "Off")})")"
+                                   Value="@showMvtLayer" ValueChanged="value => { showMvtLayer = value; UpdateLayers(); }" />
+                    </MudStack>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small" FullWidth="true"
+                               StartIcon="@Icons.Material.Filled.ClearAll"
+                               OnClick="ClearCache"
+                               Class="mt-2">
+                        Clear Cache
+                    </MudButton>
+                </MudCardContent>
+            </MudCard>
+
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Layer Visibility</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudStack Spacing="1">
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" FullWidth="true"
+                                   OnClick="@(() => ToggleLayerVisibilityAsync("geojson-layer"))">
+                            Toggle GeoJSON Layer
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" FullWidth="true"
+                                   OnClick="@(() => ToggleLayerVisibilityAsync("scatterplot-layer"))">
+                            Toggle Scatterplot Layer
+                        </MudButton>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">View State</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudText Typo="Typo.body2">
+                        <strong>Longitude:</strong> @viewState.Longitude.ToString("F4")<br/>
+                        <strong>Latitude:</strong> @viewState.Latitude.ToString("F4")<br/>
+                        <strong>Zoom:</strong> @viewState.Zoom.ToString("F2")
+                    </MudText>
+                </MudCardContent>
+            </MudCard>
+
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Selection</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudButton Variant="Variant.Filled" 
+                               Color="@(isDrawingMode ? Color.Error : Color.Primary)" 
+                               Size="Size.Small" 
+                               FullWidth="true"
+                               StartIcon="@(isDrawingMode ? Icons.Material.Filled.Cancel : Icons.Material.Filled.Draw)"
+                               OnClick="ToggleDrawingMode">
+                        @(isDrawingMode ? "Cancel Selection Mode" : "Start Polygon Selection")
+                    </MudButton>
+
+                    @if (isDrawingMode)
+                    {
+                        <MudAlert Severity="Severity.Warning" Dense="true" Class="mt-2">
+                            <strong>Drawing Mode Active:</strong> Click to add polygon vertices. Double-click to complete and select features.
+                        </MudAlert>
+                    }
+
+                    @if (lastSelectionResult != null)
+                    {
+                        <MudAlert Severity="Severity.Success" Dense="true" Class="mt-2">
+                            <strong>Selection Complete:</strong> @lastSelectionResult.FeatureCount features selected
+                        </MudAlert>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" FullWidth="true"
+                                   StartIcon="@Icons.Material.Filled.Clear"
+                                   OnClick="ClearSelectionAsync"
+                                   Class="mt-1">
+                            Clear Selection
+                        </MudButton>
+                    }
+                </MudCardContent>
+            </MudCard>
+
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Global Selection Style</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudStack Spacing="1">
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small" FullWidth="true"
+                                   Style="background-color: #FFFF00; color: black;"
+                                   OnClick="() => SetGlobalSelectionStyleAsync(FeatureStyle.Yellow)">
+                            Yellow (Default)
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" FullWidth="true"
+                                   OnClick="() => SetGlobalSelectionStyleAsync(FeatureStyle.Red)">
+                            Red
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Success" Size="Size.Small" FullWidth="true"
+                                   OnClick="() => SetGlobalSelectionStyleAsync(FeatureStyle.Green)">
+                            Green
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Info" Size="Size.Small" FullWidth="true"
+                                   OnClick="() => SetGlobalSelectionStyleAsync(FeatureStyle.Blue)">
+                            Blue
+                        </MudButton>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Layer Feature Styles</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudStack Spacing="1">
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small" FullWidth="true"
+                                   Style="background-color: #FFA500; color: white;"
+                                   OnClick="() => SetLayerFeatureStyleAsync(FeatureStyle.Orange)">
+                            Orange
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small" FullWidth="true"
+                                   Style="background-color: #800080; color: white;"
+                                   OnClick="() => SetLayerFeatureStyleAsync(FeatureStyle.Purple)">
+                            Purple
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small" FullWidth="true"
+                                   Style="background-color: #00FFFF; color: black;"
+                                   OnClick="SetCustomStyle">
+                            Custom (Cyan 30%)
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Size="Size.Small" FullWidth="true"
+                                   OnClick="ResetLayerStyle">
+                            Reset to Default
+                        </MudButton>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Tooltip Configuration</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudStack Spacing="1">
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" FullWidth="true"
+                                   OnClick="SetTooltipForProperties">
+                            Show Specific Properties
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Small" FullWidth="true"
+                                   OnClick="SetTooltipFormatted">
+                            Use Formatted Tooltip
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small" FullWidth="true"
+                                   OnClick="DisableTooltips">
+                            Disable Tooltips
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Size="Size.Small" FullWidth="true"
+                                   OnClick="ResetTooltips">
+                            Reset to Default
+                        </MudButton>
+                    </MudStack>
+                </MudCardContent>
+            </MudCard>
+
+            <MudCard Class="mb-3">
+                <MudCardHeader>
+                    <MudText Typo="Typo.h6">Features</MudText>
+                </MudCardHeader>
+                <MudCardContent>
+                    <MudList Dense="true" T="string">
+                        <MudListItem>GeoJSON & Scatterplot layers</MudListItem>
+                        <MudListItem>OpenStreetMap base layer</MudListItem>
+                        <MudListItem>MVT layer support</MudListItem>
+                        <MudListItem>Interactive tooltips</MudListItem>
+                        <MudListItem>Polygon selection</MudListItem>
+                        <MudListItem>Dynamic styling</MudListItem>
+                        <MudListItem>Layer visibility control</MudListItem>
+                    </MudList>
+                </MudCardContent>
+            </MudCard>
+
+            <MudButton Variant="Variant.Text" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ArrowBack" Href="/" Class="mt-3">
+                Back to Home
+            </MudButton>
+        </MudContainer>
     </div>
-    <div>
-        <label>
-            <input type="checkbox" @bind="showGeoJsonLayer" @bind:after="UpdateLayers" />
-            Show GeoJSON Layer
-        </label>
+
+    <div style="flex: 1 1 70%; min-width: 0; overflow: hidden; position: relative;">
+        <div style="width: 100%; height: 100%;">
+            <DeckGLView @ref="deckGLView"
+                        ContainerId="demo-deckgl"
+                        InitialViewState="@initialViewState"
+                        Controller="true"
+                        EnableTooltips="true"
+                        Layers="@layers"
+                        OnViewStateChanged="@OnViewStateChanged"
+                        OnLayerClick="@OnLayerClick"
+                        OnLayerHover="@OnLayerHover"
+                        OnFeaturesSelectedCallback="@OnFeaturesSelected" />
+        </div>
     </div>
-    <div>
-        <label>
-            <input type="checkbox" @bind="showScatterplotLayer" @bind:after="UpdateLayers" />
-            Show Scatterplot Layer
-        </label>
-    </div>
-    <div>
-        <label>
-            <input type="checkbox" @bind="showMvtLayer" @bind:after="UpdateLayers" />
-            Show MVT Layer (GeoServer)
-        </label>
-    </div>
-    <div>
-        <button @onclick="ClearCache">Clear Cache</button>
-    </div>
-</div>
-
-<div style="display: flex; gap: 20px; margin-bottom: 20px;">
-    <div>
-        <h4 style="margin: 0 0 10px 0;">Layer Visibility Controls</h4>
-        <button @onclick="@(() => ToggleLayerVisibilityAsync("geojson-layer"))">
-            Toggle GeoJSON Layer
-        </button>
-        <button @onclick="@(() => ToggleLayerVisibilityAsync("scatterplot-layer"))">
-            Toggle Scatterplot Layer
-        </button>
-    </div>
-</div>
-
-<div style="width: 100%; height: 600px; border: 1px solid #ccc;">
-    <DeckGLView @ref="deckGLView"
-                ContainerId="demo-deckgl"
-                InitialViewState="@initialViewState"
-                Controller="true"
-                EnableTooltips="true"
-                Layers="@layers"
-                OnViewStateChanged="@OnViewStateChanged"
-                OnLayerClick="@OnLayerClick"
-                OnLayerHover="@OnLayerHover"
-                OnFeaturesSelectedCallback="@OnFeaturesSelected" />
-</div>
-
-<div style="margin-top: 20px;">
-    <h4>View State</h4>
-    <p>Longitude: @viewState.Longitude.ToString("F4")</p>
-    <p>Latitude: @viewState.Latitude.ToString("F4")</p>
-    <p>Zoom: @viewState.Zoom.ToString("F2")</p>
-</div>
-
-<button @onclick="ToggleDrawingMode">
-    @(isDrawingMode ? "Cancel Selection Mode" : "Start Polygon Selection")
-</button>
-
-@if (isDrawingMode)
-{
-    <div style="margin-top: 10px; padding: 10px; background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 4px;">
-        <strong>Drawing Mode Active:</strong> Click to add polygon vertices. Double-click to complete and select features. Draw another polygon or click "Cancel Selection Mode" to exit.
-    </div>
-}
-
-@if (lastSelectionResult != null)
-{
-    <div style="margin-top: 10px; padding: 10px; background-color: #d4edda; border: 1px solid #28a745; border-radius: 4px;">
-        <strong>Selection Complete:</strong> @lastSelectionResult.FeatureCount features selected
-        <button @onclick="ClearSelectionAsync" style="margin-left: 10px;">Clear Selection</button>
-    </div>
-}
-
-<div style="margin-top: 10px;">
-    <h4>Global Selection Style</h4>
-    <button @onclick="() => SetGlobalSelectionStyleAsync(FeatureStyle.Yellow)">Yellow (Default)</button>
-    <button @onclick="() => SetGlobalSelectionStyleAsync(FeatureStyle.Red)">Red</button>
-    <button @onclick="() => SetGlobalSelectionStyleAsync(FeatureStyle.Green)">Green</button>
-    <button @onclick="() => SetGlobalSelectionStyleAsync(FeatureStyle.Blue)">Blue</button>
-</div>
-
-<div style="margin-top: 10px;">
-    <h4>Layer Feature Styles</h4>
-    <button @onclick="() => SetLayerFeatureStyleAsync(FeatureStyle.Orange)">Set GeoJSON Layer to Orange</button>
-    <button @onclick="() => SetLayerFeatureStyleAsync(FeatureStyle.Purple)">Set GeoJSON Layer to Purple</button>
-    <button @onclick="ResetLayerStyle">Reset GeoJSON Layer Style</button>
-</div>
-
-<div style="margin-top: 10px;">
-    <h4>Custom Style Example</h4>
-    <button @onclick="SetCustomStyle">Set Custom Style (Cyan with 30% opacity)</button>
-</div>
-
-<div style="margin-top: 10px;">
-    <h4>Tooltip Configuration</h4>
-    <button @onclick="SetTooltipForProperties">Show Specific Properties</button>
-    <button @onclick="SetTooltipFormatted">Use Formatted Tooltip</button>
-    <button @onclick="DisableTooltips">Disable Tooltips</button>
-    <button @onclick="ResetTooltips">Reset to Default</button>
 </div>
 
 @code {

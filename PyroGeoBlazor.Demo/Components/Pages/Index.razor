@@ -138,6 +138,31 @@
 
     <MudItem xs="12" md="4">
         <MudCard Style="height: 100%">
+            <MudCardHeader>
+                <MudChip T="string" Color="Color.Secondary" Size="Size.Small">Web GL</MudChip>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudText Typo="Typo.h6">deck.gl Integration</MudText>
+                <MudText>
+                    Implementation of deck.gl. A WebGL-powered framework for high performance and scalable visualizations.
+                </MudText>
+                <MudList T="string" Dense="true">
+                    <MudListItem>Dynamic feature loading</MudListItem>
+                    <MudListItem>Bounded by map view</MudListItem>
+                    <MudListItem>Auto-refresh on pan/zoom</MudListItem>
+                    <MudListItem>Feature selection</MudListItem>
+                    <MudListItem>Select by Polygon</MudListItem>
+                    <MudListItem>GeoServer integration</MudListItem>
+                </MudList>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Text" Color="Color.Secondary" Href="/deckgl-demo" FullWidth>View deck.gl Demo</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12" md="4">
+        <MudCard Style="height: 100%">
             <MudCardContent>
                 <MudText Typo="Typo.h6">Quick Comparison</MudText>
                 <MudSimpleTable Class="mt-3" Dense="true" Bordered="true">

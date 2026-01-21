@@ -4,7 +4,7 @@
 @implements IAsyncDisposable
 @inject IJSRuntime JSRuntime
 
-<div id="@ContainerId" style="width: 100%; height: 100%; position: relative;"></div>
+<div id="@ContainerId" style="flex: 1; height: 100%; width: 100%; position: relative;"></div>
 
 @code {
     private DeckGLJSBinder? _jsBinder;
@@ -207,10 +207,16 @@
     }
 
     /// <summary>
-    /// Callback when features are selected by polygon
+    /// Callback when features are selected (both single and multi-selection)
     /// </summary>
     [Parameter]
     public EventCallback<FeatureSelectionResult> OnFeaturesSelectedCallback { get; set; }
+
+    /// <summary>
+    /// Callback when the deck.gl instance is fully initialized and ready
+    /// </summary>
+    [Parameter]
+    public EventCallback OnDeckInitialized { get; set; }
 
     /// <summary>
     /// Enable or disable polygon drawing mode for feature selection.
@@ -228,6 +234,25 @@
             catch (Exception ex)
             {
                 Console.WriteLine($"Error setting drawing mode: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Set the map interaction mode
+    /// </summary>
+    /// <param name="mode">The map mode to activate</param>
+    public async Task SetMapMode(MapMode mode)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("setMapMode", mode.ToString());
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error setting map mode: {ex.Message}");
             }
         }
     }
@@ -399,6 +424,231 @@
     }
 
     /// <summary>
+    /// Move a layer to a specific index in the rendering stack.
+    /// Index 0 is the bottom-most layer (rendered first).
+    /// Returns the updated list of layer IDs in order.
+    /// </summary>
+    /// <param name="layerId">The ID of the layer to move</param>
+    /// <param name="targetIndex">The target index (0 = bottom)</param>
+    /// <returns>Array of layer IDs in their new order (index 0 = bottom)</returns>
+    public async Task<string[]> MoveLayerToIndex(string layerId, int targetIndex)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                return await _deckGLViewRef.InvokeAsync<string[]>("moveLayerToIndex", layerId, targetIndex);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error moving layer: {ex.Message}");
+                return Array.Empty<string>();
+            }
+        }
+        return Array.Empty<string>();
+    }
+
+    /// <summary>
+    /// Move a layer up one position in the rendering stack (toward the top).
+    /// Returns the updated list of layer IDs in order.
+    /// </summary>
+    /// <returns>Array of layer IDs in their new order (index 0 = bottom)</returns>
+    public async Task<string[]> MoveLayerUp(string layerId)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                return await _deckGLViewRef.InvokeAsync<string[]>("moveLayerUp", layerId);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error moving layer up: {ex.Message}");
+                return Array.Empty<string>();
+            }
+        }
+        return Array.Empty<string>();
+    }
+
+    /// <summary>
+    /// Move a layer down one position in the rendering stack (toward the bottom).
+    /// Returns the updated list of layer IDs in order.
+    /// </summary>
+    /// <returns>Array of layer IDs in their new order (index 0 = bottom)</returns>
+    public async Task<string[]> MoveLayerDown(string layerId)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                return await _deckGLViewRef.InvokeAsync<string[]>("moveLayerDown", layerId);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error moving layer down: {ex.Message}");
+                return Array.Empty<string>();
+            }
+        }
+        return Array.Empty<string>();
+    }
+
+    /// <summary>
+    /// Move a layer to the top of the rendering stack (rendered last, appears on top)
+    /// </summary>
+    public async Task MoveLayerToTop(string layerId)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("moveLayerToTop", layerId);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error moving layer to top: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Move a layer to the bottom of the rendering stack (rendered first, appears behind others)
+    /// </summary>
+    public async Task MoveLayerToBottom(string layerId)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("moveLayerToBottom", layerId);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error moving layer to bottom: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Flash a feature on the map to highlight it temporarily
+    /// </summary>
+    /// <param name="layerId">The layer containing the feature</param>
+    /// <param name="featureId">The unique ID of the feature to flash</param>
+    /// <param name="durationMs">Duration of the flash effect in milliseconds (default: 2000)</param>
+    public async Task FlashFeature(string layerId, string featureId, int durationMs = 2000)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("flashFeature", layerId, featureId, durationMs);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error flashing feature: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Zoom to a specific feature's bounds
+    /// </summary>
+    /// <param name="layerId">The layer containing the feature</param>
+    /// <param name="featureId">The unique ID of the feature</param>
+    /// <param name="padding">Padding around the feature in pixels (default: 50)</param>
+    public async Task ZoomToFeature(string layerId, string featureId, int padding = 50)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("zoomToFeature", layerId, featureId, padding);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error zooming to feature: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Zoom to all features in a layer
+    /// </summary>
+    /// <param name="layerId">The layer ID</param>
+    /// <param name="padding">Padding around the bounds in pixels (default: 50)</param>
+    public async Task ZoomToLayer(string layerId, int padding = 50)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("zoomToLayer", layerId, padding);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error zooming to layer: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Zoom and pan to the bounds of a specific set of selected features
+    /// </summary>
+    /// <param name="features">Array of selected features to zoom to</param>
+    /// <param name="padding">Padding around the bounds in pixels (default: 50)</param>
+    public async Task ZoomToSelectedFeatures(SelectedFeature[] features, int padding = 50)
+    {
+        if (_deckGLViewRef != null && features != null && features.Length > 0)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("zoomToSelectedFeatures", features, padding);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error zooming to selected features: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Unselect a specific feature
+    /// </summary>
+    /// <param name="featureId">The unique ID of the feature to unselect</param>
+    public async Task UnselectFeature(string featureId)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("unselectFeature", featureId);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error unselecting feature: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Clear selection for all features in a specific layer
+    /// </summary>
+    /// <param name="layerId">The layer ID</param>
+    public async Task ClearLayerSelection(string layerId)
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("clearLayerSelection", layerId);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error clearing layer selection: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
     /// Called from JavaScript when features are selected
     /// </summary>
     [JSInvokable]
@@ -407,6 +657,18 @@
         if (OnFeaturesSelectedCallback.HasDelegate)
         {
             await OnFeaturesSelectedCallback.InvokeAsync(result);
+        }
+    }
+
+    /// <summary>
+    /// Called from JavaScript when deck.gl is fully initialized
+    /// </summary>
+    [JSInvokable]
+    public async Task OnDeckInitializedCallback()
+    {
+        if (OnDeckInitialized.HasDelegate)
+        {
+            await OnDeckInitialized.InvokeAsync();
         }
     }
 

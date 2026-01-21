@@ -77,6 +77,14 @@ public abstract class LayerConfig
     public string? UniqueIdProperty { get; set; }
 
     /// <summary>
+    /// Property name to use for displaying feature names in the UI (e.g., in selection lists).
+    /// If not set, falls back to UniqueIdProperty.
+    /// Example: "name", "label", "title", etc.
+    /// </summary>
+    [JsonPropertyName("displayProperty")]
+    public string? DisplayProperty { get; set; }
+
+    /// <summary>
     /// Whether the layer is pickable (can be clicked/hovered)
     /// </summary>
     [JsonIgnore]

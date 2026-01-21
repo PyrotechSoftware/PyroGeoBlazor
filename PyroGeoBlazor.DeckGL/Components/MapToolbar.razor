@@ -1,0 +1,86 @@
+@namespace PyroGeoBlazor.DeckGL.Components
+@using PyroGeoBlazor.DeckGL.Icons
+@using PyroGeoBlazor.DeckGL.Models
+
+<MudToolBar Dense="true" Class="@Class" Style="@Style">
+    <MudTooltip Text="Select Feature">
+        <MudIconButton Icon="@DefaultIcons.MousePointer"
+                       Color="@(CurrentMode == MapMode.SelectFeature ? Color.Primary : Color.Default)"
+                       Size="@Size"
+                       OnClick="@(() => SetMode(MapMode.SelectFeature))"
+                       Disabled="@Disabled" />
+    </MudTooltip>
+
+    <MudTooltip Text="Select by Polygon">
+        <MudIconButton Icon="@DefaultIcons.SelectByPolygon"
+                       Color="@(CurrentMode == MapMode.SelectByPolygon ? Color.Primary : Color.Default)"
+                       Size="@Size"
+                       OnClick="@(() => SetMode(MapMode.SelectByPolygon))"
+                       Disabled="@Disabled" />
+    </MudTooltip>
+
+    <MudTooltip Text="Explore">
+        <MudIconButton Icon="@DefaultIcons.Hand"
+                       Color="@(CurrentMode == MapMode.Explore ? Color.Primary : Color.Default)"
+                       Size="@Size"
+                       OnClick="@(() => SetMode(MapMode.Explore))"
+                       Disabled="@Disabled" />
+    </MudTooltip>
+
+    @if (ChildContent != null)
+    {
+        <MudSpacer />
+        @ChildContent
+    }
+</MudToolBar>
+
+@code {
+    /// <summary>
+    /// Current active map mode
+    /// </summary>
+    [Parameter] public MapMode CurrentMode { get; set; } = MapMode.Explore;
+
+    /// <summary>
+    /// Callback when map mode changes
+    /// </summary>
+    [Parameter] public EventCallback<MapMode> CurrentModeChanged { get; set; }
+
+    /// <summary>
+    /// Size of the icon buttons
+    /// </summary>
+    [Parameter]
+    public Size Size { get; set; } = Size.Medium;
+
+    /// <summary>
+    /// Whether the toolbar buttons are disabled
+    /// </summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>
+    /// Additional CSS class for the toolbar
+    /// </summary>
+    [Parameter]
+    public string? Class { get; set; }
+
+    /// <summary>
+    /// Additional inline styles for the toolbar
+    /// </summary>
+    [Parameter]
+    public string? Style { get; set; }
+
+    /// <summary>
+    /// Additional content to render after the mode buttons
+    /// </summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private async Task SetMode(MapMode mode)
+    {
+        if (CurrentMode != mode)
+        {
+            CurrentMode = mode;
+            await CurrentModeChanged.InvokeAsync(mode);
+        }
+    }
+}

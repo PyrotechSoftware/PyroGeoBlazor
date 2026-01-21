@@ -1,0 +1,72 @@
+@namespace PyroGeoBlazor.DeckGL.Components
+@using PyroGeoBlazor.DeckGL.Models
+
+@if (Layers != null && Layers.Any())
+{
+    <MudDropContainer T="LayerConfig" Items="LayersReverse" ItemsSelector="@((item, dropzone) => true )" Class="d-flex flex-column" ItemDropped="@(OnDropHandler)" Style="height:100%; box-sizing:border-box;">
+        <ChildContent>
+            <MudPaper Class="flex-grow-1">
+                <MudList T="LayerConfig" Dense Class="d-flex flex-column mud-height-full">
+                    <MudListSubheader>Contents</MudListSubheader>
+                    <MudDropZone T="LayerConfig" Identifier="contents" Class="flex-grow-1" AllowReorder />
+                </MudList>
+            </MudPaper>
+        </ChildContent>
+        <ItemRenderer>
+            <MudListItem T="LayerConfig">
+                    <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                        <MudCheckBox T="bool" 
+                                     Value="@context.Visible"
+                                     ValueChanged="@(async (bool newValue) => await OnVisibilityToggled(context.Id, newValue))"
+                                     Color="Color.Primary"
+                                     Size="Size.Small" />
+                        <MudText Typo="Typo.body2" Style="flex: 1;">
+                            @context.Id
+                        </MudText>
+                        @* <MudChip T="string" Size="Size.Small" Color="Color.Info">
+                            @index
+                        </MudChip> *@
+                    </MudStack>
+                </MudListItem>
+        </ItemRenderer>
+    </MudDropContainer>
+}
+else
+{
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-2">
+        No layers
+    </MudText>
+}
+
+@code {
+    private List<LayerConfig> LayersReverse => Layers.AsEnumerable().Reverse().ToList();
+
+    [Parameter] public List<LayerConfig> Layers { get; set; } = [];
+
+    [Parameter] public EventCallback<(string LayerId, bool IsVisible)> OnLayerVisibilityChanged { get; set; }
+    [Parameter] public EventCallback<(string LayerId, int NewIndex)> OnLayerReordered { get; set; }
+
+    private async Task OnVisibilityToggled(string layerId, bool newValue)
+    {
+        if (OnLayerVisibilityChanged.HasDelegate)
+        {
+            await OnLayerVisibilityChanged.InvokeAsync((layerId, newValue));
+        }
+    }
+
+    private async Task OnDropHandler(MudItemDropInfo<LayerConfig> dropInfo)
+    {
+        if (dropInfo?.Item is null) return;
+
+        var source = Layers.IndexOf(dropInfo.Item);
+
+        // Convert the drop index from reversed display order to original order
+        var count = Layers.Count;
+        var target = count - 1 - dropInfo.IndexInZone; // Mathematical inverse to get the correct index to move to.
+
+        if (source >= 0 && target >= 0 && source != target)
+        {
+            await OnLayerReordered.InvokeAsync((dropInfo.Item.Id, target));
+        }
+    }
+}

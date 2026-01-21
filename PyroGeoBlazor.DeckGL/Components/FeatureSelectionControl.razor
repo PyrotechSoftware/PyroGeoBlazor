@@ -1,0 +1,382 @@
+@namespace PyroGeoBlazor.DeckGL.Components
+@using PyroGeoBlazor.DeckGL.Models
+@using System.Text.Json
+
+@if (SelectionResult != null && SelectionResult.Features.Any())
+{
+    <div style="display: flex; flex-direction: column; height: 100%;">
+        <div style="flex: 1 1 50%; overflow-y: auto; overflow-x: hidden; min-height: 0;">
+            <MudList T="string" Dense>
+                @foreach (var layerGroup in GetGroupedFeatures())
+                {
+                    <MudListItem T="string" Expanded>
+                        <ChildContent>
+                            <div @oncontextmenu="@(e => OpenLayerContextMenu(e, layerGroup.LayerId))"
+                                 @oncontextmenu:preventDefault="true"
+                                 style="cursor: context-menu;">
+                                <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                    <MudText Typo="Typo.subtitle2">
+                                        <strong>@layerGroup.LayerId</strong> (@layerGroup.Features.Count)
+                                    </MudText>
+                                </MudStack>
+                            </div>
+                            
+                            <MudPopover Open="@(currentLayerContextMenu == layerGroup.LayerId)" 
+                                        Fixed="true" 
+                                        AnchorOrigin="Origin.TopLeft"
+                                        TransformOrigin="Origin.TopLeft"
+                                        Style="@GetPopoverStyle()">
+                                <MudList Dense="true" Style="min-width: 150px;">
+                                    <MudListItem OnClick="@(async () => { await OnLayerZoomTo(layerGroup.LayerId); CloseContextMenu(); })" 
+                                                 Icon="@Icons.Material.Filled.ZoomIn">
+                                        Zoom to Layer
+                                    </MudListItem>
+                                    <MudListItem OnClick="@(async () => { await OnLayerClearSelection(layerGroup.LayerId); CloseContextMenu(); })" 
+                                                 Icon="@Icons.Material.Filled.Clear">
+                                        Clear Selection
+                                    </MudListItem>
+                                </MudList>
+                            </MudPopover>
+                        </ChildContent>
+                        <NestedList>
+                            @foreach (var feature in layerGroup.Features)
+                            {
+                                <MudListItem T="string">
+                                    <div @oncontextmenu="@(e => OpenFeatureContextMenu(e, feature, layerGroup.LayerId))"
+                                         @oncontextmenu:preventDefault="true"
+                                         @onclick="@(() => OnFeatureClickInternal(feature))"
+                                         style="cursor: pointer;">
+                                        <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                            <MudText Typo="Typo.body2" Style="flex: 1;">
+                                                @GetFeatureDisplayName(feature, layerGroup.LayerId)
+                                            </MudText>
+                                        </MudStack>
+                                    </div>
+                                    
+                                    <MudPopover Open="@IsFeatureContextMenuOpen(feature, layerGroup.LayerId)" 
+                                                Fixed="true"
+                                                AnchorOrigin="Origin.TopLeft"
+                                                TransformOrigin="Origin.TopLeft"
+                                                Style="@GetPopoverStyle()">
+                                        <MudList Dense="true" Style="min-width: 150px;">
+                                            <MudListItem OnClick="@(async () => { await OnFeatureFlash(feature, layerGroup.LayerId); CloseContextMenu(); })" 
+                                                         Icon="@Icons.Material.Filled.FlashOn">
+                                                Flash
+                                            </MudListItem>
+                                            <MudListItem OnClick="@(async () => { await OnFeatureZoomTo(feature, layerGroup.LayerId); CloseContextMenu(); })" 
+                                                         Icon="@Icons.Material.Filled.ZoomIn">
+                                                Zoom to
+                                            </MudListItem>
+                                            <MudListItem OnClick="@(async () => { await OnFeatureUnselect(feature, layerGroup.LayerId); CloseContextMenu(); })" 
+                                                         Icon="@Icons.Material.Filled.RemoveCircleOutline">
+                                                Unselect
+                                            </MudListItem>
+                                        </MudList>
+                                    </MudPopover>
+                                </MudListItem>
+                            }
+                        </NestedList>
+                    </MudListItem>
+                }
+            </MudList>
+        </div>
+        
+        <div style="flex: 1 1 50%; overflow-y: auto; overflow-x: hidden; min-height: 0; border-top: 1px solid var(--mud-palette-divider);">
+            <FeatureAttributesControl SelectedFeature="@clickedFeature" ExcludedProperties="@ExcludedProperties" />
+        </div>
+    </div>
+}
+else
+{
+    <MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-2">
+        No features selected
+    </MudText>
+}
+
+@code {
+    /// <summary>
+    /// The feature selection result containing selected features from various layers
+    /// </summary>
+    [Parameter]
+    public FeatureSelectionResult? SelectionResult { get; set; }
+
+    /// <summary>
+    /// Dictionary mapping layer IDs to their configurations
+    /// Used to determine display properties for features
+    /// </summary>
+    [Parameter]
+    public Dictionary<string, LayerConfig>? LayerConfigs { get; set; }
+
+    /// <summary>
+    /// Callback when a feature in the list is clicked
+    /// </summary>
+    [Parameter]
+    public EventCallback<SelectedFeature> OnFeatureClicked { get; set; }
+
+    /// <summary>
+    /// Callback when flash is requested for a feature
+    /// </summary>
+    [Parameter]
+    public EventCallback<(string LayerId, string FeatureId)> OnFlashFeature { get; set; }
+
+    /// <summary>
+    /// Callback when zoom to is requested for a feature
+    /// </summary>
+    [Parameter]
+    public EventCallback<(string LayerId, string FeatureId)> OnZoomToFeature { get; set; }
+
+    /// <summary>
+    /// Callback when unselect is requested for a feature
+    /// </summary>
+    [Parameter]
+    public EventCallback<string> OnUnselectFeature { get; set; }
+
+    /// <summary>
+    /// Callback when zoom to is requested for a layer
+    /// </summary>
+    [Parameter]
+    public EventCallback<SelectedFeature[]> OnZoomToLayerFeatures { get; set; }
+
+    /// <summary>
+    /// Callback when clear selection is requested for a layer
+    /// </summary>
+    [Parameter]
+    public EventCallback<string> OnClearLayerSelection { get; set; }
+
+    /// <summary>
+    /// Optional list of property names to exclude from the attributes display
+    /// </summary>
+    [Parameter]
+    public string[]? ExcludedProperties { get; set; }
+
+    private record LayerGrouping(string LayerId, List<SelectedFeature> Features);
+
+    private SelectedFeature? clickedFeature;
+    
+    // Context menu state
+    private string? currentLayerContextMenu;
+    private (SelectedFeature Feature, string LayerId)? currentFeatureContextMenu;
+    private double contextMenuX;
+    private double contextMenuY;
+
+    private List<LayerGrouping> GetGroupedFeatures()
+    {
+        if (SelectionResult?.Features == null || !SelectionResult.Features.Any())
+            return [];
+
+        return SelectionResult.Features
+            .GroupBy(f => f.LayerId)
+            .Select(g => new LayerGrouping(g.Key, g.ToList()))
+            .OrderBy(g => g.LayerId)
+            .ToList();
+    }
+
+    private string GetFeatureDisplayName(SelectedFeature feature, string layerId)
+    {
+        // Get the layer config if available
+        var layerConfig = LayerConfigs?.GetValueOrDefault(layerId);
+
+        // Try to get display property first
+        if (!string.IsNullOrEmpty(layerConfig?.DisplayProperty))
+        {
+            var displayValue = GetPropertyValue(feature.Feature, layerConfig.DisplayProperty);
+            if (!string.IsNullOrEmpty(displayValue))
+                return displayValue;
+        }
+
+        // Fall back to unique ID property
+        if (!string.IsNullOrEmpty(layerConfig?.UniqueIdProperty))
+        {
+            var idValue = GetPropertyValue(feature.Feature, layerConfig.UniqueIdProperty);
+            if (!string.IsNullOrEmpty(idValue))
+                return idValue;
+        }
+
+        // Try common properties
+        var commonProps = new[] { "name", "title", "label", "id", "ID", "CustomIdentifier", "OBJECTID" };
+        foreach (var prop in commonProps)
+        {
+            var value = GetPropertyValue(feature.Feature, prop);
+            if (!string.IsNullOrEmpty(value))
+                return value;
+        }
+
+        // Last resort: return a generic name with index
+        return $"Feature";
+    }
+
+    private string? GetPropertyValue(JsonElement feature, string propertyName)
+    {
+        try
+        {
+            // Try to get from properties object
+            if (feature.TryGetProperty("properties", out var properties) &&
+                properties.TryGetProperty(propertyName, out var propValue))
+            {
+                return propValue.ToString();
+            }
+
+            // Try to get directly from feature
+            if (feature.TryGetProperty(propertyName, out var directValue))
+            {
+                return directValue.ToString();
+            }
+        }
+        catch
+        {
+            // Ignore errors and return null
+        }
+
+        return null;
+    }
+
+    private string GetFeatureId(SelectedFeature feature, string layerId)
+    {
+        // Get the layer config if available
+        var layerConfig = LayerConfigs?.GetValueOrDefault(layerId);
+
+        // Try unique ID property first
+        if (!string.IsNullOrEmpty(layerConfig?.UniqueIdProperty))
+        {
+            var idValue = GetPropertyValue(feature.Feature, layerConfig.UniqueIdProperty);
+            if (!string.IsNullOrEmpty(idValue))
+            {
+                Console.WriteLine($"[FeatureSelectionControl] Using UniqueIdProperty '{layerConfig.UniqueIdProperty}': {idValue}");
+                return idValue;
+            }
+        }
+
+        // Try common ID properties
+        var commonProps = new[] { "id", "ID", "CustomIdentifier", "OBJECTID", "fid", "FID" };
+        foreach (var prop in commonProps)
+        {
+            var value = GetPropertyValue(feature.Feature, prop);
+            if (!string.IsNullOrEmpty(value))
+            {
+                Console.WriteLine($"[FeatureSelectionControl] Using common property '{prop}': {value}");
+                return value;
+            }
+        }
+
+        Console.WriteLine($"[FeatureSelectionControl] ⚠️ No ID found for feature in layer {layerId}");
+        Console.WriteLine($"[FeatureSelectionControl] Feature JSON: {feature.Feature}");
+        return string.Empty;
+    }
+
+    private async Task OnFeatureClick(SelectedFeature feature)
+    {
+        if (OnFeatureClicked.HasDelegate)
+        {
+            await OnFeatureClicked.InvokeAsync(feature);
+        }
+    }
+
+    private async Task OnFeatureClickInternal(SelectedFeature feature)
+    {
+        // Update the clicked feature for attributes display
+        clickedFeature = feature;
+        
+        // Also call the external callback
+        await OnFeatureClick(feature);
+        
+        StateHasChanged();
+    }
+
+    private async Task OnFeatureFlash(SelectedFeature feature, string layerId)
+    {
+        if (OnFlashFeature.HasDelegate)
+        {
+            var featureId = GetFeatureId(feature, layerId);
+            if (!string.IsNullOrEmpty(featureId))
+            {
+                await OnFlashFeature.InvokeAsync((layerId, featureId));
+            }
+        }
+    }
+
+    private async Task OnFeatureZoomTo(SelectedFeature feature, string layerId)
+    {
+        if (OnZoomToFeature.HasDelegate)
+        {
+            var featureId = GetFeatureId(feature, layerId);
+            if (!string.IsNullOrEmpty(featureId))
+            {
+                await OnZoomToFeature.InvokeAsync((layerId, featureId));
+            }
+        }
+    }
+
+    private async Task OnFeatureUnselect(SelectedFeature feature, string layerId)
+    {
+        if (OnUnselectFeature.HasDelegate)
+        {
+            var featureId = GetFeatureId(feature, layerId);
+            if (!string.IsNullOrEmpty(featureId))
+            {
+                await OnUnselectFeature.InvokeAsync(featureId);
+            }
+        }
+    }
+
+    private async Task OnLayerZoomTo(string layerId)
+    {
+        if (OnZoomToLayerFeatures.HasDelegate)
+        {
+            // Get all features for this layer
+            var layerFeatures = SelectionResult?.Features
+                .Where(f => f.LayerId == layerId)
+                .ToArray() ?? Array.Empty<SelectedFeature>();
+            
+            if (layerFeatures.Length > 0)
+            {
+                await OnZoomToLayerFeatures.InvokeAsync(layerFeatures);
+            }
+        }
+    }
+
+    private async Task OnLayerClearSelection(string layerId)
+    {
+        if (OnClearLayerSelection.HasDelegate)
+        {
+            await OnClearLayerSelection.InvokeAsync(layerId);
+        }
+    }
+
+    // Context menu methods
+    private void OpenLayerContextMenu(MouseEventArgs e, string layerId)
+    {
+        currentLayerContextMenu = layerId;
+        currentFeatureContextMenu = null;
+        contextMenuX = e.ClientX;
+        contextMenuY = e.ClientY;
+        StateHasChanged();
+    }
+
+    private void OpenFeatureContextMenu(MouseEventArgs e, SelectedFeature feature, string layerId)
+    {
+        currentFeatureContextMenu = (feature, layerId);
+        currentLayerContextMenu = null;
+        contextMenuX = e.ClientX;
+        contextMenuY = e.ClientY;
+        StateHasChanged();
+    }
+
+    private bool IsFeatureContextMenuOpen(SelectedFeature feature, string layerId)
+    {
+        return currentFeatureContextMenu.HasValue && 
+               currentFeatureContextMenu.Value.Feature == feature && 
+               currentFeatureContextMenu.Value.LayerId == layerId;
+    }
+
+    private void CloseContextMenu()
+    {
+        currentLayerContextMenu = null;
+        currentFeatureContextMenu = null;
+        StateHasChanged();
+    }
+
+    private string GetPopoverStyle()
+    {
+        return $"position: fixed; left: {contextMenuX}px; top: {contextMenuY}px;";
+    }
+}

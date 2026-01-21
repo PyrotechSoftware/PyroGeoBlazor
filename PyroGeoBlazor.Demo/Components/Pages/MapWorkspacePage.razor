@@ -1,0 +1,325 @@
+@page "/map-workspace"
+@using PyroGeoBlazor.DeckGL.Components
+@using PyroGeoBlazor.DeckGL.Models
+
+<div style="height: 100%; display: flex; flex-direction: column; overflow: hidden;">
+    <MapToolbar CurrentMode="@currentMapMode" CurrentModeChanged="@OnMapModeChanged">
+        <MudText Typo="Typo.body2" Class="ml-3">
+            Current Mode: <strong>@currentMapMode</strong>
+        </MudText>
+    </MapToolbar>
+
+    <div style="flex: 1 1 auto; overflow: hidden; min-height: 0;">
+        <MudExDockLayout ContainerStyle="height: 100%; overflow: hidden;">
+        <MudExDockItem HideHeader Direction="DockDirection.Left" MaximumWidth="300">
+            <MudCard Elevation="4" Style="height: 100%; display: flex; flex-direction: column;">
+                <MudCardHeader>
+                    <CardHeaderContent>
+                        <MudText>Layers</MudText>
+                    </CardHeaderContent>
+                </MudCardHeader>
+                <MudCardContent Style="flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; min-height: 0;">
+                    <LayerContentsControl Layers="@layers" 
+                                          OnLayerVisibilityChanged="@OnLayerVisibilityChanged"
+                                          OnLayerReordered="@MoveLayerToIndex" />
+                </MudCardContent>
+            </MudCard>
+        </MudExDockItem>
+            <MudExDockItem HideHeader Style="display: flex; flex-direction: column;">
+                <DeckGLView @ref="deckGLView"
+                            ContainerId="workspace-deckgl"
+                            InitialViewState="@initialViewState"
+                            Controller="true"
+                            EnableTooltips="true"
+                            Layers="@layers"
+                            OnViewStateChanged="@OnViewStateChanged"
+                            OnFeaturesSelectedCallback="@OnFeaturesSelected"
+                            OnDeckInitialized="@OnDeckInitialized" />
+            </MudExDockItem>
+            <MudExDockItem Title="Selection" HideHeader MaximumWidth="300" Direction="DockDirection.Right">
+                <MudCard Elevation="4" Style="height: 100%; display: flex; flex-direction: column;">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText>Selection</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent Style="flex: 1 1 auto; overflow: hidden; display: flex; flex-direction: column; padding: 0; min-height: 0;">
+                        @if (selectionResult != null && selectionResult.FeatureCount > 0)
+                        {
+                            <div style="padding: 16px; flex-shrink: 0;">
+                                <MudText Typo="Typo.subtitle2" Class="mb-2">
+                                    @selectionResult.FeatureCount @(selectionResult.FeatureCount == 1 ? "Feature" : "Features") Selected
+                                </MudText>
+                            </div>
+                            <div style="flex: 1 1 auto; overflow: hidden; min-height: 0;">
+                                <FeatureSelectionControl SelectionResult="@selectionResult" 
+                                                         LayerConfigs="@layerConfigsDict"
+                                                         OnFeatureClicked="@OnFeatureClickedInList"
+                                                         OnFlashFeature="@OnFlashFeature"
+                                                         OnZoomToFeature="@OnZoomToFeature"
+                                                         OnUnselectFeature="@OnUnselectFeature"
+                                                         OnZoomToLayerFeatures="@OnZoomToLayerFeatures"
+                                                         OnClearLayerSelection="@OnClearLayerSelection" />
+                            </div>
+                        }
+                        else
+                        {
+                            <div style="padding: 16px;">
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">No features selected</MudText>
+                            </div>
+                        }
+                    </MudCardContent>
+                </MudCard>
+            </MudExDockItem>
+        </MudExDockLayout>
+    </div>
+</div>
+
+@code {
+private MapMode currentMapMode = MapMode.Explore;
+private DeckGLView? deckGLView;
+private FeatureSelectionResult? selectionResult;
+private Dictionary<string, LayerConfig> layerConfigsDict = new();
+
+    private ViewState initialViewState = new()
+{
+    Longitude = -123.13,  // Vancouver coordinates
+    Latitude = 49.28,
+    Zoom = 11,
+    Pitch = 0,
+    Bearing = 0
+};
+
+    private ViewState viewState = new()
+{
+    Longitude = -123.13,
+    Latitude = 49.28,
+    Zoom = 11
+};
+
+    private List<LayerConfig> layers = [];
+
+    protected override void OnInitialized()
+    {
+        // Don't add layers here - wait for OnDeckInitialized callback
+    }
+
+    private async Task OnDeckInitialized()
+    {
+        Console.WriteLine("🎉 Deck.gl initialized! Adding layers...");
+        
+        // Add Carto basemap (renders first/underneath)
+        var cartoBasemap = TileLayerConfig.CartoLight("carto-basemap");
+        cartoBasemap.Visible = true; // Explicitly set to visible
+        layers.Add(cartoBasemap);
+        
+        // Add sample GeoJSON layer (renders on top of basemap)
+        var geoJsonLayer = new GeoJsonLayerConfig
+        {
+            Id = "geojson-layer",
+            DataUrl = "https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/geojson/vancouver-blocks.json",
+            Pickable = true,
+            Stroked = true,
+            Filled = true,
+            Extruded = false,
+            LineWidthScale = 20,
+            LineWidthMinPixels = 2,
+            FillColor = [160, 160, 180, 100],
+            LineColor = [80, 80, 80, 255],
+            TooltipConfig = TooltipConfig.ForProperties("valuePerSqm"),
+            UniqueIdProperty = "id",
+            DisplayProperty = "valuePerSqm",  // Display the area in square meters
+            Visible = true // Explicitly set to visible
+        };
+        
+        layers.Add(geoJsonLayer);
+        
+        // Build the dictionary for quick lookup
+        layerConfigsDict = layers.ToDictionary(l => l.Id, l => l);
+        
+        // Update layers in the DeckGLView
+        if (deckGLView != null)
+        {
+            await deckGLView.UpdateLayers();
+        }
+        
+        StateHasChanged();
+    }
+
+    private async Task OnMapModeChanged(MapMode newMode)
+    {
+        currentMapMode = newMode;
+
+        // Clear previous selection when mode changes
+        selectionResult = null;
+
+        if (deckGLView != null)
+        {
+            await deckGLView.SetMapMode(newMode);
+        }
+
+        StateHasChanged();
+    }
+
+    private void OnViewStateChanged(ViewState newViewState)
+    {
+        viewState = newViewState;
+        StateHasChanged();
+    }
+
+    private void OnFeaturesSelected(FeatureSelectionResult result)
+    {
+        selectionResult = result;
+
+        var selectionType = result.FeatureCount switch
+        {
+            0 => "cleared",
+            1 => "single feature",
+            _ => $"{result.FeatureCount} features"
+        };
+
+        Console.WriteLine($"Selection updated: {selectionType}");
+        StateHasChanged();
+    }
+
+    private void OnFeatureClickedInList(SelectedFeature feature)
+    {
+        Console.WriteLine($"Feature clicked in list: {feature.LayerId}");
+    }
+
+    private async Task OnFlashFeature((string LayerId, string FeatureId) data)
+    {
+        if (deckGLView != null)
+        {
+            await deckGLView.FlashFeature(data.LayerId, data.FeatureId);
+            Console.WriteLine($"Flashing feature {data.FeatureId} in layer {data.LayerId}");
+        }
+    }
+
+    private async Task OnZoomToFeature((string LayerId, string FeatureId) data)
+    {
+        if (deckGLView != null)
+        {
+            await deckGLView.ZoomToFeature(data.LayerId, data.FeatureId);
+            Console.WriteLine($"Zooming to feature {data.FeatureId} in layer {data.LayerId}");
+        }
+    }
+
+    private async Task OnUnselectFeature(string featureId)
+    {
+        if (deckGLView != null)
+        {
+            await deckGLView.UnselectFeature(featureId);
+            Console.WriteLine($"Unselecting feature {featureId}");
+        }
+    }
+
+    private async Task OnZoomToLayerFeatures(SelectedFeature[] features)
+    {
+        if (deckGLView != null && features.Length > 0)
+        {
+            await deckGLView.ZoomToSelectedFeatures(features);
+            Console.WriteLine($"Zooming to {features.Length} selected features");
+        }
+    }
+
+    private async Task OnClearLayerSelection(string layerId)
+    {
+        if (deckGLView != null)
+        {
+            await deckGLView.ClearLayerSelection(layerId);
+            Console.WriteLine($"Clearing selection for layer {layerId}");
+        }
+    }
+
+    private async Task OnLayerVisibilityChanged((string LayerId, bool IsVisible) data)
+    {
+        if (deckGLView == null) return;
+
+        // Find the layer and update its Visible property
+        var layer = layers.FirstOrDefault(l => l.Id == data.LayerId);
+        if (layer != null)
+        {   
+            layer.Visible = data.IsVisible;
+            
+            // Update the layer visibility in DeckGLView
+            await deckGLView.SetLayerVisibility(data.LayerId, data.IsVisible);
+
+            Console.WriteLine($"Layer {data.LayerId} visibility set to {data.IsVisible}");
+            StateHasChanged();
+        }
+    }
+
+    private async Task LayerReordered(string layerId, int newIndex)
+    {
+        if (deckGLView == null) return;
+
+        await deckGLView.MoveLayerToIndex(layerId, newIndex);
+
+        StateHasChanged();
+    }
+
+    private async Task MoveLayerToIndex((string layerId, int newIndex) data)
+    {
+        if (deckGLView == null) return;
+        // Move in the DeckGLView and get the updated order
+        var updatedLayerIds = await deckGLView.MoveLayerToIndex(data.layerId, data.newIndex);
+
+        if (updatedLayerIds.Length > 0)
+        {
+            // Reorder the local layers list to match
+            ReorderLayersFromIds(updatedLayerIds);
+            StateHasChanged();
+        }
+    }
+
+    private async Task MoveLayerUp(string layerId)
+    {
+        if (deckGLView == null) return;
+
+        // Move in the DeckGLView and get the updated order
+        var updatedLayerIds = await deckGLView.MoveLayerUp(layerId);
+        
+        if (updatedLayerIds.Length > 0)
+        {
+            // Reorder the local layers list to match
+            ReorderLayersFromIds(updatedLayerIds);
+            StateHasChanged();
+        }
+    }
+
+    private async Task MoveLayerDown(string layerId)
+    {
+        if (deckGLView == null) return;
+
+        // Move in the DeckGLView and get the updated order
+        var updatedLayerIds = await deckGLView.MoveLayerDown(layerId);
+        
+        if (updatedLayerIds.Length > 0)
+        {
+            // Reorder the local layers list to match
+            ReorderLayersFromIds(updatedLayerIds);
+            StateHasChanged();
+        }
+    }
+
+    private void ReorderLayersFromIds(string[] layerIds)
+    {
+        // Create a new ordered list based on the returned layer IDs
+        var reorderedLayers = new List<LayerConfig>();
+        
+        foreach (var layerId in layerIds)
+        {
+            var layer = layers.FirstOrDefault(l => l.Id == layerId);
+            if (layer != null)
+            {
+                reorderedLayers.Add(layer);
+            }
+        }
+        
+        // Replace the layers list with the reordered version
+        layers = reorderedLayers;
+        
+        Console.WriteLine($"Layers reordered: {string.Join(", ", layers.Select(l => l.Id))}");
+    }
+}

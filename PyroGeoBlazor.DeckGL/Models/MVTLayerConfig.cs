@@ -18,7 +18,7 @@ public class MVTLayerConfig : LayerConfig
     /// Note: GeoServer TMS uses {-y} for inverted Y coordinate
     /// </summary>
     [JsonIgnore]
-    public string? DataUrl
+    public new string? DataUrl
     {
         get => Props.TryGetValue("dataUrl", out var value) ? value as string : null;
         set { if (value != null) Props["dataUrl"] = value; }
@@ -48,7 +48,7 @@ public class MVTLayerConfig : LayerConfig
     /// Whether features can be clicked/hovered
     /// </summary>
     [JsonIgnore]
-    public bool Pickable
+    public new bool Pickable
     {
         get => Props.TryGetValue("pickable", out var value) && value is bool b ? b : true;
         set => Props["pickable"] = value;

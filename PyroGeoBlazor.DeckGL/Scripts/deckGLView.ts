@@ -42,6 +42,7 @@ export interface LayerConfig {
     hoverStyle?: FeatureStyleConfig;  // Style for hovered feature
     tooltipConfig?: TooltipConfig;  // Tooltip configuration for this layer
     uniqueIdProperty?: string;  // Property name to use as unique feature ID (e.g., "CustomIdentifier")
+    displayProperty?: string;  // Property name to use for displaying feature names in UI
 }
 
 /**
@@ -124,9 +125,9 @@ private drawnFeatures: any[] = [];
 // Selection state
 private selectedFeatureIds: Set<string> = new Set();
 private globalSelectionStyle: FeatureStyleConfig = {
-    fillColor: '#FFFF00',
+    fillColor: '#4169E1',
     fillOpacity: 0.6,
-    lineColor: '#FFFF00',
+    lineColor: '#4169E1',
     opacity: 1.0,
     lineWidth: 3
 };
@@ -135,66 +136,106 @@ private globalSelectionStyle: FeatureStyleConfig = {
 private hoveredFeatureId: string | null = null;
 private hoveredLayerId: string | null = null;
 
+// Map mode state
+private currentMapMode: string = 'Explore';  // 'Explore' | 'SelectFeature' | 'SelectByPolygon'
+
 // Layer-specific styles storage
 private layerConfigs: Map<string, LayerConfig> = new Map();  // Store original configs
 
 constructor(config: DeckGLViewConfig, dotNetHelper?: any) {
-        this.containerId = config.containerId;
-        this.dotNetHelper = dotNetHelper;
+    this.containerId = config.containerId;
+    this.dotNetHelper = dotNetHelper;
 
-        // Get the container element
-        const containerElement = document.getElementById(config.containerId);
-        if (!containerElement) {
-            console.error(`Container element with id "${config.containerId}" not found`);
-            throw new Error(`Container element with id "${config.containerId}" not found`);
-        }
+    // Get the container element
+    const containerElement = document.getElementById(config.containerId);
+    if (!containerElement) {
+        console.error(`Container element with id "${config.containerId}" not found`);
+        throw new Error(`Container element with id "${config.containerId}" not found`);
+    }
 
-        console.log(`Creating DeckGLView for container: ${config.containerId}`, {
-            containerElement,
-            initialViewState: config.initialViewState
-        });
+    console.log(`Creating DeckGLView for container: ${config.containerId}`, {
+        containerElement,
+        initialViewState: config.initialViewState
+    });
 
-        // Get container dimensions
+    // Wait for container to have valid dimensions (flexbox layout needs time to calculate)
+    this.initializeWhenReady(containerElement, config);
+}
+
+/**
+ * Initialize deck.gl once the container has valid dimensions
+ */
+private initializeWhenReady(containerElement: HTMLElement, config: DeckGLViewConfig): void {
+    let retryCount = 0;
+    const maxRetries = 20; // Max 1 second (20 * 50ms)
+    
+    const checkDimensions = () => {
         const rect = containerElement.getBoundingClientRect();
-        console.log(`Container dimensions: ${rect.width}x${rect.height}`);
+        console.log(`Container dimensions (attempt ${retryCount + 1}): ${rect.width}x${rect.height}`);
 
-        // CRITICAL: deck.gl doesn't auto-create canvas with container mode
-        // We must create the canvas ourselves and pass it directly
-        const canvas = this.createCanvas(containerElement, rect);
+        // Wait until container has valid dimensions (width > 0 and height > 0)
+        if (rect.width > 0 && rect.height > 0) {
+            this.initializeDeck(containerElement, rect, config);
+        } else if (retryCount < maxRetries) {
+            // Retry after a brief delay
+            retryCount++;
+            console.log(`Container not yet sized, retrying in 50ms... (${retryCount}/${maxRetries})`);
+            setTimeout(checkDimensions, 50);
+        } else {
+            console.error(`❌ Failed to initialize deck.gl: Container dimensions are still 0x0 after ${maxRetries} attempts`);
+            console.error('Container element:', containerElement);
+            console.error('Container parent:', containerElement.parentElement);
+            console.error('Container computed style:', window.getComputedStyle(containerElement));
+        }
+    };
 
-        // Pass the canvas element to deck.gl
-        const deckProps: DeckProps = {
-            canvas: canvas,  // Pass canvas instead of container
-            width: rect.width,
-            height: rect.height,
-            initialViewState: {
-                ...config.initialViewState,
-                minZoom: config.initialViewState.minZoom ?? 0,
-                maxZoom: config.initialViewState.maxZoom ?? 20
-            },
-            controller: {
-                dragPan: true,
-                dragRotate: true,
-                scrollZoom: true,
-                touchZoom: true,
-                touchRotate: true,
-                keyboard: true,
-                doubleClickZoom: true
-            },
-            layers: [],  // Start with empty layers
+    // Start checking
+    checkDimensions();
+}
+
+/**
+ * Initialize the deck.gl instance with valid dimensions
+ */
+private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: DeckGLViewConfig): void {
+    console.log(`Initializing deck.gl with dimensions: ${rect.width}x${rect.height}`);
+
+    // CRITICAL: deck.gl doesn't auto-create canvas with container mode
+    // We must create the canvas ourselves and pass it directly
+    const canvas = this.createCanvas(containerElement, rect);
+
+    // Pass the canvas element to deck.gl
+    const deckProps: DeckProps = {
+        canvas: canvas,  // Pass canvas instead of container
+        width: rect.width,
+        height: rect.height,
+        initialViewState: {
+            ...config.initialViewState,
+            minZoom: config.initialViewState.minZoom ?? 0,
+            maxZoom: config.initialViewState.maxZoom ?? 20
+        },
+        controller: {
+            dragPan: true,
+            dragRotate: true,
+            scrollZoom: true,
+            touchZoom: true,
+            touchRotate: true,
+            keyboard: true,
+            doubleClickZoom: true
+        },
+        layers: [],  // Start with empty layers
             
-            // onLoad fires when deck.gl completes initialization
-            onLoad: () => {
-                console.log('✅ Deck.gl onLoad fired');
+        // onLoad fires when deck.gl completes initialization
+        onLoad: () => {
+            console.log('✅ Deck.gl onLoad fired');
                 
-                // Don't set viewState here - that makes it controlled and locks the camera
-                // The initialViewState passed at construction should work now that canvas is created properly
+            // Don't set viewState here - that makes it controlled and locks the camera
+            // The initialViewState passed at construction should work now that canvas is created properly
                 
-                // Just notify Blazor of the initial state
-                // The viewState will be sent via onViewStateChange callback
+            // Just notify Blazor of the initial state
+            // The viewState will be sent via onViewStateChange callback
                 
-                setTimeout(() => this.logDeckState(), 50);
-            },
+            setTimeout(() => this.logDeckState(), 50);
+        },
             
             // Callbacks that notify Blazor
             onViewStateChange: ({ viewState }) => {
@@ -207,6 +248,12 @@ constructor(config: DeckGLViewConfig, dotNetHelper?: any) {
             },
 
             onClick: (info: any) => {
+                // Handle SelectFeature mode - single feature selection
+                if (this.currentMapMode === 'SelectFeature' && info.object && info.layer) {
+                    this.handleSingleFeatureSelection(info);
+                    return;
+                }
+                
                 // Debug logging for MVT layers
                 if (info.layer?.constructor.name === 'GeoJsonLayer' && info.layer.id.includes('mvt')) {
                     console.log('MVT feature clicked:', {
@@ -286,6 +333,9 @@ constructor(config: DeckGLViewConfig, dotNetHelper?: any) {
             
             // Custom cursor control
             getCursor: () => {
+                if (this.currentMapMode === 'SelectFeature') {
+                    return 'pointer';
+                }
                 if (this.editableLayer && this.drawingMode.constructor.name !== 'ViewMode') {
                     return 'crosshair';
                 }
@@ -299,6 +349,12 @@ constructor(config: DeckGLViewConfig, dotNetHelper?: any) {
         
         // Check deck state after a brief moment
         setTimeout(() => this.logDeckState(), 100);
+
+        // Notify .NET that deck.gl is initialized and ready
+        if (this.dotNetHelper) {
+            console.log('🎉 Notifying .NET that deck.gl is initialized');
+            this.dotNetHelper.invokeMethodAsync('OnDeckInitializedCallback');
+        }
     }
 
     /**
@@ -410,11 +466,47 @@ constructor(config: DeckGLViewConfig, dotNetHelper?: any) {
             data = await this.fetchData(config.dataUrl, config.id);
         }
 
+        // Auto-generate IDs for GeoJSON features if they don't have one
+        if (data && (config.type === 'GeoJsonLayer' || config.type === 'geojson')) {
+            data = this.ensureFeatureIds(data, config.id);
+        }
+
         // Apply base feature style if provided
         const enhancedConfig = this.applyFeatureStyle(config);
 
         // Create the layer using the factory
         return createLayerFromConfig(enhancedConfig, data);
+    }
+
+    /**
+     * Ensure all features have unique IDs
+     * Auto-generates IDs for features that don't have one
+     */
+    private ensureFeatureIds(data: any, layerId: string): any {
+        if (!data) return data;
+
+        if (data.type === 'FeatureCollection' && data.features) {
+            let idCounter = 0;
+            data.features = data.features.map((feature: any) => {
+                if (!feature.id && !feature.properties?.id) {
+                    // Generate a unique ID based on layer and counter
+                    const generatedId = `${layerId}_feature_${idCounter++}`;
+                    console.log(`Auto-generated ID for feature: ${generatedId}`);
+                    // Set both at root level and in properties for compatibility
+                    return {
+                        ...feature,
+                        id: generatedId,
+                        properties: {
+                            ...feature.properties,
+                            id: generatedId
+                        }
+                    };
+                }
+                return feature;
+            });
+        }
+
+        return data;
     }
 
     /**
@@ -1315,6 +1407,560 @@ constructor(config: DeckGLViewConfig, dotNetHelper?: any) {
         
         // Tooltips are evaluated dynamically, no need to recreate layers
     }
+
+    /**
+     * Move a layer to a specific index in the rendering stack
+     * Index 0 is the bottom-most layer (rendered first)
+     * Returns the updated list of layer IDs in order
+     */
+    public moveLayerToIndex(layerId: string, targetIndex: number): string[] {
+        // Find the layer in the current layers array
+        const layerIndex = this.currentLayers.findIndex(layer => layer.id === layerId);
+        
+        if (layerIndex === -1) {
+            console.warn(`Layer ${layerId} not found`);
+            return this.currentLayers.map(l => l.id);
+        }
+
+        // Validate target index
+        if (targetIndex < 0 || targetIndex >= this.currentLayers.length) {
+            console.warn(`Invalid target index ${targetIndex}. Must be between 0 and ${this.currentLayers.length - 1}`);
+            return this.currentLayers.map(l => l.id);
+        }
+
+        // If the layer is already at the target index, do nothing
+        if (layerIndex === targetIndex) {
+            console.log(`Layer ${layerId} is already at index ${targetIndex}`);
+            return this.currentLayers.map(l => l.id);
+        }
+
+        // Remove the layer from its current position
+        const [layer] = this.currentLayers.splice(layerIndex, 1);
+        
+        // Insert it at the target index
+        this.currentLayers.splice(targetIndex, 0, layer);
+
+        console.log(`Moved layer ${layerId} from index ${layerIndex} to ${targetIndex}`);
+
+        // Refresh the layers to update the rendering
+        this.refreshLayers();
+        
+        // Return the updated layer order
+        return this.currentLayers.map(l => l.id);
+    }
+
+    /**
+     * Move a layer up one position (toward the top/end of the array)
+     * Returns the updated list of layer IDs in order
+     */
+    public moveLayerUp(layerId: string): string[] {
+        const layerIndex = this.currentLayers.findIndex(layer => layer.id === layerId);
+        
+        if (layerIndex === -1) {
+            console.warn(`Layer ${layerId} not found`);
+            return this.currentLayers.map(l => l.id);
+        }
+
+        if (layerIndex === this.currentLayers.length - 1) {
+            console.log(`Layer ${layerId} is already at the top`);
+            return this.currentLayers.map(l => l.id);
+        }
+
+        return this.moveLayerToIndex(layerId, layerIndex + 1);
+    }
+
+    /**
+     * Move a layer down one position (toward the bottom/start of the array)
+     * Returns the updated list of layer IDs in order
+     */
+    public moveLayerDown(layerId: string): string[] {
+        const layerIndex = this.currentLayers.findIndex(layer => layer.id === layerId);
+        
+        if (layerIndex === -1) {
+            console.warn(`Layer ${layerId} not found`);
+            return this.currentLayers.map(l => l.id);
+        }
+
+        if (layerIndex === 0) {
+            console.log(`Layer ${layerId} is already at the bottom`);
+            return this.currentLayers.map(l => l.id);
+        }
+
+        return this.moveLayerToIndex(layerId, layerIndex - 1);
+    }
+
+    /**
+     * Move a layer to the top of the rendering stack (end of array)
+     * Returns the updated list of layer IDs in order
+     */
+    public moveLayerToTop(layerId: string): string[] {
+        const layerIndex = this.currentLayers.findIndex(layer => layer.id === layerId);
+        
+        if (layerIndex === -1) {
+            console.warn(`Layer ${layerId} not found`);
+            return this.currentLayers.map(l => l.id);
+        }
+
+        return this.moveLayerToIndex(layerId, this.currentLayers.length - 1);
+    }
+
+    /**
+     * Move a layer to the bottom of the rendering stack (start of array)
+     * Returns the updated list of layer IDs in order
+     */
+    public moveLayerToBottom(layerId: string): string[] {
+        const layerIndex = this.currentLayers.findIndex(layer => layer.id === layerId);
+        
+        if (layerIndex === -1) {
+            console.warn(`Layer ${layerId} not found`);
+            return this.currentLayers.map(l => l.id);
+        }
+
+        return this.moveLayerToIndex(layerId, 0);
+    }
+
+    /**
+     * Flash a feature to highlight it temporarily
+     */
+    public flashFeature(layerId: string, featureId: string, durationMs: number = 2000): void {
+        console.log(`⚡ Flashing feature: ${featureId} in layer: ${layerId} for ${durationMs}ms`);
+        
+        if (!this.selectedFeatureIds.has(featureId)) {
+            console.log(`Feature ${featureId} is not currently selected, adding temporarily...`);
+        }
+        
+        // Add feature to a temporary flash set
+        const flashKey = `${layerId}_${featureId}`;
+        const flashSet = new Set<string>([flashKey]);
+        
+        // Store original selection
+        const originalSelection = new Set(this.selectedFeatureIds);
+        
+        // Create flash animation by toggling highlight
+        let flashCount = 0;
+        const flashInterval = 200; // Flash every 200ms
+        const totalFlashes = Math.floor(durationMs / flashInterval);
+        
+        const interval = setInterval(() => {
+            flashCount++;
+            
+            if (flashCount % 2 === 0) {
+                // Even count: add to selection (highlight)
+                this.selectedFeatureIds.add(featureId);
+            } else {
+                // Odd count: remove from selection (dim)
+                this.selectedFeatureIds.delete(featureId);
+            }
+            
+            this.refreshLayersWithSelection();
+            
+            if (flashCount >= totalFlashes) {
+                clearInterval(interval);
+                // Restore original selection
+                this.selectedFeatureIds = originalSelection;
+                this.refreshLayersWithSelection();
+                console.log(`✅ Flash complete for feature ${featureId}`);
+            }
+        }, flashInterval);
+    }
+
+    /**
+     * Zoom to a specific feature's bounds
+     */
+    public zoomToFeature(layerId: string, featureId: string, padding: number = 50): void {
+        console.log(`🔍 Zooming to feature: ${featureId} in layer: ${layerId}`);
+        
+        // Find the feature in the layer
+        const layer = this.currentLayers.find(l => l.id === layerId);
+        if (!layer) {
+            console.warn(`❌ Layer ${layerId} not found`);
+            return;
+        }
+
+        const layerData = (layer.props as any).data;
+        let feature = null;
+
+        // Search for the feature
+        if (layerData?.type === 'FeatureCollection' && layerData.features) {
+            feature = layerData.features.find((f: any) => {
+                const fid = this.getFeatureId(f, layerId, true);
+                return fid === featureId;
+            });
+        } else if (Array.isArray(layerData)) {
+            feature = layerData.find((f: any) => {
+                const fid = this.getFeatureId(f, layerId, true);
+                return fid === featureId;
+            });
+        }
+
+        if (!feature) {
+            console.warn(`❌ Feature ${featureId} not found in layer ${layerId}`);
+            console.log('Available features:', layerData?.features?.length || 0);
+            if (layerData?.features?.length > 0) {
+                const sampleFeature = layerData.features[0];
+                console.log('Sample feature ID:', this.getFeatureId(sampleFeature, layerId, true));
+                console.log('Sample feature:', sampleFeature);
+            }
+            return;
+        }
+
+        console.log(`✅ Found feature, calculating bounds...`);
+
+        // Calculate bounds
+        const bounds = this.calculateFeatureBounds(feature);
+        if (bounds) {
+            console.log(`Bounds:`, bounds);
+            this.zoomToBounds(bounds, padding);
+        } else {
+            console.warn(`❌ Could not calculate bounds for feature`);
+        }
+    }
+
+    /**
+     * Zoom to all features in a layer
+     */
+    public zoomToLayer(layerId: string, padding: number = 50): void {
+        const layer = this.currentLayers.find(l => l.id === layerId);
+        if (!layer) {
+            console.warn(`Layer ${layerId} not found`);
+            return;
+        }
+
+        const layerData = (layer.props as any).data;
+        let features: any[] = [];
+
+        if (layerData?.type === 'FeatureCollection' && layerData.features) {
+            features = layerData.features;
+        } else if (Array.isArray(layerData)) {
+            features = layerData;
+        }
+
+        if (features.length === 0) {
+            console.warn(`No features found in layer ${layerId}`);
+            return;
+        }
+
+        // Calculate combined bounds
+        let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+
+        for (const feature of features) {
+            const bounds = this.calculateFeatureBounds(feature);
+            if (bounds) {
+                minLng = Math.min(minLng, bounds.minLng);
+                minLat = Math.min(minLat, bounds.minLat);
+                maxLng = Math.max(maxLng, bounds.maxLng);
+                maxLat = Math.max(maxLat, bounds.maxLat);
+            }
+        }
+
+        if (minLng !== Infinity) {
+            this.zoomToBounds({ minLng, minLat, maxLng, maxLat }, padding);
+        }
+    }
+
+    /**
+     * Zoom to the bounds of specific selected features
+     */
+    public zoomToSelectedFeatures(selectedFeatures: any[], padding: number = 50): void {
+        console.log(`🔍 Zooming to ${selectedFeatures.length} selected features`);
+
+        if (!selectedFeatures || selectedFeatures.length === 0) {
+            console.warn('No features provided to zoom to');
+            return;
+        }
+
+        // Calculate combined bounds of all selected features
+        let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+
+        for (const selectedFeature of selectedFeatures) {
+            const feature = selectedFeature.feature;
+            const bounds = this.calculateFeatureBoundsFromJson(feature);
+            
+            if (bounds) {
+                minLng = Math.min(minLng, bounds.minLng);
+                minLat = Math.min(minLat, bounds.minLat);
+                maxLng = Math.max(maxLng, bounds.maxLng);
+                maxLat = Math.max(maxLat, bounds.maxLat);
+            }
+        }
+
+        if (minLng !== Infinity) {
+            console.log(`✅ Calculated bounds for ${selectedFeatures.length} features:`, 
+                { minLng, minLat, maxLng, maxLat });
+            this.zoomToBounds({ minLng, minLat, maxLng, maxLat }, padding);
+        } else {
+            console.warn(`❌ Could not calculate bounds for selected features`);
+        }
+    }
+
+    /**
+     * Calculate bounds from a sanitized JSON feature (from .NET)
+     */
+    private calculateFeatureBoundsFromJson(feature: any): { minLng: number, minLat: number, maxLng: number, maxLat: number } | null {
+        if (!feature || !feature.geometry) return null;
+
+        let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+
+        const processCoordinate = (coord: [number, number]) => {
+            const [lng, lat] = coord;
+            minLng = Math.min(minLng, lng);
+            minLat = Math.min(minLat, lat);
+            maxLng = Math.max(maxLng, lng);
+            maxLat = Math.max(maxLat, lat);
+        };
+
+        const processCoordinates = (coords: any) => {
+            if (Array.isArray(coords)) {
+                if (typeof coords[0] === 'number') {
+                    // Single coordinate [lng, lat]
+                    processCoordinate(coords as [number, number]);
+                } else {
+                    // Array of coordinates
+                    for (const coord of coords) {
+                        processCoordinates(coord);
+                    }
+                }
+            }
+        };
+
+        if (feature.geometry.coordinates) {
+            processCoordinates(feature.geometry.coordinates);
+        }
+
+        if (minLng === Infinity) return null;
+
+        return { minLng, minLat, maxLng, maxLat };
+    }
+
+    /**
+     * Calculate bounds for a feature
+     */
+    private calculateFeatureBounds(feature: any): { minLng: number, minLat: number, maxLng: number, maxLat: number } | null {
+        if (!feature) return null;
+
+        let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+
+        const processCoordinate = (coord: [number, number]) => {
+            const [lng, lat] = coord;
+            minLng = Math.min(minLng, lng);
+            minLat = Math.min(minLat, lat);
+            maxLng = Math.max(maxLng, lng);
+            maxLat = Math.max(maxLat, lat);
+        };
+
+        const processCoordinates = (coords: any) => {
+            if (Array.isArray(coords)) {
+                if (typeof coords[0] === 'number') {
+                    // Single coordinate [lng, lat]
+                    processCoordinate(coords as [number, number]);
+                } else {
+                    // Array of coordinates
+                    for (const coord of coords) {
+                        processCoordinates(coord);
+                    }
+                }
+            }
+        };
+
+        if (feature.geometry?.coordinates) {
+            processCoordinates(feature.geometry.coordinates);
+        } else if (feature.position) {
+            processCoordinate(feature.position);
+        } else if (feature.coordinates) {
+            processCoordinate(feature.coordinates);
+        }
+
+        if (minLng === Infinity) return null;
+
+        return { minLng, minLat, maxLng, maxLat };
+    }
+
+    /**
+     * Zoom to specific bounds
+     */
+    private zoomToBounds(bounds: { minLng: number, minLat: number, maxLng: number, maxLat: number }, padding: number): void {
+        if (!this.deck) return;
+
+        const { minLng, minLat, maxLng, maxLat } = bounds;
+
+        // Calculate center
+        const longitude = (minLng + maxLng) / 2;
+        const latitude = (minLat + maxLat) / 2;
+
+        // Calculate zoom level based on bounds and viewport size
+        const container = document.getElementById(this.containerId);
+        if (!container) return;
+
+        const rect = container.getBoundingClientRect();
+        const viewportWidth = rect.width;
+        const viewportHeight = rect.height;
+
+        // Calculate degrees per pixel at different zoom levels
+        const lngDiff = maxLng - minLng;
+        const latDiff = maxLat - minLat;
+
+        // Add padding factor (padding is in pixels, convert to fraction)
+        const paddingFraction = padding / Math.min(viewportWidth, viewportHeight);
+        const adjustedLngDiff = lngDiff / (1 - paddingFraction * 2);
+        const adjustedLatDiff = latDiff / (1 - paddingFraction * 2);
+
+        // Calculate zoom to fit longitude
+        const lngZoom = Math.log2(360 / adjustedLngDiff);
+        
+        // Calculate zoom to fit latitude (accounting for Web Mercator distortion)
+        const latZoom = Math.log2(180 / adjustedLatDiff);
+
+        // Use the smaller zoom to ensure everything fits
+        let zoom = Math.min(lngZoom, latZoom) - 0.5; // Subtract 0.5 for extra padding
+        zoom = Math.max(0, Math.min(20, zoom)); // Clamp between 0 and 20
+
+        // Get current zoom to determine if we're zooming in or out
+        const currentViewState = (this.deck as any).viewState || (this.deck as any).props?.initialViewState || {};
+        const currentZoom = currentViewState.zoom || 0;
+
+        console.log(`Zooming to bounds:`, { 
+            center: { longitude, latitude }, 
+            calculatedZoom: zoom,
+            currentZoom: currentZoom,
+            bounds: { minLng, minLat, maxLng, maxLat },
+            viewport: { width: viewportWidth, height: viewportHeight }
+        });
+
+        // Use longer duration for zoom out, shorter for zoom in
+        const isZoomingOut = zoom < currentZoom;
+        const transitionDuration = isZoomingOut ? 1500 : 1000;
+
+        // Create a completely new initialViewState object to ensure deck.gl detects the change
+        // Add a small random offset to ensure the state is always "new"
+        const newViewState = {
+            longitude: longitude,
+            latitude: latitude,
+            zoom: zoom,
+            pitch: currentViewState.pitch || 0,
+            bearing: currentViewState.bearing || 0,
+            transitionDuration: transitionDuration,
+            transitionInterpolator: null,
+            // Add a timestamp to ensure the object is always unique
+            _timestamp: Date.now()
+        };
+
+        // Update the deck with the new view state
+        this.deck.setProps({
+            initialViewState: newViewState
+        });
+
+        // Force a redraw to ensure the transition starts
+        setTimeout(() => {
+            if (this.deck) {
+                this.deck.redraw(true);
+            }
+        }, 10);
+    }
+
+    /**
+     * Unselect a specific feature
+     */
+    public unselectFeature(featureId: string): void {
+        console.log(`🗑️ Attempting to unselect feature: ${featureId}`);
+        console.log(`Currently selected IDs:`, Array.from(this.selectedFeatureIds));
+        
+        if (this.selectedFeatureIds.has(featureId)) {
+            this.selectedFeatureIds.delete(featureId);
+            console.log(`✅ Unselected feature: ${featureId}`);
+            
+            // Notify .NET of updated selection
+            if (this.dotNetHelper) {
+                const selectedFeatures = this.getSelectedFeaturesFromIds();
+                this.dotNetHelper.invokeMethodAsync('OnFeaturesSelected', {
+                    polygon: [],
+                    features: selectedFeatures,
+                    featureCount: selectedFeatures.length
+                });
+            }
+            
+            this.refreshLayersWithSelection();
+        } else {
+            console.warn(`❌ Feature ${featureId} was not in selection`);
+        }
+    }
+
+    /**
+     * Clear selection for all features in a specific layer
+     */
+    public clearLayerSelection(layerId: string): void {
+        // Find all selected feature IDs that belong to this layer
+        const featuresToRemove: string[] = [];
+        
+        // We need to check each selected feature to see if it belongs to this layer
+        // This requires searching through the layer's data
+        const layer = this.currentLayers.find(l => l.id === layerId);
+        if (layer) {
+            const layerData = (layer.props as any).data;
+            let features: any[] = [];
+
+            if (layerData?.type === 'FeatureCollection' && layerData.features) {
+                features = layerData.features;
+            } else if (Array.isArray(layerData)) {
+                features = layerData;
+            }
+
+            for (const feature of features) {
+                const featureId = this.getFeatureId(feature, layerId);
+                if (featureId && this.selectedFeatureIds.has(featureId)) {
+                    featuresToRemove.push(featureId);
+                }
+            }
+        }
+
+        // Remove all features from this layer
+        for (const featureId of featuresToRemove) {
+            this.selectedFeatureIds.delete(featureId);
+        }
+
+        console.log(`Cleared selection for ${featuresToRemove.length} features in layer ${layerId}`);
+
+        // Notify .NET of updated selection
+        if (this.dotNetHelper) {
+            const selectedFeatures = this.getSelectedFeaturesFromIds();
+            this.dotNetHelper.invokeMethodAsync('OnFeaturesSelected', {
+                polygon: [],
+                features: selectedFeatures,
+                featureCount: selectedFeatures.length
+            });
+        }
+
+        this.refreshLayersWithSelection();
+    }
+
+    /**
+     * Get selected features with their layer and feature data
+     */
+    private getSelectedFeaturesFromIds(): any[] {
+        const selectedFeatures: any[] = [];
+
+        for (const layer of this.currentLayers) {
+            const layerData = (layer.props as any).data;
+            let features: any[] = [];
+
+            if (layerData?.type === 'FeatureCollection' && layerData.features) {
+                features = layerData.features;
+            } else if (Array.isArray(layerData)) {
+                features = layerData;
+            }
+
+            for (const feature of features) {
+                const featureId = this.getFeatureId(feature, layer.id);
+                if (featureId && this.selectedFeatureIds.has(featureId)) {
+                    selectedFeatures.push({
+                        layerId: layer.id,
+                        feature: this.sanitizeFeature(feature)
+                    });
+                }
+            }
+        }
+
+        return selectedFeatures;
+    }
     
     private performSelection(polygon: [number, number][]): void {
         const selectedFeatures = this.selectFeaturesInPolygon(polygon);
@@ -1899,6 +2545,94 @@ constructor(config: DeckGLViewConfig, dotNetHelper?: any) {
         
         // Ensure cursor is correct after layer refresh
         setTimeout(() => this.updateCursor(), 50);
+    }
+
+    /**
+     * Set the map interaction mode
+     * @param mode - 'Explore', 'SelectFeature', or 'SelectByPolygon'
+     */
+    public setMapMode(mode: string): void {
+        console.log(`Setting map mode to: ${mode}`);
+        
+        const previousMode = this.currentMapMode;
+        this.currentMapMode = mode;
+        
+        // Handle mode transitions
+        if (mode === 'SelectByPolygon') {
+            // Enable polygon drawing mode
+            this.setDrawingMode(true);
+        } else if (previousMode === 'SelectByPolygon') {
+            // Disable polygon drawing mode if we're leaving it
+            this.setDrawingMode(false);
+        }
+        
+        // Clear selection when changing modes
+        if (mode !== previousMode) {
+            this.clearSelection();
+        }
+        
+        // Update cursor
+        this.updateCursor();
+    }
+
+    /**
+     * Handle single feature selection (SelectFeature mode)
+     */
+    private handleSingleFeatureSelection(info: any): void {
+        if (!info.object || !info.layer) return;
+        
+        const layerId = info.layer.id;
+        const feature = info.object;
+        
+        // Get feature ID
+        const featureId = this.getFeatureId(feature, layerId);
+        
+        console.log(`🖱️ Feature clicked in SelectFeature mode:`, {
+            layerId,
+            featureId,
+            feature
+        });
+        
+        // Check if this is the currently selected feature
+        const isAlreadySelected = featureId && this.selectedFeatureIds.has(featureId);
+        
+        // Clear previous selection
+        this.selectedFeatureIds.clear();
+        
+        if (!isAlreadySelected && featureId) {
+            // Select the new feature
+            this.selectedFeatureIds.add(featureId);
+            console.log(`✅ Feature selected: ${featureId}`);
+            
+            // Notify .NET with a FeatureSelectionResult containing the single feature
+            if (this.dotNetHelper) {
+                const sanitizedFeature = this.sanitizeFeature(feature);
+                const result = {
+                    polygon: [], // No polygon for single click selection
+                    features: [{
+                        layerId: layerId,
+                        feature: sanitizedFeature
+                    }],
+                    featureCount: 1
+                };
+                this.dotNetHelper.invokeMethodAsync('OnFeaturesSelected', result);
+            }
+        } else {
+            console.log(`❌ Feature deselected`);
+            
+            // Notify .NET with an empty selection result
+            if (this.dotNetHelper) {
+                const result = {
+                    polygon: [],
+                    features: [],
+                    featureCount: 0
+                };
+                this.dotNetHelper.invokeMethodAsync('OnFeaturesSelected', result);
+            }
+        }
+        
+        // Refresh layers to show selection
+        this.refreshLayersWithSelection();
     }
 }
 

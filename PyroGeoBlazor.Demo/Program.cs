@@ -1,5 +1,6 @@
 using MudBlazor.Services;
 
+using PyroGeoBlazor.DeckGL.Extensions;
 using PyroGeoBlazor.Demo;
 using PyroGeoBlazor.Demo.Components;
 using PyroGeoBlazor.Extensions;
@@ -17,7 +18,7 @@ services.AddControllers();
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddMudServices();
+builder.Services.AddPyroGeoBlazorDeckGL();
 
 builder.Services.AddLeafletMap();
 builder.Services.AddPyroGeoBlazor<MudBlazorWmtsFactory, MudBlazorWfsFactory>();
@@ -54,5 +55,7 @@ app.UseRouting();
 app.UseAntiforgery();
 app.MapControllers();
 app.MapFallback(() => Results.Content("PyroGeoBlazor Demo running"));
+
+app.UsePyroGeoBlazorDeckGL();
 
 app.Run();

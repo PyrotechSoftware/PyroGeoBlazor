@@ -1,8 +1,10 @@
 @page "/map-workspace"
+@using Microsoft.EntityFrameworkCore
 @using MudBlazor
 @using MudBlazor.Utilities
 @using PyroGeoBlazor.DeckGL.Components
 @using PyroGeoBlazor.DeckGL.Models
+@using PyroGeoBlazor.Demo.Models
 
 <div style="height: 100%; display: flex; flex-direction: column; overflow: hidden;">
     <MapToolbar CurrentMode="@currentMapMode" CurrentModeChanged="@OnMapModeChanged">
@@ -81,32 +83,145 @@
 </div>
 
 @code {
+
     private MapMode currentMapMode = MapMode.Explore;
     private DeckGLView? deckGLView;
     private FeatureSelectionResult? selectionResult;
     private Dictionary<string, LayerConfig> layerConfigsDict = new();
 
     private ViewState initialViewState = new()
-{
-    Longitude = -123.13,  // Vancouver coordinates
-    Latitude = 49.28,
-    Zoom = 11,
-    Pitch = 0,
-    Bearing = 0
-};
+    {
+        Longitude = -123.13,  // Vancouver coordinates
+        Latitude = 49.28,
+        Zoom = 11,
+        Pitch = 0,
+        Bearing = 0
+    };
 
     private ViewState viewState = new()
-{
-    Longitude = -123.13,
-    Latitude = 49.28,
-    Zoom = 11
-};
+    {
+        Longitude = -123.13,
+        Latitude = 49.28,
+        Zoom = 11
+    };
 
     private List<LayerConfig> layers = [];
 
     protected override void OnInitialized()
     {
         // Don't add layers here - wait for OnDeckInitialized callback
+    }
+
+    private async Task AddSqlLayers()
+    {
+        Console.WriteLine("Adding SQL layers...");
+
+        var townshipLayer = new GeoJsonLayerConfig
+        {
+            Id = "Townships",
+            DataUrl = "api/townships",
+            Pickable = false,
+            Stroked = true,
+            Filled = true,
+            Extruded = false,
+            LineWidthScale = 1,
+            LineWidthMinPixels = 1,
+            TooltipConfig = TooltipConfig.ForProperties("townName"),
+            UniqueIdProperty = "geoTownshipId",
+            DisplayProperty = "townName",
+            IsEditable = false,
+            FeatureStyle = new()
+            {
+                FillColor = "#868E96",
+                FillOpacity = 0.2,
+                LineColor = "#868E96",
+                Opacity = 1.0,
+                LineWidth = 1,
+            },
+            Opacity = 1, 
+        };
+
+        layers.Add(townshipLayer);
+
+        var extensionLayer = new GeoJsonLayerConfig
+        {
+            Id = "Extensions",
+            DataUrl = "api/townshipextensions",
+            Pickable = false,
+            Stroked = true,
+            Filled = true,
+            Extruded = false,
+            LineWidthScale = 1,
+            LineWidthMinPixels = 1,
+            TooltipConfig = TooltipConfig.ForProperties("townshipExtensionOrFarmName"),
+            UniqueIdProperty = "geoTownshipExtensionOrFarmId",
+            DisplayProperty = "townshipExtensionOrFarmName",
+            IsEditable = true,
+            FeatureStyle = new()
+            {
+                FillColor = "#FF8C00",
+                FillOpacity = 0.2,
+                LineColor = "#FF8C00",
+                Opacity = 1.0,
+                LineWidth = 2,
+            },
+            Opacity = 1,
+        };
+
+        layers.Add(extensionLayer);
+
+        // Add Parcels layer as well.
+        var parcelsLayer = new GeoJsonLayerConfig
+        {
+            Id = "Parcels",
+            DataUrl = "api/parcels",
+            Pickable = true,
+            Stroked = true,
+            Filled = true,
+            Extruded = false,
+            LineWidthScale = 1,
+            LineWidthMinPixels = 0,
+            TooltipConfig = TooltipConfig.ForProperties("customIdentifier", "propertyId"),
+            UniqueIdProperty = "geoParcelId",
+            DisplayProperty = "customIdentifier",
+            IsEditable = true,
+            FeatureStyle = new FeatureStyle
+            {
+                LineWidth = 1,
+                LineColor = "#0375ff",
+                FillOpacity = 0.2,
+                FillColor = "#0375ff"
+            },
+            HoverStyle = new FeatureStyle
+            {
+                LineWidth = 1,
+                LineColor = "#ff0000",
+                FillColor = "#ff0000",
+                FillOpacity = 0.5
+            },
+            Opacity = 0.7,
+            EditableFields =
+            [
+                new AttributeFieldConfig
+                {
+                    FieldName = "customIdentifier",
+                    DisplayName = "Custom Identifier",
+                    DataType = AttributeDataType.String,
+                    IsReadOnly = true,
+                    Order = 1
+                },
+                new AttributeFieldConfig
+                {
+                    FieldName = "propertyId",
+                    DisplayName = "Property ID",
+                    DataType = AttributeDataType.Integer,
+                    IsReadOnly = true,
+                    Order = 0
+                }
+            ]
+        };
+
+        layers.Add(parcelsLayer);
     }
 
     private async Task OnDeckInitialized()
@@ -169,6 +284,9 @@
 
         layers.Add(geoJsonLayer);
 
+        // Add SQL-based layers
+        await AddSqlLayers();
+
         // Build the dictionary for quick lookup
         layerConfigsDict = layers.ToDictionary(l => l.Id, l => l);
 
@@ -176,6 +294,7 @@
         if (deckGLView != null)
         {
             await deckGLView.UpdateLayers();
+            await deckGLView.ZoomToLayer("Townships", 0);
         }
 
         StateHasChanged();

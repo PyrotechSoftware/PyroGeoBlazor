@@ -1,10 +1,10 @@
-using MudBlazor.Services;
+using Microsoft.EntityFrameworkCore;
 
 using PyroGeoBlazor.DeckGL.Extensions;
 using PyroGeoBlazor.Demo;
 using PyroGeoBlazor.Demo.Components;
+using PyroGeoBlazor.Demo.Models;
 using PyroGeoBlazor.Extensions;
-using PyroGeoBlazor.Factories;
 using PyroGeoBlazor.Leaflet;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,6 +13,13 @@ var services = builder.Services;
 
 // Register controllers for test endpoints
 services.AddControllers();
+
+// Register PlannerContext with SQL Server
+services.AddDbContext<PlannerContext>(options =>
+    options.UseSqlServer(
+        builder.Configuration.GetConnectionString("PlannerDatabase"),
+        sqlOptions => sqlOptions.UseNetTopologySuite()
+    ));
 
 // Add services to the container.
 builder.Services.AddRazorComponents()

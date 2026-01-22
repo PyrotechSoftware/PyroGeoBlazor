@@ -127,6 +127,19 @@ public class FeatureStyle
         LineWidth = 3,
         RadiusScale = 1.5
     };
+
+    /// <summary>
+    /// Create a gray style
+    /// </summary>
+    public static FeatureStyle Gray => new()
+    {
+        FillColor = "#868E96",
+        FillOpacity = 0.5,
+        LineColor = "#495057",
+        Opacity = 1.0,
+        LineWidth = 1,
+        RadiusScale = 1.0
+    };
 }
 
 

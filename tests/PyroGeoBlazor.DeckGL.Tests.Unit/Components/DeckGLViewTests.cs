@@ -6,7 +6,7 @@ using Microsoft.JSInterop;
 using PyroGeoBlazor.DeckGL.Components;
 using PyroGeoBlazor.DeckGL.Models;
 
-public class DeckGLViewTests : TestContext
+public class DeckGLViewTests : BunitContext
 {
     [Fact]
     public void DeckGLView_RendersContainerElement()
@@ -18,7 +18,7 @@ public class DeckGLViewTests : TestContext
         jsModule.SetupModule("DeckGL.DeckGLView.createDeckGLView", _ => true);
 
         // Act
-        var cut = RenderComponent<DeckGLView>(parameters => parameters
+        var cut = Render<DeckGLView>(parameters => parameters
             .Add(p => p.ContainerId, "test-container")
             .Add(p => p.InitialViewState, new ViewState
             {
@@ -39,7 +39,7 @@ public class DeckGLViewTests : TestContext
         jsModule.SetupModule("DeckGL.DeckGLView.createDeckGLView", _ => true);
 
         // Act
-        var cut = RenderComponent<DeckGLView>();
+        var cut = Render<DeckGLView>();
 
         // Assert
         cut.Markup.Should().Contain("id=\"deckgl-");
@@ -53,7 +53,7 @@ public class DeckGLViewTests : TestContext
         jsModule.SetupModule("DeckGL.DeckGLView.createDeckGLView", _ => true);
 
         // Act
-        var cut = RenderComponent<DeckGLView>();
+        var cut = Render<DeckGLView>();
 
         // Assert
         cut.Markup.Should().Contain("width: 100%");

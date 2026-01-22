@@ -85,6 +85,14 @@ public abstract class LayerConfig
     public string? DisplayProperty { get; set; }
 
     /// <summary>
+    /// Optional renderer for styling features based on attribute values (like ArcGIS UniqueValueRenderer).
+    /// When set, each unique value of the specified attribute gets its own style.
+    /// Example: Style parcels by zoning type, with different colors for Residential, Commercial, Industrial, etc.
+    /// </summary>
+    [JsonPropertyName("uniqueValueRenderer")]
+    public UniqueValueRenderer? UniqueValueRenderer { get; set; }
+
+    /// <summary>
     /// Whether the layer is pickable (can be clicked/hovered)
     /// </summary>
     [JsonIgnore]

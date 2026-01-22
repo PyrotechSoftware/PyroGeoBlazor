@@ -43,6 +43,7 @@ export interface LayerConfig {
     tooltipConfig?: TooltipConfig;  // Tooltip configuration for this layer
     uniqueIdProperty?: string;  // Property name to use as unique feature ID (e.g., "CustomIdentifier")
     displayProperty?: string;  // Property name to use for displaying feature names in UI
+    uniqueValueRenderer?: UniqueValueRenderer;  // Attribute-based styling
 }
 
 /**
@@ -65,6 +66,15 @@ export interface TooltipConfig {
     format?: string;  // Format string with {propertyName} placeholders
     enabled?: boolean;  // Whether to show tooltips
     style?: Record<string, string>;  // CSS styles
+}
+
+/**
+ * Unique value renderer for styling features by attribute values
+ */
+export interface UniqueValueRenderer {
+    attribute: string;  // Property name to use for classification
+    valueStyles: Record<string, FeatureStyleConfig>;  // Map of value -> style
+    defaultStyle?: FeatureStyleConfig;  // Default style for unspecified values
 }
 
 /**
@@ -513,12 +523,23 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      * Apply base feature style to layer configuration
      */
     private applyFeatureStyle(config: LayerConfig): LayerConfig {
-        if (!config.featureStyle) {
+        if (!config.featureStyle && !config.uniqueValueRenderer) {
             return config;
         }
 
-        const style = config.featureStyle;
         const enhancedProps = { ...config.props };
+
+        // If unique value renderer is specified, use attribute-based styling
+        if (config.uniqueValueRenderer) {
+            this.applyUniqueValueRenderer(config, enhancedProps);
+            return {
+                ...config,
+                props: enhancedProps
+            };
+        }
+
+        // Otherwise, apply simple feature style
+        const style = config.featureStyle!;
 
         // Apply style properties based on layer type
         if (style.fillColor && !enhancedProps.fillColor && !enhancedProps.getFillColor) {
@@ -542,6 +563,88 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         return {
             ...config,
             props: enhancedProps
+        };
+    }
+
+    /**
+     * Apply unique value renderer to create attribute-based styling
+     */
+    private applyUniqueValueRenderer(config: LayerConfig, enhancedProps: Record<string, any>): void {
+        const renderer = config.uniqueValueRenderer!;
+        const attribute = renderer.attribute;
+        const valueStyles = renderer.valueStyles;
+        const defaultStyle = renderer.defaultStyle;
+
+        console.log(`Applying unique value renderer on attribute '${attribute}' for layer ${config.id}`);
+        console.log(`  Styles defined for values:`, Object.keys(valueStyles));
+
+        // Create getFillColor accessor function
+        enhancedProps.getFillColor = (feature: any) => {
+            // Get the attribute value from the feature
+            let value = feature.properties?.[attribute];
+            
+            // Convert to string for comparison (unless it's null/undefined)
+            const valueKey = value === null || value === undefined ? 'null' : String(value);
+            
+            // Look up the style for this value
+            const style = valueStyles[valueKey] ?? defaultStyle;
+            
+            if (style?.fillColor) {
+                const fillOpacity = style.fillOpacity ?? 1.0;
+                return hexToRgba(style.fillColor, fillOpacity);
+            }
+            
+            // Fallback to default gray
+            return [160, 160, 180, 200];
+        };
+
+        // Create getLineColor accessor function
+        enhancedProps.getLineColor = (feature: any) => {
+            let value = feature.properties?.[attribute];
+            const valueKey = value === null || value === undefined ? 'null' : String(value);
+            const style = valueStyles[valueKey] ?? defaultStyle;
+            
+            if (style?.lineColor) {
+                const lineOpacity = style.opacity ?? 1.0;
+                return hexToRgba(style.lineColor, lineOpacity);
+            }
+            
+            return [80, 80, 80, 255];
+        };
+
+        // Create getLineWidth accessor function
+        enhancedProps.getLineWidth = (feature: any) => {
+            let value = feature.properties?.[attribute];
+            const valueKey = value === null || value === undefined ? 'null' : String(value);
+            const style = valueStyles[valueKey] ?? defaultStyle;
+            
+            return style?.lineWidth ?? 1;
+        };
+
+        // Create getRadius accessor function (for point layers)
+        if (config.type === 'ScatterplotLayer' || config.type === 'scatterplot') {
+            const originalGetRadius = enhancedProps.getRadius;
+            
+            enhancedProps.getRadius = (feature: any) => {
+                let value = feature.properties?.[attribute];
+                const valueKey = value === null || value === undefined ? 'null' : String(value);
+                const style = valueStyles[valueKey] ?? defaultStyle;
+                
+                const baseRadius = typeof originalGetRadius === 'function'
+                    ? originalGetRadius(feature)
+                    : (feature.radius || 100);
+                
+                return baseRadius * (style?.radiusScale ?? 1.0);
+            };
+        }
+
+        // Set update triggers to ensure deck.gl re-renders when styles change
+        enhancedProps.updateTriggers = {
+            ...enhancedProps.updateTriggers,
+            getFillColor: attribute,
+            getLineColor: attribute,
+            getLineWidth: attribute,
+            getRadius: attribute
         };
     }
 
@@ -1852,7 +1955,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         // Force a redraw to ensure the transition starts
         setTimeout(() => {
             if (this.deck) {
-                this.deck.redraw(true);
+                this.deck.redraw('zoom');
             }
         }, 10);
     }

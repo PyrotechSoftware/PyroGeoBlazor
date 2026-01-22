@@ -15,10 +15,10 @@ public class LayerContentsControlTests : MudBlazorTestContext
 {
 
     [Fact]
-    public void LayerContentsControl_RendersEmptyState_WhenNoLayers()
+    public void LayerContentsControl_RenderMudComponentsEmptyState_WhenNoLayers()
     {
         // Arrange & Act
-        var cut = Render<LayerContentsControl>(parameters => parameters
+        var cut = RenderWithMud<LayerContentsControl>(parameters => parameters
             .Add(p => p.Layers, new List<LayerConfig>()));
 
         // Assert
@@ -26,7 +26,7 @@ public class LayerContentsControlTests : MudBlazorTestContext
     }
 
     [Fact]
-    public void LayerContentsControl_RendersLayerList_WhenLayersProvided()
+    public void LayerContentsControl_RenderMudComponentsLayerList_WhenLayersProvided()
     {
         // Arrange
         var layers = new List<LayerConfig>
@@ -36,7 +36,7 @@ public class LayerContentsControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<LayerContentsControl>(parameters => parameters
+        var cut = RenderWithMud<LayerContentsControl>(parameters => parameters
             .Add(p => p.Layers, layers));
 
         // Assert
@@ -58,7 +58,7 @@ public class LayerContentsControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<LayerContentsControl>(parameters => parameters
+        var cut = RenderWithMud<LayerContentsControl>(parameters => parameters
             .Add(p => p.Layers, layers)
             .Add(p => p.IsLocked, false));
 
@@ -81,7 +81,7 @@ public class LayerContentsControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<LayerContentsControl>(parameters => parameters
+        var cut = RenderWithMud<LayerContentsControl>(parameters => parameters
             .Add(p => p.Layers, layers)
             .Add(p => p.IsLocked, false));
 
@@ -104,7 +104,7 @@ public class LayerContentsControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<LayerContentsControl>(parameters => parameters
+        var cut = RenderWithMud<LayerContentsControl>(parameters => parameters
             .Add(p => p.Layers, layers)
             .Add(p => p.IsLocked, true));  // But globally locked
 
@@ -123,7 +123,7 @@ public class LayerContentsControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<LayerContentsControl>(parameters => parameters
+        var cut = RenderWithMud<LayerContentsControl>(parameters => parameters
             .Add(p => p.Layers, layers));
 
         // Assert - should not contain color picker icon for tile layers
@@ -145,7 +145,7 @@ public class LayerContentsControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<LayerContentsControl>(parameters => parameters
+        var cut = RenderWithMud<LayerContentsControl>(parameters => parameters
             .Add(p => p.Layers, layers));
 
         // Assert - should contain "locked" text in tooltip or button
@@ -166,7 +166,7 @@ public class LayerContentsControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<LayerContentsControl>(parameters => parameters
+        var cut = RenderWithMud<LayerContentsControl>(parameters => parameters
             .Add(p => p.Layers, layers)
             .Add(p => p.IsLocked, true));  // Globally locked
 
@@ -181,7 +181,7 @@ public class LayerContentsControlTests : MudBlazorTestContext
     [Fact]
     public void LayerContentsControl_LayersInReverseOrder()
     {
-        // Arrange - layers are in rendering order (bottom to top)
+        // Arrange - layers are in RenderMudComponenting order (bottom to top)
         var layers = new List<LayerConfig>
         {
             new GeoJsonLayerConfig { Id = "bottom-layer" },
@@ -190,7 +190,7 @@ public class LayerContentsControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<LayerContentsControl>(parameters => parameters
+        var cut = RenderWithMud<LayerContentsControl>(parameters => parameters
             .Add(p => p.Layers, layers));
 
         // Assert - in the UI, top layer should appear first

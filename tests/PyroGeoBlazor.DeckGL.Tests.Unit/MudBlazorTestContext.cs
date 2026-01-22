@@ -1,5 +1,4 @@
 using Bunit;
-using Bunit.Rendering;
 
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Rendering;
@@ -7,8 +6,10 @@ using Microsoft.AspNetCore.Components.Rendering;
 using MudBlazor;
 using MudBlazor.Services;
 
-public abstract class MudBlazorTestContext : BunitContext
+public abstract class MudBlazorTestContext : BunitContext, IAsyncDisposable
 {
+    private bool _disposed;
+
     protected MudBlazorTestContext()
     {
         // Register MudBlazor services
@@ -22,32 +23,35 @@ public abstract class MudBlazorTestContext : BunitContext
         JSInterop.SetupVoid("mudPopover.connect", _ => true);
         JSInterop.SetupVoid("mudKeyInterceptor.connect", _ => true);
         JSInterop.SetupVoid("mudDragAndDrop.initDropZone", _ => true);
-        JSInterop.Setup<int>("mudpopoverHelper.countProviders");
+        JSInterop.Setup<int>("mudpopoverHelper.countProviders").SetResult(0);
     }
 
-    public override IRenderedComponent<ContainerFragment> Render(RenderFragment renderFragment)
+    public IRenderedComponent<TComponent> RenderWithMud<TComponent>(Action<ComponentParameterCollectionBuilder<TComponent>>? parameterBuilder = null)
+        where TComponent : IComponent
     {
-        var host = base.Render<MudTestHost>(p => p.AddChildContent(renderFragment));
-
-        return host.FindComponent<ContainerFragment>();
-    }
-
-    public override IRenderedComponent<TComponent> Render<TComponent>(Action<ComponentParameterCollectionBuilder<TComponent>>? parameterBuilder = null)
-    {
-        var host = base.Render<MudTestHost>(p => p.AddChildContent<TComponent>(parameterBuilder));
-
-        return host.FindComponent<TComponent>();
-    }
-    public override IRenderedComponent<TComponent> Render<TComponent>(RenderFragment renderFragment)
-    {
-        var host = base.Render<MudTestHost>(p => p.AddChildContent(renderFragment));
+        var host = Render<MudTestHost>(ps => ps.AddChildContent<TComponent>(parameterBuilder));
 
         return host.FindComponent<TComponent>();
     }
 
-    protected override async void Dispose(bool disposing)
+    protected override void Dispose(bool disposing)
     {
-        await base.DisposeAsync();
+        // Do not call base.Dispose() because MudBlazor services only implement IAsyncDisposable
+        // xUnit will call DisposeAsync() instead
+        if (disposing && !_disposed)
+        {
+            _disposed = true;
+        }
+    }
+
+    public new async ValueTask DisposeAsync()
+    {
+        if (!_disposed)
+        {
+            await base.DisposeAsync();
+            _disposed = true;
+        }
+        GC.SuppressFinalize(this);
     }
 }
 

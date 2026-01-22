@@ -18,7 +18,7 @@ public class FeatureAttributesControlTests : MudBlazorTestContext
     public void FeatureAttributesControl_ShowsEmptyState_WhenNoFeatureSelected()
     {
         // Arrange & Act
-        var cut = Render<FeatureAttributesControl>(parameters => parameters
+        var cut = RenderWithMud<FeatureAttributesControl>(parameters => parameters
             .Add(p => p.SelectedFeature, null));
 
         // Assert
@@ -48,7 +48,7 @@ public class FeatureAttributesControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<FeatureAttributesControl>(parameters => parameters
+        var cut = RenderWithMud<FeatureAttributesControl>(parameters => parameters
             .Add(p => p.SelectedFeature, selectedFeature));
 
         // Assert
@@ -79,7 +79,7 @@ public class FeatureAttributesControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<FeatureAttributesControl>(parameters => parameters
+        var cut = RenderWithMud<FeatureAttributesControl>(parameters => parameters
             .Add(p => p.SelectedFeature, selectedFeature)
             .Add(p => p.IsLocked, false));
 
@@ -108,7 +108,7 @@ public class FeatureAttributesControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<FeatureAttributesControl>(parameters => parameters
+        var cut = RenderWithMud<FeatureAttributesControl>(parameters => parameters
             .Add(p => p.SelectedFeature, selectedFeature)
             .Add(p => p.IsLocked, true));
 
@@ -137,7 +137,7 @@ public class FeatureAttributesControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<FeatureAttributesControl>(parameters => parameters
+        var cut = RenderWithMud<FeatureAttributesControl>(parameters => parameters
             .Add(p => p.SelectedFeature, selectedFeature)
             .Add(p => p.IsLocked, true));
 
@@ -172,7 +172,7 @@ public class FeatureAttributesControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<FeatureAttributesControl>(parameters => parameters
+        var cut = RenderWithMud<FeatureAttributesControl>(parameters => parameters
             .Add(p => p.SelectedFeature, selectedFeature)
             .Add(p => p.ExcludedProperties, new[] { "internalId" }));
 
@@ -206,7 +206,7 @@ public class FeatureAttributesControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<FeatureAttributesControl>(parameters => parameters
+        var cut = RenderWithMud<FeatureAttributesControl>(parameters => parameters
             .Add(p => p.SelectedFeature, selectedFeature));
 
         // Assert
@@ -236,7 +236,7 @@ public class FeatureAttributesControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<FeatureAttributesControl>(parameters => parameters
+        var cut = RenderWithMud<FeatureAttributesControl>(parameters => parameters
             .Add(p => p.SelectedFeature, selectedFeature));
 
         // Assert

@@ -1091,7 +1091,7 @@ public class Map : InteropObject
     public Task LayerAdd(LeafletLayerEventArgs args)
     {
         // Update internal layer order: append the layer info when a layer is added
-        if (args?.Layer is not null)
+        if (args.Layer is not null)
         {
             var existing = _layerOrder.FirstOrDefault(x => x.LeafletId == args.Layer.LeafletId);
             if (existing is null)
@@ -1108,7 +1108,7 @@ public class Map : InteropObject
     public Task LayerRemove(LeafletLayerEventArgs args)
     {
         // Update internal layer order: remove the layer info when a layer is removed
-        if (args?.Layer is not null)
+        if (args.Layer is not null)
         {
             _layerOrder.RemoveAll(x => x.LeafletId == args.Layer.LeafletId);
         }

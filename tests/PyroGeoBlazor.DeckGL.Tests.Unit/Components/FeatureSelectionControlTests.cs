@@ -16,7 +16,7 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
     public void FeatureSelectionControl_ShowsEmptyState_WhenNoFeaturesSelected()
     {
         // Arrange & Act
-        var cut = Render<FeatureSelectionControl>(parameters => parameters
+        var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
             .Add(p => p.SelectionResult, null));
 
         // Assert
@@ -50,7 +50,7 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<FeatureSelectionControl>(parameters => parameters
+        var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
             .Add(p => p.SelectionResult, selectionResult));
 
         // Assert
@@ -88,7 +88,7 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<FeatureSelectionControl>(parameters => parameters
+        var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
             .Add(p => p.SelectionResult, selectionResult)
             .Add(p => p.LayerConfigs, layerConfigs));
 
@@ -131,7 +131,7 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<FeatureSelectionControl>(parameters => parameters
+        var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
             .Add(p => p.SelectionResult, selectionResult)
             .Add(p => p.LayerConfigs, layerConfigs));
 
@@ -171,7 +171,7 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
         var layerConfigs = new Dictionary<string, LayerConfig>();  // Empty - layer not found
 
         // Act
-        var cut = Render<FeatureSelectionControl>(parameters => parameters
+        var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
             .Add(p => p.SelectionResult, selectionResult)
             .Add(p => p.LayerConfigs, layerConfigs));
 
@@ -208,7 +208,7 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<FeatureSelectionControl>(parameters => parameters
+        var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
             .Add(p => p.SelectionResult, selectionResult));
 
         // Assert
@@ -257,7 +257,7 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<FeatureSelectionControl>(parameters => parameters
+        var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
             .Add(p => p.SelectionResult, selectionResult)
             .Add(p => p.LayerConfigs, layerConfigs));
 
@@ -304,7 +304,7 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
         };
 
         // Act
-        var cut = Render<FeatureSelectionControl>(parameters => parameters
+        var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
             .Add(p => p.SelectionResult, selectionResult)
             .Add(p => p.LayerConfigs, layerConfigs));
 
@@ -325,12 +325,12 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
             [
                 new SelectedFeature 
                 { 
-                    LayerId = "locked-layer", 
+                    LayerId = "layer-a", 
                     Feature = JsonSerializer.Deserialize<JsonElement>(feature1Json) 
                 },
                 new SelectedFeature 
                 { 
-                    LayerId = "editable-layer", 
+                    LayerId = "layer-b", 
                     Feature = JsonSerializer.Deserialize<JsonElement>(feature2Json) 
                 }
             ]
@@ -338,28 +338,33 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
 
         var layerConfigs = new Dictionary<string, LayerConfig>
         {
-            { "locked-layer", new GeoJsonLayerConfig { Id = "locked-layer", IsEditable = false } },
-            { "editable-layer", new GeoJsonLayerConfig { Id = "editable-layer", IsEditable = true } }
+            { "layer-a", new GeoJsonLayerConfig { Id = "layer-a", IsEditable = false } },
+            { "layer-b", new GeoJsonLayerConfig { Id = "layer-b", IsEditable = true } }
         };
 
         // Act
-        var cut = Render<FeatureSelectionControl>(parameters => parameters
+        var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
             .Add(p => p.SelectionResult, selectionResult)
             .Add(p => p.LayerConfigs, layerConfigs));
 
-        // Click first feature (locked layer)
-        var featureItems = cut.FindAll("div[style*='cursor: pointer']");
-        featureItems[0].Click();
-        
-        // Assert - should be locked
-        cut.Markup.ToLower().Should().Contain("locked");
+        // Initial state - no feature clicked yet, so should not show locked chip
+        cut.Markup.Should().NotContain("mud-chip-content", "no feature is clicked initially");
 
-        // Click second feature (editable layer)
-        cut.Render();  // Re-render to get updated markup
-        featureItems = cut.FindAll("div[style*='cursor: pointer']");
-        featureItems[1].Click();
+        // Find and click the first feature (non-editable layer)
+        var feature1Element = cut.Find("div[style*='cursor: pointer']:has(p:contains('Feature 1'))");
+        feature1Element.Click();
         
-        // Assert - should NOT be locked
-        cut.Markup.ToLower().Should().NotContain("locked");
+        // Assert - should show locked chip
+        cut.Markup.Should().Contain("mud-chip-content");
+        cut.Markup.Should().Contain("Locked");
+        cut.Markup.Should().Contain("Feature 1");
+
+        // Find and click the second feature (editable layer)
+        var feature2Element = cut.Find("div[style*='cursor: pointer']:has(p:contains('Feature 2'))");
+        feature2Element.Click();
+        
+        // Assert - should NOT show locked chip anymore and should show Feature 2
+        cut.Markup.Should().Contain("Feature 2");
+        cut.Markup.Should().NotContain("mud-chip-content", "clicking a feature from an editable layer should remove the locked chip");
     }
 }

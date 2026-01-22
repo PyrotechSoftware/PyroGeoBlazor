@@ -97,4 +97,40 @@ public class LayerConfigTests
         // Assert
         layer1.Id.Should().NotBe(layer2.Id);
     }
+
+    [Fact]
+    public void LayerConfig_IsEditable_DefaultsToFalse()
+    {
+        // Arrange & Act
+        var layer = new GeoJsonLayerConfig();
+
+        // Assert
+        layer.IsEditable.Should().BeFalse("layers should be locked by default for safety");
+    }
+
+    [Fact]
+    public void LayerConfig_IsEditable_CanBeSetToTrue()
+    {
+        // Arrange
+        var layer = new GeoJsonLayerConfig();
+
+        // Act
+        layer.IsEditable = true;
+
+        // Assert
+        layer.IsEditable.Should().BeTrue();
+    }
+
+    [Fact]
+    public void LayerConfig_IsEditable_CanBeSetToFalse()
+    {
+        // Arrange
+        var layer = new GeoJsonLayerConfig { IsEditable = true };
+
+        // Act
+        layer.IsEditable = false;
+
+        // Assert
+        layer.IsEditable.Should().BeFalse();
+    }
 }

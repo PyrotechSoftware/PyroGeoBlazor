@@ -16,7 +16,7 @@ public class LayerConfigWithRendererTests
             UniqueValueRenderer = new UniqueValueRenderer
             {
                 Attribute = "category",
-                ValueStyles = new Dictionary<string?, FeatureStyle>
+                ValueStyles = new Dictionary<string, FeatureStyle>
                 {
                     ["A"] = FeatureStyle.Red,
                     ["B"] = FeatureStyle.Blue
@@ -41,7 +41,7 @@ public class LayerConfigWithRendererTests
             UniqueValueRenderer = new UniqueValueRenderer // Override with renderer
             {
                 Attribute = "type",
-                ValueStyles = new Dictionary<string?, FeatureStyle>
+                ValueStyles = new Dictionary<string, FeatureStyle>
                 {
                     ["special"] = FeatureStyle.Red
                 }
@@ -63,7 +63,7 @@ public class LayerConfigWithRendererTests
             UniqueValueRenderer = new UniqueValueRenderer
             {
                 Attribute = "status",
-                ValueStyles = new Dictionary<string?, FeatureStyle>
+                ValueStyles = new Dictionary<string, FeatureStyle>
                 {
                     ["active"] = FeatureStyle.Green
                 }
@@ -88,7 +88,7 @@ public class LayerConfigWithRendererTests
             UniqueValueRenderer = new UniqueValueRenderer
             {
                 Attribute = "zoning",
-                ValueStyles = new Dictionary<string?, FeatureStyle>
+                ValueStyles = new Dictionary<string, FeatureStyle>
                 {
                     ["Residential"] = FeatureStyle.Blue,
                     ["Commercial"] = FeatureStyle.Red
@@ -185,7 +185,7 @@ public class LayerConfigWithRendererTests
             UniqueValueRenderer = new UniqueValueRenderer
             {
                 Attribute = "magnitude",
-                ValueStyles = new Dictionary<string?, FeatureStyle>
+                ValueStyles = new Dictionary<string, FeatureStyle>
                 {
                     ["small"] = new FeatureStyle { RadiusScale = 0.5 },
                     ["large"] = new FeatureStyle { RadiusScale = 2.0 }

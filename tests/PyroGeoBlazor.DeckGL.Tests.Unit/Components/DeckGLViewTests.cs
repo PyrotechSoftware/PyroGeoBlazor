@@ -1,13 +1,15 @@
 namespace PyroGeoBlazor.DeckGL.Tests.Unit.Components;
 
 using Bunit;
+
 using FluentAssertions;
-using Microsoft.JSInterop;
+
 using PyroGeoBlazor.DeckGL.Components;
 using PyroGeoBlazor.DeckGL.Models;
 
-public class DeckGLViewTests : BunitContext
+public class DeckGLViewTests : MudBlazorTestContext
 {
+
     [Fact]
     public void DeckGLView_RendersContainerElement()
     {

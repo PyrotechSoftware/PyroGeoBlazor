@@ -523,15 +523,32 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      * Apply base feature style to layer configuration
      */
     private applyFeatureStyle(config: LayerConfig): LayerConfig {
+        console.log(`🎨 [applyFeatureStyle] START - Layer: ${config.id}`);
+        console.log(`  Input config.featureStyle:`, config.featureStyle);
+        console.log(`  Input config.uniqueValueRenderer:`, config.uniqueValueRenderer);
+        console.log(`  Input config.props.fillColor:`, config.props.fillColor);
+        console.log(`  Input config.props.getFillColor:`, config.props.getFillColor);
+        console.log(`  Input config.props.lineColor:`, config.props.lineColor);
+        console.log(`  Input config.props.getLineColor:`, config.props.getLineColor);
+        
         if (!config.featureStyle && !config.uniqueValueRenderer) {
+            console.log(`  ❌ No featureStyle or uniqueValueRenderer - returning config unchanged`);
             return config;
         }
 
         const enhancedProps = { ...config.props };
+        console.log(`  Created enhancedProps copy`);
 
         // If unique value renderer is specified, use attribute-based styling
         if (config.uniqueValueRenderer) {
+            console.log(`  ✅ Applying unique value renderer...`);
             this.applyUniqueValueRenderer(config, enhancedProps);
+            
+            console.log(`  After unique value renderer:`);
+            console.log(`    enhancedProps.getFillColor:`, typeof enhancedProps.getFillColor);
+            console.log(`    enhancedProps.getLineColor:`, typeof enhancedProps.getLineColor);
+            console.log(`🎨 [applyFeatureStyle] END (unique value renderer)`);
+            
             return {
                 ...config,
                 props: enhancedProps
@@ -540,25 +557,63 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
 
         // Otherwise, apply simple feature style
         const style = config.featureStyle!;
+        console.log(`  ✅ Applying simple feature style:`, style);
 
         // Apply style properties based on layer type
-        if (style.fillColor && !enhancedProps.fillColor && !enhancedProps.getFillColor) {
+        // IMPORTANT: Deck.gl prefers accessor functions over static properties
+        // We must SET accessor functions that return our colors, not delete them
+        if (style.fillColor) {
             const fillOpacity = style.fillOpacity ?? 1.0;
-            enhancedProps.fillColor = hexToRgba(style.fillColor, fillOpacity);
+            const rgbaColor = hexToRgba(style.fillColor, fillOpacity);
+            console.log(`    Set fillColor: ${style.fillColor} (opacity: ${fillOpacity}) -> RGBA:`, rgbaColor);
+            
+            // Set accessor function to return the static color
+            // This prevents deck.gl from using default colors
+            enhancedProps.getFillColor = () => rgbaColor;
+            console.log(`    Set getFillColor accessor to return RGBA:`, rgbaColor);
         }
         
-        if (style.lineColor && !enhancedProps.lineColor && !enhancedProps.getLineColor) {
+        if (style.lineColor) {
             const lineOpacity = style.opacity ?? 1.0;
-            enhancedProps.lineColor = hexToRgba(style.lineColor, lineOpacity);
+            const rgbaColor = hexToRgba(style.lineColor, lineOpacity);
+            console.log(`    Set lineColor: ${style.lineColor} (opacity: ${lineOpacity}) -> RGBA:`, rgbaColor);
+            
+            // Set accessor function to return the static color
+            enhancedProps.getLineColor = () => rgbaColor;
+            console.log(`    Set getLineColor accessor to return RGBA:`, rgbaColor);
         }
         
-        if (style.lineWidth && !enhancedProps.lineWidth && !enhancedProps.getLineWidth) {
+        if (style.lineWidth !== undefined) {
             enhancedProps.lineWidth = style.lineWidth;
+            console.log(`    Set lineWidth:`, style.lineWidth);
+            
+            // Set accessor function to return the static width
+            enhancedProps.getLineWidth = () => style.lineWidth;
+            console.log(`    Set getLineWidth accessor to return:`, style.lineWidth);
         }
         
-        if (style.radiusScale && !enhancedProps.radiusScale) {
+        if (style.radiusScale !== undefined) {
             enhancedProps.radiusScale = style.radiusScale;
+            console.log(`    Set radiusScale:`, style.radiusScale);
         }
+
+        // Add update triggers to force deck.gl to re-evaluate the style
+        // Use a timestamp to ensure the trigger value changes each time
+        const timestamp = Date.now();
+        enhancedProps.updateTriggers = {
+            ...enhancedProps.updateTriggers,
+            getFillColor: `style-${timestamp}`,
+            getLineColor: `style-${timestamp}`,
+            getLineWidth: `style-${timestamp}`,
+            getRadius: `style-${timestamp}`
+        };
+        console.log(`    Set updateTriggers with timestamp: ${timestamp}`);
+
+        console.log(`  Final enhancedProps.fillColor:`, enhancedProps.fillColor);
+        console.log(`  Final enhancedProps.lineColor:`, enhancedProps.lineColor);
+        console.log(`  Final enhancedProps.getFillColor:`, enhancedProps.getFillColor);
+        console.log(`  Final enhancedProps.getLineColor:`, enhancedProps.getLineColor);
+        console.log(`🎨 [applyFeatureStyle] END (simple style)`);
 
         return {
             ...config,
@@ -717,11 +772,24 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             return;
         }
 
+        console.log(`🎨 [setLayerFeatureStyle] START - Layer: ${layerId}`);
+        console.log(`  Incoming style:`, style);
+        console.log(`  Current config.featureStyle:`, config.featureStyle);
+
         // Update the stored config
         config.featureStyle = { ...config.featureStyle, ...style };
+        
+        // Clear uniqueValueRenderer since we're now using a simple feature style
+        // (user is explicitly overriding attribute-based styling)
+        config.uniqueValueRenderer = undefined;
+        
+        // Add a version timestamp to force deck.gl to recognize this as a new layer
+        config.props._styleVersion = Date.now();
+        
         this.layerConfigs.set(layerId, config);
 
-        console.log(`Feature style updated for layer ${layerId}:`, style);
+        console.log(`  After update - config.featureStyle:`, config.featureStyle);
+        console.log(`🎨 [setLayerFeatureStyle] END`);
 
         // Recreate the layer with new style
         await this.recreateLayer(layerId);
@@ -797,25 +865,67 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      * Recreate a specific layer with updated configuration
      */
     private async recreateLayer(layerId: string): Promise<void> {
+        console.log(`🔄 [recreateLayer] START - Layer: ${layerId}`);
+        
         const config = this.layerConfigs.get(layerId);
-        if (!config) return;
+        if (!config) {
+            console.log(`  ❌ Config not found`);
+            return;
+        }
+
+        console.log(`  Current config.featureStyle:`, config.featureStyle);
+        console.log(`  Current config.props.fillColor:`, config.props.fillColor);
+        console.log(`  Current config.props.getFillColor:`, config.props.getFillColor);
 
         // Find the index of the layer
         const layerIndex = this.currentLayers.findIndex(layer => layer.id === layerId);
-        if (layerIndex === -1) return;
+        if (layerIndex === -1) {
+            console.log(`  ❌ Layer not found in currentLayers array`);
+            return;
+        }
 
-        // Recreate the layer
-        const newLayer = await this.createLayer(config);
+        console.log(`  Found layer at index ${layerIndex}`);
+
+        // Apply feature style and save the enhanced config back to the map
+        // This ensures future recreations use the updated static colors
+        const enhancedConfig = this.applyFeatureStyle(config);
+        console.log(`  Enhanced config.props.fillColor:`, enhancedConfig.props.fillColor);
+        console.log(`  Enhanced config.props.getFillColor:`, enhancedConfig.props.getFillColor);
+        
+        this.layerConfigs.set(layerId, enhancedConfig);
+        console.log(`  Saved enhanced config to layerConfigs map`);
+
+        // Recreate the layer with selection styling if needed
+        let newLayer: Layer | null;
+        if (this.selectedFeatureIds.size > 0 || this.hoveredFeatureId) {
+            console.log(`  Creating layer with hover and selection (${this.selectedFeatureIds.size} selected)`);
+            newLayer = await this.createLayerWithHoverAndSelection(enhancedConfig);
+        } else {
+            console.log(`  Creating layer without selection`);
+            newLayer = await this.createLayer(enhancedConfig);
+        }
+        
         if (newLayer) {
+            console.log(`  ✅ New layer created successfully`);
+            console.log(`  New layer fillColor:`, (newLayer.props as any).fillColor);
+            console.log(`  New layer getFillColor:`, (newLayer.props as any).getFillColor);
+            
             this.currentLayers[layerIndex] = newLayer;
             
-            // Refresh the deck
-            if (this.selectedFeatureIds.size > 0) {
-                this.refreshLayersWithSelection();
-            } else {
-                this.refreshLayers();
+            // Update deck with the modified layers array
+            if (this.deck) {
+                const allLayers = [...this.currentLayers];
+                if (this.editableLayer) {
+                    allLayers.push(this.editableLayer as any);
+                }
+                console.log(`  Updating deck.gl with ${allLayers.length} layers`);
+                this.deck.setProps({ layers: allLayers });
             }
+        } else {
+            console.log(`  ❌ Failed to create new layer`);
         }
+        
+        console.log(`🔄 [recreateLayer] END`);
     }
 
     /**
@@ -1038,12 +1148,21 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         const hoveredId = this.hoveredFeatureId;
         const hoveredLayerId = this.hoveredLayerId;
         
+        // Apply base feature style first
+        const baseConfig = this.applyFeatureStyle(config);
+        
+        // If there are no selections and no hover for this layer, just return the base config
+        // This preserves the static colors set by applyFeatureStyle
+        const hasSelections = selectedIds.size > 0;
+        const hasHover = hoveredId && hoveredLayerId === config.id;
+        
+        if (!hasSelections && !hasHover) {
+            return createLayerFromConfig(baseConfig, data);
+        }
+        
         // Determine which styles to use
         const selectionStyle = config.selectionStyle || this.globalSelectionStyle;
         const hoverStyle = config.hoverStyle;
-        
-        // Apply base feature style first
-        const baseConfig = this.applyFeatureStyle(config);
         
         // Enhance the config with hover and selection-aware accessor functions
         const enhancedConfig = {
@@ -1060,7 +1179,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             }
         };
         
-        // Store original accessors
+        // Store original accessors or static colors
         const originalGetFillColor = (enhancedConfig.props as any).getFillColor || (enhancedConfig.props as any).fillColor;
         const originalGetLineColor = (enhancedConfig.props as any).getLineColor || (enhancedConfig.props as any).lineColor;
         const originalGetLineWidth = (enhancedConfig.props as any).getLineWidth || (enhancedConfig.props as any).lineWidth;

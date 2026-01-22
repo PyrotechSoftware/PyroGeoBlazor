@@ -19,20 +19,17 @@
 </MudDialog>
 
 @code {
-    [CascadingParameter] 
-    private MudBlazor.IDialogReference? DialogReference { get; set; }
+    [CascadingParameter] private IMudDialogInstance? DialogReference { get; set; }
 
     /// <summary>
     /// The currently selected color
     /// </summary>
-    [Parameter]
-    public MudColor SelectedColor { get; set; } = new MudColor("#000000");
+    [Parameter] public MudColor SelectedColor { get; set; } = new MudColor("#000000");
 
     /// <summary>
     /// Whether to disable the alpha channel
     /// </summary>
-    [Parameter]
-    public bool DisableAlpha { get; set; } = true;
+    [Parameter] public bool DisableAlpha { get; set; } = true;
 
     private void Cancel()
     {

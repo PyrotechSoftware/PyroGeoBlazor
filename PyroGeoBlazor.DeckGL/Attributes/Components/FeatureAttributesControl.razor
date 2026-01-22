@@ -1,0 +1,631 @@
+@namespace PyroGeoBlazor.DeckGL.Components
+@using PyroGeoBlazor.DeckGL.Models
+@using System.Text.Json
+
+@if (SelectedFeature != null)
+{
+    <div style="padding: 8px;">
+        <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-2">
+            <MudText Typo="Typo.subtitle2">
+                <strong>Feature Attributes</strong>
+            </MudText>
+            <MudStack Row Spacing="1">
+                @if (IsLocked)
+                {
+                    <MudTooltip Text="This layer does not allow attribute editing">
+                        <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Outlined" Icon="@Icons.Material.Filled.Lock">
+                            Locked
+                        </MudChip>
+                    </MudTooltip>
+                }
+                @if (EditContext != null && EditContext.IsDirty)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled">
+                        Modified
+                    </MudChip>
+                }
+                @if (EditContext != null && !EditContext.IsValid)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled">
+                        Invalid
+                    </MudChip>
+                }
+            </MudStack>
+        </MudStack>
+        
+        @if (GetDisplayableFields().Any())
+        {
+            <MudSimpleTable Dense="true" Hover="true" Style="font-size: 0.875rem;">
+                <thead>
+                    <tr>
+                        <th style="width: 40%;">Property</th>
+                        <th style="width: 60%;">Value</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var field in GetDisplayableFields())
+                    {
+                        <tr>
+                            <td style="font-weight: 500; vertical-align: top; padding-top: 12px;">
+                                <MudStack Spacing="0">
+                                    <MudText Typo="Typo.body2">@field.DisplayName</MudText>
+                                    @if (!string.IsNullOrEmpty(field.HelpText))
+                                    {
+                                        <MudText Typo="Typo.caption" Color="Color.Secondary">@field.HelpText</MudText>
+                                    }
+                                </MudStack>
+                            </td>
+                            <td style="vertical-align: middle;">
+                                @if (field.IsEditable && !IsLocked)
+                                {
+                                    @RenderEditControl(field)
+                                }
+                                else
+                                {
+                                    <MudText Typo="Typo.body2">@GetFieldDisplayValue(field.FieldName)</MudText>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </MudSimpleTable>
+
+            @if (EditContext != null && EditContext.IsDirty && !IsLocked)
+            {
+                <MudStack Row Justify="Justify.FlexEnd" Spacing="2" Class="mt-2">
+                    <MudButton Size="Size.Small" 
+                               Variant="Variant.Text" 
+                               Color="Color.Default"
+                               OnClick="ResetChanges">
+                        Reset
+                    </MudButton>
+                    <MudButton Size="Size.Small" 
+                               Variant="Variant.Filled" 
+                               Color="Color.Primary"
+                               Disabled="@(!EditContext.IsValid)"
+                               OnClick="SaveChanges">
+                        Save Changes
+                    </MudButton>
+                </MudStack>
+            }
+        }
+        else
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="pa-2">
+                No properties available
+            </MudText>
+        }
+    </div>
+}
+else
+{
+    <div style="padding: 8px;">
+        <MudText Typo="Typo.body2" Color="Color.Secondary">
+            Click a feature to view its attributes
+        </MudText>
+    </div>
+}
+
+@code {
+    /// <summary>
+    /// The selected feature to display attributes for
+    /// </summary>
+    [Parameter]
+    public SelectedFeature? SelectedFeature { get; set; }
+
+    /// <summary>
+    /// When true, indicates the layer does not allow attribute editing and displays a lock indicator
+    /// </summary>
+    [Parameter]
+    public bool IsLocked { get; set; }
+
+    /// <summary>
+    /// Configuration for editable fields. Defines which fields can be edited and how.
+    /// </summary>
+    [Parameter]
+    public List<AttributeFieldConfig>? EditableFieldsConfig { get; set; }
+
+    /// <summary>
+    /// Optional list of property names to exclude from the display
+    /// </summary>
+    [Parameter]
+    public string[]? ExcludedProperties { get; set; }
+
+    /// <summary>
+    /// Event callback invoked when changes are saved.
+    /// Provides the modified fields and their new values.
+    /// </summary>
+    [Parameter]
+    public EventCallback<AttributeEditContext> OnSaveChanges { get; set; }
+
+    /// <summary>
+    /// Event callback invoked when changes are reset.
+    /// </summary>
+    [Parameter]
+    public EventCallback OnResetChanges { get; set; }
+
+    /// <summary>
+    /// Optional dictionary of custom render fragments for specific fields.
+    /// Key is the field name, value is a render fragment that receives the field context.
+    /// When provided, the custom renderer will be used instead of the default control.
+    /// </summary>
+    [Parameter]
+    public Dictionary<string, RenderFragment<FieldRenderContext>>? CustomFieldRenderers { get; set; }
+
+    /// <summary>
+    /// Context passed to custom field renderers
+    /// </summary>
+    public record FieldRenderContext(
+        string FieldName,
+        string DisplayName,
+        object? CurrentValue,
+        Action<object?> SetValue,
+        AttributeFieldConfig? Config,
+        bool HasError,
+        string? ErrorText
+    );
+
+    private AttributeEditContext? EditContext { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        base.OnParametersSet();
+
+        // Initialize edit context when feature changes
+        if (SelectedFeature != null && EditableFieldsConfig != null && EditableFieldsConfig.Any())
+        {
+            InitializeEditContext();
+        }
+        else
+        {
+            EditContext = null;
+        }
+    }
+
+    private void InitializeEditContext()
+    {
+        if (SelectedFeature == null) return;
+
+        EditContext = new AttributeEditContext
+        {
+            OriginalFeature = SelectedFeature.Feature
+        };
+
+        // Extract current values from feature properties
+        if (SelectedFeature.Feature.TryGetProperty("properties", out var properties))
+        {
+            foreach (var fieldConfig in EditableFieldsConfig ?? [])
+            {
+                if (fieldConfig.FieldName.Equals("id", StringComparison.OrdinalIgnoreCase))
+                {
+                    // Handle "id" from root level
+                    if (SelectedFeature.Feature.TryGetProperty("id", out var idValue))
+                    {
+                        var convertedValue = ConvertJsonElementToObject(idValue, fieldConfig.DataType);
+                        EditContext.OriginalValues[fieldConfig.FieldName] = convertedValue;
+                        EditContext.CurrentValues[fieldConfig.FieldName] = convertedValue;
+                    }
+                }
+                else if (properties.TryGetProperty(fieldConfig.FieldName, out var value))
+                {
+                    var convertedValue = ConvertJsonElementToObject(value, fieldConfig.DataType);
+                    EditContext.OriginalValues[fieldConfig.FieldName] = convertedValue;
+                    EditContext.CurrentValues[fieldConfig.FieldName] = convertedValue;
+                }
+            }
+        }
+    }
+
+    private record DisplayableField(
+        string FieldName,
+        string DisplayName,
+        bool IsEditable,
+        AttributeFieldConfig? Config,
+        string? HelpText
+    );
+
+    private List<DisplayableField> GetDisplayableFields()
+    {
+        if (SelectedFeature == null)
+            return [];
+
+        var fields = new List<DisplayableField>();
+        var excludedProps = new HashSet<string>(ExcludedProperties ?? [], StringComparer.OrdinalIgnoreCase);
+        var configuredFields = EditableFieldsConfig?.ToDictionary(f => f.FieldName, StringComparer.OrdinalIgnoreCase) ?? [];
+
+        // Add feature ID if available (it's at root level in GeoJSON, not in properties)
+        if (SelectedFeature.Feature.TryGetProperty("id", out var idElement) && !excludedProps.Contains("id"))
+        {
+            if (configuredFields.TryGetValue("id", out var idConfig))
+            {
+                fields.Add(new DisplayableField(
+                    "id",
+                    idConfig.EffectiveDisplayName,
+                    !idConfig.IsReadOnly && !IsLocked,
+                    idConfig,
+                    idConfig.HelpText
+                ));
+            }
+            else
+            {
+                // Show as read-only if no config
+                fields.Add(new DisplayableField(
+                    "id",
+                    "id",
+                    false,
+                    null,
+                    null
+                ));
+            }
+        }
+
+        // Get properties from feature
+        if (SelectedFeature.Feature.TryGetProperty("properties", out var properties))
+        {
+            foreach (var property in properties.EnumerateObject())
+            {
+                if (excludedProps.Contains(property.Name))
+                    continue;
+
+                // Check if this field has configuration
+                if (configuredFields.TryGetValue(property.Name, out var config))
+                {
+                    fields.Add(new DisplayableField(
+                        property.Name,
+                        config.EffectiveDisplayName,
+                        !config.IsReadOnly && !IsLocked,
+                        config,
+                        config.HelpText
+                    ));
+                }
+                else
+                {
+                    // Show as read-only if no config
+                    fields.Add(new DisplayableField(
+                        property.Name,
+                        property.Name,
+                        false,
+                        null,
+                        null
+                    ));
+                }
+            }
+        }
+
+        // Sort by order if specified, otherwise alphabetically
+        return fields
+            .OrderBy(f => f.Config?.Order ?? int.MaxValue)
+            .ThenBy(f => f.DisplayName)
+            .ToList();
+    }
+
+    private string GetFieldDisplayValue(string fieldName)
+    {
+        if (EditContext != null && EditContext.CurrentValues.TryGetValue(fieldName, out var value))
+        {
+            return FormatValue(value);
+        }
+
+        // Check root level for "id" field (GeoJSON spec)
+        if (fieldName.Equals("id", StringComparison.OrdinalIgnoreCase) && 
+            SelectedFeature?.Feature.TryGetProperty("id", out var idValue) == true)
+        {
+            return FormatPropertyValue(idValue);
+        }
+
+        // Fallback to extracting from properties
+        if (SelectedFeature?.Feature.TryGetProperty("properties", out var properties) == true)
+        {
+            if (properties.TryGetProperty(fieldName, out var jsonValue))
+            {
+                return FormatPropertyValue(jsonValue);
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private string FormatValue(object? value)
+    {
+        return value switch
+        {
+            null => string.Empty,
+            bool b => b ? "Yes" : "No",
+            DateTime dt => dt.ToString("yyyy-MM-dd HH:mm:ss"),
+            DateOnly d => d.ToString("yyyy-MM-dd"),
+            _ => value.ToString() ?? string.Empty
+        };
+    }
+
+    private RenderFragment RenderEditControl(DisplayableField field)
+    {
+        return builder =>
+        {
+            if (field.Config == null) return;
+
+            var config = field.Config;
+            var currentValue = EditContext?.GetCurrentValue(field.FieldName);
+            var hasError = EditContext?.ValidationErrors.ContainsKey(field.FieldName) == true;
+            var errorText = hasError ? EditContext!.ValidationErrors[field.FieldName] : null;
+
+            // Check if a custom renderer is provided for this field
+            if (CustomFieldRenderers?.TryGetValue(field.FieldName, out var customRenderer) == true)
+            {
+                // Use the custom renderer
+                var context = new FieldRenderContext(
+                    field.FieldName,
+                    field.DisplayName,
+                    currentValue,
+                    value => OnFieldChanged(field.FieldName, value),
+                    config,
+                    hasError,
+                    errorText
+                );
+                
+                customRenderer(context).Invoke(builder);
+                return;
+            }
+
+            // Render control based on data type
+            if (config.Domain is CodedValueDomain codedDomain)
+            {
+                // Dropdown for coded values
+                RenderCodedValueSelect(builder, field, codedDomain, currentValue, hasError, errorText);
+            }
+            else if (config.Domain is RangeDomain rangeDomain && 
+                     (config.DataType == AttributeDataType.Integer || config.DataType == AttributeDataType.Double))
+            {
+                // Numeric input with range validation
+                RenderNumericInput(builder, field, config.DataType, hasError, errorText, rangeDomain);
+            }
+            else
+            {
+                // Standard controls based on data type
+                switch (config.DataType)
+                {
+                    case AttributeDataType.Boolean:
+                        RenderBooleanControl(builder, field, currentValue, hasError, errorText);
+                        break;
+                    case AttributeDataType.Integer:
+                    case AttributeDataType.Double:
+                        RenderNumericInput(builder, field, config.DataType, hasError, errorText);
+                        break;
+                    case AttributeDataType.Date:
+                        RenderDateControl(builder, field, currentValue, hasError, errorText);
+                        break;
+                    case AttributeDataType.DateTime:
+                        RenderDateTimeControl(builder, field, currentValue, hasError, errorText);
+                        break;
+                    default: // String
+                        RenderTextInput(builder, field, currentValue, hasError, errorText);
+                        break;
+                }
+            }
+        };
+    }
+
+    private void RenderTextInput(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, DisplayableField field, object? currentValue, bool hasError, string? errorText)
+    {
+        builder.OpenComponent<MudTextField<string>>(0);
+        builder.AddAttribute(1, "Value", currentValue?.ToString() ?? string.Empty);
+        builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, value => OnFieldChanged(field.FieldName, value)));
+        builder.AddAttribute(3, "Placeholder", field.Config?.Placeholder);
+        builder.AddAttribute(4, "Required", field.Config?.IsRequired ?? false);
+        builder.AddAttribute(5, "MaxLength", field.Config?.MaxLength);
+        builder.AddAttribute(6, "Error", hasError);
+        builder.AddAttribute(7, "ErrorText", errorText);
+        builder.AddAttribute(8, "Variant", Variant.Outlined);
+        builder.AddAttribute(9, "Margin", Margin.Dense);
+        builder.CloseComponent();
+    }
+
+    private void RenderNumericInput(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, DisplayableField field, AttributeDataType dataType, bool hasError, string? errorText, RangeDomain? range = null)
+    {
+        if (dataType == AttributeDataType.Integer)
+        {
+            builder.OpenComponent<MudNumericField<int?>>(0);
+            builder.AddAttribute(1, "Value", EditContext?.GetCurrentValue(field.FieldName) as int?);
+            builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<int?>(this, value => OnFieldChanged(field.FieldName, value)));
+            if (range != null)
+            {
+                builder.AddAttribute(3, "Min", (int)range.MinValue);
+                builder.AddAttribute(4, "Max", (int)range.MaxValue);
+            }
+        }
+        else
+        {
+            builder.OpenComponent<MudNumericField<double?>>(0);
+            builder.AddAttribute(1, "Value", EditContext?.GetCurrentValue(field.FieldName) as double?);
+            builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<double?>(this, value => OnFieldChanged(field.FieldName, value)));
+            if (range != null)
+            {
+                builder.AddAttribute(3, "Min", range.MinValue);
+                builder.AddAttribute(4, "Max", range.MaxValue);
+            }
+        }
+        
+        builder.AddAttribute(5, "Required", field.Config?.IsRequired ?? false);
+        builder.AddAttribute(6, "Error", hasError);
+        builder.AddAttribute(7, "ErrorText", errorText);
+        builder.AddAttribute(8, "Variant", Variant.Outlined);
+        builder.AddAttribute(9, "Margin", Margin.Dense);
+        builder.CloseComponent();
+    }
+
+    private void RenderBooleanControl(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, DisplayableField field, object? currentValue, bool hasError, string? errorText)
+    {
+        builder.OpenComponent<MudSwitch<bool>>(0);
+        builder.AddAttribute(1, "Checked", currentValue as bool? ?? false);
+        builder.AddAttribute(2, "CheckedChanged", EventCallback.Factory.Create<bool>(this, value => OnFieldChanged(field.FieldName, value)));
+        builder.AddAttribute(3, "Color", Color.Primary);
+        builder.CloseComponent();
+    }
+
+    private void RenderDateControl(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, DisplayableField field, object? currentValue, bool hasError, string? errorText)
+    {
+        builder.OpenComponent<MudDatePicker>(0);
+        builder.AddAttribute(1, "Date", currentValue as DateTime?);
+        builder.AddAttribute(2, "DateChanged", EventCallback.Factory.Create<DateTime?>(this, value => OnFieldChanged(field.FieldName, value.HasValue ? DateOnly.FromDateTime(value.Value) : null)));
+        builder.AddAttribute(3, "Required", field.Config?.IsRequired ?? false);
+        builder.AddAttribute(4, "Error", hasError);
+        builder.AddAttribute(5, "ErrorText", errorText);
+        builder.AddAttribute(6, "Variant", Variant.Outlined);
+        builder.AddAttribute(7, "Margin", Margin.Dense);
+        builder.CloseComponent();
+    }
+
+    private void RenderDateTimeControl(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, DisplayableField field, object? currentValue, bool hasError, string? errorText)
+    {
+        builder.OpenComponent<MudDatePicker>(0);
+        builder.AddAttribute(1, "Date", currentValue as DateTime?);
+        builder.AddAttribute(2, "DateChanged", EventCallback.Factory.Create<DateTime?>(this, value => OnFieldChanged(field.FieldName, value)));
+        builder.AddAttribute(3, "Required", field.Config?.IsRequired ?? false);
+        builder.AddAttribute(4, "Error", hasError);
+        builder.AddAttribute(5, "ErrorText", errorText);
+        builder.AddAttribute(6, "Variant", Variant.Outlined);
+        builder.AddAttribute(7, "Margin", Margin.Dense);
+        builder.CloseComponent();
+    }
+
+    private void RenderCodedValueSelect(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, DisplayableField field, CodedValueDomain domain, object? currentValue, bool hasError, string? errorText)
+    {
+        builder.OpenComponent<MudSelect<object>>(0);
+        builder.AddAttribute(1, "Value", currentValue);
+        builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<object>(this, value => OnFieldChanged(field.FieldName, value)));
+        builder.AddAttribute(3, "Required", field.Config?.IsRequired ?? false);
+        builder.AddAttribute(4, "Error", hasError);
+        builder.AddAttribute(5, "ErrorText", errorText);
+        builder.AddAttribute(6, "Variant", Variant.Outlined);
+        builder.AddAttribute(7, "Margin", Margin.Dense);
+        builder.AddAttribute(8, "ToStringFunc", new Func<object, string>(obj => 
+        {
+            var codedValue = domain.CodedValues.FirstOrDefault(cv => Equals(cv.Code, obj));
+            return codedValue?.Name ?? obj?.ToString() ?? string.Empty;
+        }));
+        
+        builder.AddAttribute(9, "ChildContent", (RenderFragment)(itemBuilder =>
+        {
+            foreach (var codedValue in domain.CodedValues)
+            {
+                itemBuilder.OpenComponent<MudSelectItem<object>>(0);
+                itemBuilder.AddAttribute(1, "Value", codedValue.Code);
+                itemBuilder.AddAttribute(2, "ChildContent", (RenderFragment)(textBuilder =>
+                {
+                    textBuilder.AddContent(0, codedValue.Name);
+                }));
+                itemBuilder.CloseComponent();
+            }
+        }));
+        
+        builder.CloseComponent();
+    }
+
+    private void OnFieldChanged(string fieldName, object? value)
+    {
+        if (EditContext == null) return;
+
+        EditContext.SetCurrentValue(fieldName, value);
+        ValidateField(fieldName, value);
+        StateHasChanged();
+    }
+
+    private void ValidateField(string fieldName, object? value)
+    {
+        if (EditContext == null) return;
+
+        var config = EditableFieldsConfig?.FirstOrDefault(f => f.FieldName.Equals(fieldName, StringComparison.OrdinalIgnoreCase));
+        if (config == null) return;
+
+        EditContext.ClearValidationError(fieldName);
+
+        // Required validation
+        if (config.IsRequired && (value == null || (value is string str && string.IsNullOrWhiteSpace(str))))
+        {
+            EditContext.SetValidationError(fieldName, $"{config.EffectiveDisplayName} is required");
+            return;
+        }
+
+        // Domain validation
+        if (config.Domain is CodedValueDomain codedDomain && value != null)
+        {
+            if (!codedDomain.CodedValues.Any(cv => Equals(cv.Code, value)))
+            {
+                EditContext.SetValidationError(fieldName, $"Invalid value for {config.EffectiveDisplayName}");
+                return;
+            }
+        }
+
+        if (config.Domain is RangeDomain rangeDomain && value != null)
+        {
+            var numValue = Convert.ToDouble(value);
+            if (numValue < rangeDomain.MinValue || numValue > rangeDomain.MaxValue)
+            {
+                EditContext.SetValidationError(fieldName, $"{config.EffectiveDisplayName} must be between {rangeDomain.MinValue} and {rangeDomain.MaxValue}");
+                return;
+            }
+        }
+
+        // Max length validation for strings
+        if (config.MaxLength.HasValue && value is string stringValue && stringValue.Length > config.MaxLength.Value)
+        {
+            EditContext.SetValidationError(fieldName, $"{config.EffectiveDisplayName} cannot exceed {config.MaxLength.Value} characters");
+        }
+    }
+
+    private async Task SaveChanges()
+    {
+        if (EditContext == null || !EditContext.IsValid) return;
+
+        await OnSaveChanges.InvokeAsync(EditContext);
+    }
+
+    private async Task ResetChanges()
+    {
+        EditContext?.ResetAll();
+        await OnResetChanges.InvokeAsync();
+        StateHasChanged();
+    }
+
+    private object? ConvertJsonElementToObject(JsonElement element, AttributeDataType dataType)
+    {
+        try
+        {
+            return dataType switch
+            {
+                AttributeDataType.Integer => element.GetInt32(),
+                AttributeDataType.Double => element.GetDouble(),
+                AttributeDataType.Boolean => element.GetBoolean(),
+                AttributeDataType.Date => DateOnly.FromDateTime(element.GetDateTime()),
+                AttributeDataType.DateTime => element.GetDateTime(),
+                _ => element.GetString()
+            };
+        }
+        catch
+        {
+            return element.GetRawText();
+        }
+    }
+
+    private string FormatPropertyValue(JsonElement value)
+    {
+        try
+        {
+            return value.ValueKind switch
+            {
+                JsonValueKind.String => value.GetString() ?? string.Empty,
+                JsonValueKind.Number => value.GetRawText(),
+                JsonValueKind.True => "Yes",
+                JsonValueKind.False => "No",
+                JsonValueKind.Null => string.Empty,
+                JsonValueKind.Array => $"[{value.GetArrayLength()} items]",
+                JsonValueKind.Object => "[object]",
+                _ => value.GetRawText()
+            };
+        }
+        catch
+        {
+            return value.GetRawText();
+        }
+    }
+}
+

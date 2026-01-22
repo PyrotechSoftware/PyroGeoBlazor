@@ -121,6 +121,22 @@ public abstract class LayerConfig
         get => !Props.ContainsKey("visible") || Props["visible"] is bool b && b;
         set => Props["visible"] = value;
     }
+
+    /// <summary>
+    /// Whether the layer allows attribute editing and symbology changes.
+    /// When false, the layer is locked and cannot be edited through the UI.
+    /// Defaults to false (locked) for safety - must be explicitly set to true to allow editing.
+    /// </summary>
+    [JsonIgnore]
+    public bool IsEditable { get; set; } = false;
+
+    /// <summary>
+    /// Configuration for editable attribute fields.
+    /// Defines which fields can be edited, their data types, and constraints.
+    /// If not set, no attribute editing is available even if IsEditable is true.
+    /// </summary>
+    [JsonPropertyName("editableFields")]
+    public List<AttributeFieldConfig> EditableFields { get; set; } = [];
 }
 
 /// <summary>

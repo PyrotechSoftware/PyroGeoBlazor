@@ -33,7 +33,7 @@ jobs:
           restore-keys: |
             npm-cache-${{ runner.os }}-
 
-      - name: Install JS dependencies and build
+      - name: Install JS dependencies and build (Leaflet)
         working-directory: PyroGeoBlazor.Leaflet
         run: |
           # Use npm ci when a lockfile exists for reproducible installs; otherwise fall back to npm install
@@ -44,8 +44,24 @@ jobs:
           fi
           npm run build
 
-      - name: Run JS tests
+      - name: Run JS tests (Leaflet)
         working-directory: PyroGeoBlazor.Leaflet
+        run: |
+          npm test --silent
+
+      - name: Install JS dependencies and build (DeckGL)
+        working-directory: PyroGeoBlazor.DeckGL
+        run: |
+          # Use npm ci when a lockfile exists for reproducible installs; otherwise fall back to npm install
+          if [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then
+            npm ci --silent
+          else
+            npm install --silent
+          fi
+          npm run build
+
+      - name: Run JS tests (DeckGL)
+        working-directory: PyroGeoBlazor.DeckGL
         run: |
           npm test --silent
 
@@ -109,6 +125,7 @@ jobs:
           echo "Packing with version: $VERSION"
           dotnet pack PyroGeoBlazor/PyroGeoBlazor.csproj -c Release -o ./artifacts /p:PackageVersion=$VERSION --no-build
           dotnet pack PyroGeoBlazor.Leaflet/PyroGeoBlazor.Leaflet.csproj -c Release -o ./artifacts /p:PackageVersion=$VERSION --no-build
+          dotnet pack PyroGeoBlazor.DeckGL/PyroGeoBlazor.DeckGL.csproj -c Release -o ./artifacts /p:PackageVersion=$VERSION --no-build
           echo "artifacts-path=./artifacts" >> $GITHUB_OUTPUT
 
       - name: Upload packages

@@ -163,6 +163,31 @@
 
     <MudItem xs="12" md="4">
         <MudCard Style="height: 100%">
+            <MudCardHeader>
+                <MudChip T="string" Color="Color.Tertiary" Size="Size.Small">Workspace</MudChip>
+            </MudCardHeader>
+            <MudCardContent>
+                <MudText Typo="Typo.h6">Map Workspace</MudText>
+                <MudText>
+                    A full-featured GIS workspace with attribute editing and layer management:
+                </MudText>
+                <MudList T="string" Dense="true">
+                    <MudListItem>Multi-layer management</MudListItem>
+                    <MudListItem>Feature selection &amp; editing</MudListItem>
+                    <MudListItem>Attribute editing with validation</MudListItem>
+                    <MudListItem>Custom field renderers</MudListItem>
+                    <MudListItem>Layer styling controls</MudListItem>
+                    <MudListItem>Selection tools</MudListItem>
+                </MudList>
+            </MudCardContent>
+            <MudCardActions>
+                <MudButton Variant="Variant.Text" Color="Color.Tertiary" Href="/map-workspace" FullWidth>View Map Workspace</MudButton>
+            </MudCardActions>
+        </MudCard>
+    </MudItem>
+
+    <MudItem xs="12" md="4">
+        <MudCard Style="height: 100%">
             <MudCardContent>
                 <MudText Typo="Typo.h6">Quick Comparison</MudText>
                 <MudSimpleTable Class="mt-3" Dense="true" Bordered="true">

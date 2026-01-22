@@ -33,10 +33,11 @@
                     {
                         <MudTreeViewItem T="string">
                             <BodyContent Context="layerContext">
-                                <MudTooltip Text="Adjust Symbology" Delay="500">
+                                <MudTooltip Text="@(IsLayerLocked(context) ? "Layer is locked" : "Adjust Symbology")" Delay="500">
                                     <MudIconButton Icon="@Icons.Material.Filled.Square" 
                                                    Style="@($"color: {GetLayerColor(context)}")" 
                                                    Size="Size.Large"
+                                                   Disabled="@IsLayerLocked(context)"
                                                    OnClick="@(() => OpenColorPicker(context))" />
                                 </MudTooltip>
                             </BodyContent>
@@ -58,6 +59,11 @@ else
 private List<LayerConfig> LayersReverse => Layers.AsEnumerable().Reverse().ToList();
 
 [Parameter] public List<LayerConfig> Layers { get; set; } = [];
+
+/// <summary>
+/// When true, prevents users from changing layer symbology
+/// </summary>
+[Parameter] public bool IsLocked { get; set; }
 
 [Parameter] public EventCallback<(string LayerId, bool IsVisible)> OnLayerVisibilityChanged { get; set; }
 [Parameter] public EventCallback<(string LayerId, int NewIndex)> OnLayerReordered { get; set; }
@@ -105,8 +111,22 @@ private string GetLayerColor(LayerConfig layer)
     return "#000000";
 }
 
+private bool IsLayerLocked(LayerConfig layer)
+{
+    // Check global lock first
+    if (IsLocked)
+        return true;
+    
+    // Check layer-specific lock
+    return !layer.IsEditable;
+}
+
 private async Task OpenColorPicker(LayerConfig layer)
 {
+    // Don't open if locked
+    if (IsLayerLocked(layer))
+        return;
+    
     var currentColor = GetLayerColor(layer);
     var mudColor = new MudColor(currentColor);
 

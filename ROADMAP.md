@@ -273,3 +273,141 @@ Interested in implementing any of these features? Here's how to contribute:
 **Last Updated:** January 2025  
 **Maintainer:** PyrotechSoftware  
 **License:** MIT
+
+---
+
+## Attribute Editing Features
+
+### Custom Field Renderers - Dictionary Approach
+
+**Status:** 📋 Deferred for future implementation  
+**Priority:** Low  
+**Complexity:** Low (infrastructure already exists)
+
+#### Description
+
+Add support for programmatically defining custom field renderers using a dictionary-based approach, as an alternative to the declarative `<EditTemplates>` syntax currently implemented.
+
+#### Background
+
+The declarative approach is currently implemented and working:
+```razor
+<FeatureSelectionControl ...>
+    <EditTemplates>
+        <CustomFieldEditControl T="int" FieldName="valuePerSqm">
+            <Template Context="ctx">
+                <MudSlider ... />
+            </Template>
+        </CustomFieldEditControl>
+    </EditTemplates>
+</FeatureSelectionControl>
+```
+
+#### Use Cases for Dictionary Approach
+
+- **Dynamic field generation** - When field configurations are loaded from a database or API
+- **Reusable renderer libraries** - Shared renderers across multiple pages/applications
+- **Runtime customization** - Field renderers that change based on user preferences or roles
+- **Programmatic control** - Complex logic for determining which renderer to use
+
+#### Proposed API
+
+```csharp
+@code {
+    private Dictionary<string, RenderFragment<FeatureAttributesControl.FieldRenderContext>>? customFieldRenderers;
+
+    protected override void OnInitialized()
+    {
+        customFieldRenderers = new()
+        {
+            ["valuePerSqm"] = context => @<div>
+                <MudSlider T="int" 
+                           Value="@((context.CurrentValue as int?) ?? 0)"
+                           ValueChanged="@(v => context.SetValue(v))"
+                           Min="0" Max="10000" Step="100" />
+            </div>,
+            
+            ["status"] = context => @<MudChipSet>
+                <MudChip Text="Active" OnClick="@(() => context.SetValue("Active"))" />
+                <MudChip Text="Inactive" OnClick="@(() => context.SetValue("Inactive"))" />
+            </MudChipSet>
+        };
+    }
+}
+```
+
+```razor
+<FeatureSelectionControl 
+    CustomFieldRenderers="@customFieldRenderers"
+    ... />
+```
+
+#### Implementation Notes
+
+- The infrastructure already exists internally
+- `GetMergedCustomRenderers()` method merges both approaches
+- Just needs public API documentation and examples
+- Declarative approach should always take precedence when both are provided
+
+#### Alternative Considered
+
+**Razor-based dictionary values:**
+```csharp
+customFieldRenderers = new()
+{
+    ["valuePerSqm"] = context => 
+        @<MudSlider T="int" 
+                   Value="@((context.CurrentValue as int?) ?? 0)"
+                   ValueChanged="@(v => context.SetValue(v))" />
+};
+```
+
+This is cleaner than `RenderTreeBuilder` but may have scope issues with the `context` variable.
+
+---
+
+### Other Attribute Editing Enhancements
+
+#### 1. Batch Attribute Editing
+**Status:** 💡 Idea  
+Edit attributes for multiple selected features at once.
+
+#### 2. Attribute Edit History
+**Status:** 💡 Idea  
+Track changes with undo/redo capability.
+
+#### 3. Conditional Field Visibility
+**Status:** 💡 Idea  
+Show/hide fields based on other field values.
+
+#### 4. Field Groups
+**Status:** 💡 Idea  
+Organize fields into collapsible sections.
+
+#### 5. Inline Validation Rules
+**Status:** 💡 Idea  
+Define custom validation rules in field configuration.
+
+#### 6. Async Field Loaders
+**Status:** 💡 Idea  
+Load field options asynchronously (e.g., from an API).
+
+#### 7. Field Dependencies
+**Status:** 💡 Idea  
+Update field options based on other field values.
+
+#### 8. Rich Text Fields
+**Status:** 💡 Idea  
+Built-in rich text editor for long text fields.
+
+#### 9. Geometry Editing
+**Status:** 💡 Idea  
+Edit feature geometry in addition to attributes.
+
+#### 10. Bulk Import/Export
+**Status:** 💡 Idea  
+Import/export attribute data from CSV/Excel.
+
+---
+
+*This roadmap is subject to change based on user feedback and project priorities.*

@@ -2,6 +2,14 @@
 @using PyroGeoBlazor.DeckGL.Models
 @using System.Text.Json
 
+@* Wrap EditTemplates in container to collect field templates *@
+@if (EditTemplates != null)
+{
+    <FieldTemplateContainer @ref="_fieldTemplateContainer">
+        @EditTemplates
+    </FieldTemplateContainer>
+}
+
 @if (SelectionResult != null && SelectionResult.Features.Any())
 {
     <div style="display: flex; flex-direction: column; height: 100%;">
@@ -82,7 +90,13 @@
         </div>
         
         <div style="flex: 1 1 50%; overflow-y: auto; overflow-x: hidden; min-height: 0; border-top: 1px solid var(--mud-palette-divider);">
-            <FeatureAttributesControl SelectedFeature="@clickedFeature" ExcludedProperties="@ExcludedProperties" />
+            <FeatureAttributesControl SelectedFeature="@clickedFeature" 
+                                     ExcludedProperties="@ExcludedProperties"
+                                     IsLocked="@IsClickedFeatureLocked()"
+                                     EditableFieldsConfig="@GetEditableFieldsConfig()"
+                                     OnSaveChanges="@HandleAttributesSaved"
+                                     OnResetChanges="@HandleAttributesReset"
+                                     CustomFieldRenderers="@GetMergedCustomRenderers()" />
         </div>
     </div>
 }
@@ -148,6 +162,35 @@ else
     /// </summary>
     [Parameter]
     public string[]? ExcludedProperties { get; set; }
+
+    /// <summary>
+    /// Callback when attribute changes are saved
+    /// </summary>
+    [Parameter]
+    public EventCallback<(string LayerId, string FeatureId, AttributeEditContext EditContext)> OnAttributesSaved { get; set; }
+
+    /// <summary>
+    /// Callback when attribute changes are reset
+    /// </summary>
+    [Parameter]
+    public EventCallback OnAttributesReset { get; set; }
+
+    /// <summary>
+    /// Optional dictionary of custom render fragments for specific fields.
+    /// Key is the field name, value is a render fragment that receives the field context.
+    /// Passed through to FeatureAttributesControl.
+    /// </summary>
+    [Parameter]
+    public Dictionary<string, RenderFragment<FeatureAttributesControl.FieldRenderContext>>? CustomFieldRenderers { get; set; }
+
+    /// <summary>
+    /// Optional child content for declaratively defining custom field edit controls.
+    /// Use CustomFieldEditControl components to define custom renderers for specific fields.
+    /// </summary>
+    [Parameter]
+    public RenderFragment? EditTemplates { get; set; }
+
+    private FieldTemplateContainer? _fieldTemplateContainer;
 
     private record LayerGrouping(string LayerId, List<SelectedFeature> Features);
 
@@ -379,4 +422,104 @@ else
     {
         return $"position: fixed; left: {contextMenuX}px; top: {contextMenuY}px;";
     }
+
+    /// <summary>
+    /// Determines if the currently clicked feature's layer is locked (not editable)
+    /// </summary>
+    private bool IsClickedFeatureLocked()
+    {
+        if (clickedFeature == null || LayerConfigs == null)
+            return false;
+
+        // Get the layer config for the clicked feature's layer
+        if (LayerConfigs.TryGetValue(clickedFeature.LayerId, out var layerConfig))
+        {
+            // Return the inverse of IsEditable (if not editable, it's locked)
+            return !layerConfig.IsEditable;
+        }
+
+        // Default to locked if we can't find the layer config (safe default)
+        return true;
+    }
+
+    /// <summary>
+    /// Gets the editable fields configuration for the currently clicked feature's layer
+    /// </summary>
+    private List<AttributeFieldConfig>? GetEditableFieldsConfig()
+    {
+        if (clickedFeature == null || LayerConfigs == null)
+            return null;
+
+        // Get the layer config for the clicked feature's layer
+        if (LayerConfigs.TryGetValue(clickedFeature.LayerId, out var layerConfig))
+        {
+            return layerConfig.EditableFields;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Handles attribute save callback from FeatureAttributesControl
+    /// </summary>
+    private async Task HandleAttributesSaved(AttributeEditContext editContext)
+    {
+        if (clickedFeature == null || !OnAttributesSaved.HasDelegate)
+            return;
+
+        // Get the feature ID
+        var featureId = GetFeatureId(clickedFeature, clickedFeature.LayerId);
+        if (string.IsNullOrEmpty(featureId))
+        {
+            Console.WriteLine("Cannot save attributes: No feature ID found");
+            return;
+        }
+
+        // Invoke the parent callback with layer ID, feature ID, and edit context
+        await OnAttributesSaved.InvokeAsync((clickedFeature.LayerId, featureId, editContext));
+    }
+
+    /// <summary>
+    /// Handles attribute reset callback from FeatureAttributesControl
+    /// </summary>
+    private async Task HandleAttributesReset()
+    {
+        if (OnAttributesReset.HasDelegate)
+        {
+            await OnAttributesReset.InvokeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Merges custom field renderers from both the dictionary parameter and EditTemplates child content.
+    /// EditTemplates (declarative) takes precedence over dictionary entries.
+    /// </summary>
+    private Dictionary<string, RenderFragment<FeatureAttributesControl.FieldRenderContext>>? GetMergedCustomRenderers()
+    {
+        var merged = new Dictionary<string, RenderFragment<FeatureAttributesControl.FieldRenderContext>>();
+
+        // Add dictionary-based renderers first
+        if (CustomFieldRenderers != null)
+        {
+            foreach (var kvp in CustomFieldRenderers)
+            {
+                merged[kvp.Key] = kvp.Value;
+            }
+        }
+
+        // Add template-based renderers (these override dictionary entries)
+        if (_fieldTemplateContainer?.FieldTemplates != null)
+        {
+            foreach (var kvp in _fieldTemplateContainer.FieldTemplates)
+            {
+                merged[kvp.Key] = kvp.Value;
+            }
+        }
+
+        return merged.Count > 0 ? merged : null;
+    }
 }
+        return true;
+    }
+}
+

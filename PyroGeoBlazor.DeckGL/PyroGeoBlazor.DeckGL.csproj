@@ -29,6 +29,9 @@
     <Content Remove="vitest.config.ts" />
     <Content Remove="vite-build.mjs" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\PyroGeoBlazor\PyroGeoBlazor.csproj" />
+  </ItemGroup>
 
   <!-- Build TypeScript before C# compilation -->
   <Target Name="BuildTypeScript" BeforeTargets="BeforeBuild">

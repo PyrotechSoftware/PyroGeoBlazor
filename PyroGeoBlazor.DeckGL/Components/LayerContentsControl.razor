@@ -1,33 +1,45 @@
 @namespace PyroGeoBlazor.DeckGL.Components
 @using PyroGeoBlazor.DeckGL.Models
+@using PyroGeoBlazor.Utilities
 
 @if (Layers != null && Layers.Any())
 {
     <MudDropContainer T="LayerConfig" Items="LayersReverse" ItemsSelector="@((item, dropzone) => true )" Class="d-flex flex-column" ItemDropped="@(OnDropHandler)" Style="height:100%; box-sizing:border-box;">
         <ChildContent>
-            <MudPaper Class="flex-grow-1">
-                <MudList T="LayerConfig" Dense Class="d-flex flex-column mud-height-full">
-                    <MudListSubheader>Contents</MudListSubheader>
-                    <MudDropZone T="LayerConfig" Identifier="contents" Class="flex-grow-1" AllowReorder />
-                </MudList>
-            </MudPaper>
+            <MudTreeView T="LayerConfig" Dense Class="d-flex-column mud-height-full">
+                <MudDropZone T="LayerConfig" Identifier="contents" Class="flex-grow-1" AllowReorder />
+            </MudTreeView>
         </ChildContent>
         <ItemRenderer>
-            <MudListItem T="LayerConfig">
-                    <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
-                        <MudCheckBox T="bool" 
-                                     Value="@context.Visible"
-                                     ValueChanged="@(async (bool newValue) => await OnVisibilityToggled(context.Id, newValue))"
-                                     Color="Color.Primary"
-                                     Size="Size.Small" />
-                        <MudText Typo="Typo.body2" Style="flex: 1;">
-                            @context.Id
-                        </MudText>
-                        @* <MudChip T="string" Size="Size.Small" Color="Color.Info">
-                            @index
-                        </MudChip> *@
+            <MudTreeViewItem T="LayerConfig" Expanded ExpandButtonIcon="@(context.Type == "TileLayer" ? "" : Icons.Material.Outlined.KeyboardArrowRight)">
+                <BodyContent Context="item">
+                <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                    <MudCheckBox T="bool" 
+                                 Value="@context.Visible"
+                                 ValueChanged="@(async (bool newValue) => await OnVisibilityToggled(context.Id, newValue))"
+                                 Color="Color.Primary"
+                                 Size="Size.Small" />
+                    <MudText Typo="Typo.body2" Style="flex: 1;">
+                        @context.Id
+                    </MudText>
+                    @* <MudChip T="string" Size="Size.Small" Color="Color.Info">
+                        @index
+                    </MudChip> *@
                     </MudStack>
-                </MudListItem>
+                </BodyContent>
+                <ChildContent>
+                    @if (context.Type != "TileLayer")
+                    {
+                        <MudTreeViewItem T="string">
+                            <BodyContent Context="layerContext">
+                                <MudTooltip Text="Adjust Symbology" Delay="500">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Square" Style="@($"color: {GetLayerColor(context)}")" Size="Size.Large" />
+                                </MudTooltip>
+                            </BodyContent>
+                        </MudTreeViewItem>
+                    }
+                </ChildContent>
+            </MudTreeViewItem>
         </ItemRenderer>
     </MudDropContainer>
 }
@@ -68,5 +80,23 @@ else
         {
             await OnLayerReordered.InvokeAsync((dropInfo.Item.Id, target));
         }
+    }
+
+    private string GetLayerColor(LayerConfig layer)
+    {
+        if (layer.FeatureStyle?.FillColor != null)
+        {
+            return layer.FeatureStyle.FillColor;
+        }
+
+        if (layer is GeoJsonLayerConfig geoJsonLayer)
+        {
+            if (geoJsonLayer.FillColor is not null)
+            {
+                return ColorUtilities.RGBToHex(geoJsonLayer.FillColor);
+            }
+        }
+
+        return "#000000";
     }
 }

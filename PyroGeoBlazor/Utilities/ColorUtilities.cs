@@ -21,6 +21,42 @@ public static class ColorUtilities
     }
 
     /// <summary>
+    /// Converts RGB or RGBA color values to HEX format.
+    /// </summary>
+    /// <param name="rgb">Array containing RGB values [R, G, B] or RGBA values [R, G, B, A]. Values must be 0-255.</param>
+    /// <returns>HEX color string (e.g., "#ff0000" for red, "#ff0000ff" for red with full opacity)</returns>
+    /// <exception cref="ArgumentException">Thrown when array length is invalid or values are out of range.</exception>
+    public static string RGBToHex(int[] rgb)
+    {
+        if (rgb.Length < 3)
+            throw new ArgumentException("RGB array must contain at least 3 elements.");
+        if (rgb.Length > 4)
+            throw new ArgumentException("RGB array must contain no more than 4 elements.");
+
+        var r = rgb[0];
+        var g = rgb[1];
+        var b = rgb[2];
+
+        // Validate RGB values
+        if (r < 0 || r > 255 || g < 0 || g > 255 || b < 0 || b > 255)
+            throw new ArgumentException("RGB values must be between 0 and 255.");
+
+        // Handle alpha channel if provided
+        if (rgb.Length == 4)
+        {
+            var a = rgb[3];
+            if (a < 0 || a > 255)
+                throw new ArgumentException("Alpha value must be between 0 and 255.");
+            
+            // Convert to HEX format with alpha (lowercase to match HslToHex)
+            return $"#{r:x2}{g:x2}{b:x2}{a:x2}";
+        }
+
+        // Convert to HEX format (lowercase to match HslToHex)
+        return $"#{r:x2}{g:x2}{b:x2}";
+    }
+
+    /// <summary>
     /// Converts HSL color values to HEX format.
     /// </summary>
     /// <param name="h">Hue (0-360)</param>

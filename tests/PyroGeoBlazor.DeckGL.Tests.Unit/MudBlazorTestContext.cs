@@ -1,4 +1,5 @@
 using Bunit;
+using Bunit.Rendering;
 
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Rendering;
@@ -22,6 +23,13 @@ public abstract class MudBlazorTestContext : BunitContext
         JSInterop.SetupVoid("mudKeyInterceptor.connect", _ => true);
         JSInterop.SetupVoid("mudDragAndDrop.initDropZone", _ => true);
         JSInterop.Setup<int>("mudpopoverHelper.countProviders");
+    }
+
+    public override IRenderedComponent<ContainerFragment> Render(RenderFragment renderFragment)
+    {
+        var host = base.Render<MudTestHost>(p => p.AddChildContent(renderFragment));
+
+        return host.FindComponent<ContainerFragment>();
     }
 
     public override IRenderedComponent<TComponent> Render<TComponent>(Action<ComponentParameterCollectionBuilder<TComponent>>? parameterBuilder = null)

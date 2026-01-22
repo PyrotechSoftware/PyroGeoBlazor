@@ -1,0 +1,46 @@
+@namespace PyroGeoBlazor.DeckGL.Components
+@using MudBlazor
+@using MudBlazor.Utilities
+
+<MudDialog>
+    <DialogContent>
+        <MudColorPicker @bind-Value="@SelectedColor"
+                        ColorPickerMode="ColorPickerMode.RGB"
+                        ShowAlpha="!DisableAlpha"
+                        ShowToolbar="true"
+                        ShowModeSwitch="true"
+                        ColorPickerView="ColorPickerView.Spectrum"
+                        Style="width: 100%;" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton Color="Color.Primary" OnClick="Submit">Apply</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] 
+    private MudBlazor.IDialogReference? DialogReference { get; set; }
+
+    /// <summary>
+    /// The currently selected color
+    /// </summary>
+    [Parameter]
+    public MudColor SelectedColor { get; set; } = new MudColor("#000000");
+
+    /// <summary>
+    /// Whether to disable the alpha channel
+    /// </summary>
+    [Parameter]
+    public bool DisableAlpha { get; set; } = true;
+
+    private void Cancel()
+    {
+        DialogReference?.Close(DialogResult.Cancel());
+    }
+
+    private void Submit()
+    {
+        DialogReference?.Close(DialogResult.Ok(SelectedColor));
+    }
+}

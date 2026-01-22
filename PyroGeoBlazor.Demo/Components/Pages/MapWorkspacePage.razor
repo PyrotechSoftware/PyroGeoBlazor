@@ -1,6 +1,8 @@
 @page "/map-workspace"
 @using PyroGeoBlazor.DeckGL.Components
 @using PyroGeoBlazor.DeckGL.Models
+@using MudBlazor
+@using MudBlazor.Utilities
 
 <div style="height: 100%; display: flex; flex-direction: column; overflow: hidden;">
     <MapToolbar CurrentMode="@currentMapMode" CurrentModeChanged="@OnMapModeChanged">
@@ -21,7 +23,8 @@
                 <MudCardContent Style="flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; min-height: 0;">
                     <LayerContentsControl Layers="@layers" 
                                           OnLayerVisibilityChanged="@OnLayerVisibilityChanged"
-                                          OnLayerReordered="@MoveLayerToIndex" />
+                                          OnLayerReordered="@MoveLayerToIndex"
+                                          OnLayerColorChanged="@OnLayerColorChanged" />
                 </MudCardContent>
             </MudCard>
         </MudExDockItem>
@@ -76,10 +79,10 @@
 </div>
 
 @code {
-private MapMode currentMapMode = MapMode.Explore;
-private DeckGLView? deckGLView;
-private FeatureSelectionResult? selectionResult;
-private Dictionary<string, LayerConfig> layerConfigsDict = new();
+    private MapMode currentMapMode = MapMode.Explore;
+    private DeckGLView? deckGLView;
+    private FeatureSelectionResult? selectionResult;
+    private Dictionary<string, LayerConfig> layerConfigsDict = new();
 
     private ViewState initialViewState = new()
 {
@@ -107,12 +110,12 @@ private Dictionary<string, LayerConfig> layerConfigsDict = new();
     private async Task OnDeckInitialized()
     {
         Console.WriteLine("🎉 Deck.gl initialized! Adding layers...");
-        
+
         // Add Carto basemap (renders first/underneath)
         var cartoBasemap = TileLayerConfig.CartoLight("carto-basemap");
         cartoBasemap.Visible = true; // Explicitly set to visible
         layers.Add(cartoBasemap);
-        
+
         // Add sample GeoJSON layer (renders on top of basemap)
         var geoJsonLayer = new GeoJsonLayerConfig
         {
@@ -131,18 +134,18 @@ private Dictionary<string, LayerConfig> layerConfigsDict = new();
             DisplayProperty = "id",  // Display the area in square meters
             Visible = true // Explicitly set to visible
         };
-        
+
         layers.Add(geoJsonLayer);
-        
+
         // Build the dictionary for quick lookup
         layerConfigsDict = layers.ToDictionary(l => l.Id, l => l);
-        
+
         // Update layers in the DeckGLView
         if (deckGLView != null)
         {
             await deckGLView.UpdateLayers();
         }
-        
+
         StateHasChanged();
     }
 
@@ -239,9 +242,9 @@ private Dictionary<string, LayerConfig> layerConfigsDict = new();
         // Find the layer and update its Visible property
         var layer = layers.FirstOrDefault(l => l.Id == data.LayerId);
         if (layer != null)
-        {   
+        {
             layer.Visible = data.IsVisible;
-            
+
             // Update the layer visibility in DeckGLView
             await deckGLView.SetLayerVisibility(data.LayerId, data.IsVisible);
 
@@ -250,13 +253,48 @@ private Dictionary<string, LayerConfig> layerConfigsDict = new();
         }
     }
 
-    private async Task LayerReordered(string layerId, int newIndex)
+    private async Task OnLayerColorChanged((string LayerId, MudColor NewColor) data)
     {
         if (deckGLView == null) return;
 
-        await deckGLView.MoveLayerToIndex(layerId, newIndex);
+        // Find the layer
+        var layer = layers.FirstOrDefault(l => l.Id == data.LayerId);
+        if (layer != null)
+        {
+            // Update the layer's fill color
+            var hexColor = data.NewColor.ToString(MudColorOutputFormats.Hex);
 
-        StateHasChanged();
+            // Update FeatureStyle if it exists
+            if (layer.FeatureStyle != null)
+            {
+                layer.FeatureStyle.LineColor = hexColor;
+                layer.FeatureStyle.FillColor = hexColor;
+            }
+            else
+            {
+                // Create a new FeatureStyle
+                layer.FeatureStyle = new FeatureStyle
+                {
+                    LineColor = hexColor,
+                    FillColor = hexColor,
+                    FillOpacity = 0.7
+                };
+            }
+
+            // For GeoJsonLayerConfig, also update the direct FillColor property
+            if (layer is GeoJsonLayerConfig geoJsonLayer)
+            {
+                // Convert hex to RGBA array
+                var color = System.Drawing.ColorTranslator.FromHtml(hexColor);
+                geoJsonLayer.FillColor = [color.R, color.G, color.B, (int)(0.7 * 255)];
+            }
+
+            // Apply the new style to the layer
+            await deckGLView.SetLayerFeatureStyle(data.LayerId, layer.FeatureStyle);
+
+            Console.WriteLine($"Layer {data.LayerId} color changed to {hexColor}");
+            StateHasChanged();
+        }
     }
 
     private async Task MoveLayerToIndex((string layerId, int newIndex) data)

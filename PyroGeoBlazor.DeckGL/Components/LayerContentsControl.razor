@@ -1,6 +1,10 @@
 @namespace PyroGeoBlazor.DeckGL.Components
+@using MudBlazor.Extensions.Options
+@using MudBlazor.Utilities
 @using PyroGeoBlazor.DeckGL.Models
 @using PyroGeoBlazor.Utilities
+
+@inject IDialogService DialogService
 
 @if (Layers != null && Layers.Any())
 {
@@ -22,9 +26,6 @@
                     <MudText Typo="Typo.body2" Style="flex: 1;">
                         @context.Id
                     </MudText>
-                    @* <MudChip T="string" Size="Size.Small" Color="Color.Info">
-                        @index
-                    </MudChip> *@
                     </MudStack>
                 </BodyContent>
                 <ChildContent>
@@ -33,7 +34,10 @@
                         <MudTreeViewItem T="string">
                             <BodyContent Context="layerContext">
                                 <MudTooltip Text="Adjust Symbology" Delay="500">
-                                    <MudIconButton Icon="@Icons.Material.Filled.Square" Style="@($"color: {GetLayerColor(context)}")" Size="Size.Large" />
+                                    <MudIconButton Icon="@Icons.Material.Filled.Square" 
+                                                   Style="@($"color: {GetLayerColor(context)}")" 
+                                                   Size="Size.Large"
+                                                   OnClick="@(() => OpenColorPicker(context))" />
                                 </MudTooltip>
                             </BodyContent>
                         </MudTreeViewItem>
@@ -51,52 +55,91 @@ else
 }
 
 @code {
-    private List<LayerConfig> LayersReverse => Layers.AsEnumerable().Reverse().ToList();
+private List<LayerConfig> LayersReverse => Layers.AsEnumerable().Reverse().ToList();
 
-    [Parameter] public List<LayerConfig> Layers { get; set; } = [];
+[Parameter] public List<LayerConfig> Layers { get; set; } = [];
 
-    [Parameter] public EventCallback<(string LayerId, bool IsVisible)> OnLayerVisibilityChanged { get; set; }
-    [Parameter] public EventCallback<(string LayerId, int NewIndex)> OnLayerReordered { get; set; }
+[Parameter] public EventCallback<(string LayerId, bool IsVisible)> OnLayerVisibilityChanged { get; set; }
+[Parameter] public EventCallback<(string LayerId, int NewIndex)> OnLayerReordered { get; set; }
+[Parameter] public EventCallback<(string LayerId, MudColor NewColor)> OnLayerColorChanged { get; set; }
 
-    private async Task OnVisibilityToggled(string layerId, bool newValue)
+private async Task OnVisibilityToggled(string layerId, bool newValue)
+{
+    if (OnLayerVisibilityChanged.HasDelegate)
     {
-        if (OnLayerVisibilityChanged.HasDelegate)
+        await OnLayerVisibilityChanged.InvokeAsync((layerId, newValue));
+    }
+}
+
+private async Task OnDropHandler(MudItemDropInfo<LayerConfig> dropInfo)
+{
+    if (dropInfo?.Item is null) return;
+
+    var source = Layers.IndexOf(dropInfo.Item);
+
+    // Convert the drop index from reversed display order to original order
+    var count = Layers.Count;
+    var target = count - 1 - dropInfo.IndexInZone; // Mathematical inverse to get the correct index to move to.
+
+    if (source >= 0 && target >= 0 && source != target)
+    {
+        await OnLayerReordered.InvokeAsync((dropInfo.Item.Id, target));
+    }
+}
+
+private string GetLayerColor(LayerConfig layer)
+{
+    if (layer.FeatureStyle?.FillColor != null)
+    {
+        return layer.FeatureStyle.FillColor;
+    }
+
+    if (layer is GeoJsonLayerConfig geoJsonLayer)
+    {
+        if (geoJsonLayer.FillColor is not null)
         {
-            await OnLayerVisibilityChanged.InvokeAsync((layerId, newValue));
+            return ColorUtilities.RGBToHex(geoJsonLayer.FillColor);
         }
     }
 
-    private async Task OnDropHandler(MudItemDropInfo<LayerConfig> dropInfo)
+    return "#000000";
+}
+
+private async Task OpenColorPicker(LayerConfig layer)
+{
+    var currentColor = GetLayerColor(layer);
+    var mudColor = new MudColor(currentColor);
+
+    var parameters = new DialogParameters<LayerColorPickerDialog>
     {
-        if (dropInfo?.Item is null) return;
+        { x => x.SelectedColor, mudColor },
+        { x => x.DisableAlpha, false }
+    };
 
-        var source = Layers.IndexOf(dropInfo.Item);
+    var options = new DialogOptionsEx
+    {
+        CloseButton = true,
+        MaxWidth = MaxWidth.Small,
+        FullWidth = false,
+        DragMode = MudDialogDragMode.Simple,
+        Position = DialogPosition.Center,
+        Resizeable = true
+    };
 
-        // Convert the drop index from reversed display order to original order
-        var count = Layers.Count;
-        var target = count - 1 - dropInfo.IndexInZone; // Mathematical inverse to get the correct index to move to.
+    var dialog = await DialogService.ShowExAsync<LayerColorPickerDialog>(
+        $"Change Color - {layer.Id}",
+        parameters,
+        options);
 
-        if (source >= 0 && target >= 0 && source != target)
+    var result = await dialog.Result;
+
+    if (result is not null && !result.Canceled && result.Data is MudColor newColor)
+    {
+        if (OnLayerColorChanged.HasDelegate)
         {
-            await OnLayerReordered.InvokeAsync((dropInfo.Item.Id, target));
+            await OnLayerColorChanged.InvokeAsync((layer.Id, newColor));
         }
     }
-
-    private string GetLayerColor(LayerConfig layer)
-    {
-        if (layer.FeatureStyle?.FillColor != null)
-        {
-            return layer.FeatureStyle.FillColor;
-        }
-
-        if (layer is GeoJsonLayerConfig geoJsonLayer)
-        {
-            if (geoJsonLayer.FillColor is not null)
-            {
-                return ColorUtilities.RGBToHex(geoJsonLayer.FillColor);
-            }
-        }
-
-        return "#000000";
+}
     }
 }

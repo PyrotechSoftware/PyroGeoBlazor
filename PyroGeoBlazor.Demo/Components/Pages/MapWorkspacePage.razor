@@ -24,7 +24,7 @@
                     </CardHeaderContent>
                 </MudCardHeader>
                 <MudCardContent Style="flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; min-height: 0;">
-                    <LayerContentsControl Layers="@layers" 
+                    <LayerContentsControl Layers="@layers" IsLocked="false"
                                           OnLayerVisibilityChanged="@OnLayerVisibilityChanged"
                                           OnLayerReordered="@MoveLayerToIndex"
                                           OnLayerColorChanged="@OnLayerColorChanged" />

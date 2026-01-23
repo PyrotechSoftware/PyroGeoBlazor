@@ -21,8 +21,7 @@
                     <MudCheckBox T="bool" 
                                  Value="@context.Visible"
                                  ValueChanged="@(async (bool newValue) => await OnVisibilityToggled(context.Id, newValue))"
-                                 Color="Color.Primary"
-                                 Size="Size.Small" />
+                                 Color="Color.Primary" />
                     <MudText Typo="Typo.body2" Style="flex: 1;">
                         @context.Id
                     </MudText>
@@ -33,11 +32,11 @@
                     {
                         <MudTreeViewItem T="string">
                             <BodyContent Context="layerContext">
-                                <MudTooltip Text="@(IsLayerLocked(context) ? "Layer is locked" : "Adjust Symbology")" Delay="500">
+                                <MudTooltip Text="@(IsLocked ? "Layer control is locked" : "Adjust Symbology")" Delay="500">
                                     <MudIconButton Icon="@Icons.Material.Filled.Square" 
                                                    Style="@($"color: {GetLayerColor(context)}")" 
                                                    Size="Size.Large"
-                                                   Disabled="@IsLayerLocked(context)"
+                                                   Disabled="@IsLocked"
                                                    OnClick="@(() => OpenColorPicker(context))" />
                                 </MudTooltip>
                             </BodyContent>
@@ -61,7 +60,14 @@ else
     [Parameter] public List<LayerConfig> Layers { get; set; } = [];
 
     /// <summary>
-    /// When true, prevents users from changing layer symbology
+    /// Controls whether the layer control UI is locked (read-only).
+    /// When true, users cannot:
+    /// - Reorder layers (drag and drop disabled)
+    /// - Toggle layer visibility (checkboxes disabled)
+    /// - Change layer symbology/colors (color picker disabled)
+    /// 
+    /// This is independent of LayerConfig.IsEditable which controls whether
+    /// individual layer's feature data can be edited.
     /// </summary>
     [Parameter] public bool IsLocked { get; set; }
 
@@ -113,12 +119,9 @@ else
 
     private bool IsLayerLocked(LayerConfig layer)
     {
-        // Check global lock first
-        if (IsLocked)
-            return true;
-    
-        // Check layer-specific lock
-        return !layer.IsEditable;
+        // IsLocked controls whether the CONTROL UI is locked (symbology changes, reordering, etc.)
+        // This is independent of layer.IsEditable which controls feature data editing
+        return IsLocked;
     }
 
     private async Task OpenColorPicker(LayerConfig layer)

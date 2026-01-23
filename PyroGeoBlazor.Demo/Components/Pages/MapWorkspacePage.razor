@@ -1,4 +1,5 @@
 @page "/map-workspace"
+@implements IDisposable
 @using Microsoft.EntityFrameworkCore
 @using MudBlazor
 @using MudBlazor.Utilities
@@ -116,13 +117,13 @@
     {
         Console.WriteLine("Adding SQL layers...");
 
+        // Townships layer - Small dataset, no culling needed
         var townshipLayer = new GeoJsonLayerConfig
         {
             Id = "Townships",
             DataUrl = "api/townships",
             Pickable = false,
             Stroked = true,
-            Filled = true,
             Extruded = false,
             LineWidthScale = 1,
             LineWidthMinPixels = 1,
@@ -138,18 +139,21 @@
                 Opacity = 1.0,
                 LineWidth = 1,
             },
-            Opacity = 1, 
+            Opacity = 1,
+            // Small dataset - load at all zooms, no viewport culling
+            MinZoom = null,
+            EnableViewportCulling = false
         };
 
         layers.Add(townshipLayer);
 
+        // Extensions layer - Medium dataset, viewport culling enabled
         var extensionLayer = new GeoJsonLayerConfig
         {
             Id = "Extensions",
             DataUrl = "api/townshipextensions",
             Pickable = false,
             Stroked = true,
-            Filled = true,
             Extruded = false,
             LineWidthScale = 1,
             LineWidthMinPixels = 1,
@@ -160,24 +164,26 @@
             FeatureStyle = new()
             {
                 FillColor = "#FF8C00",
-                FillOpacity = 0.2,
+                FillOpacity = 0.3,
                 LineColor = "#FF8C00",
                 Opacity = 1.0,
-                LineWidth = 2,
+                LineWidth = 1,
             },
             Opacity = 1,
+            // Medium dataset - start showing at zoom 10, use viewport culling
+            MinZoom = 10,
+            EnableViewportCulling = true
         };
 
         layers.Add(extensionLayer);
 
-        // Add Parcels layer as well.
+        // Parcels layer - Large dataset, viewport culling + MinZoom
         var parcelsLayer = new GeoJsonLayerConfig
         {
             Id = "Parcels",
             DataUrl = "api/parcels",
             Pickable = true,
             Stroked = true,
-            Filled = true,
             Extruded = false,
             LineWidthScale = 1,
             LineWidthMinPixels = 0,
@@ -189,7 +195,7 @@
             {
                 LineWidth = 1,
                 LineColor = "#0375ff",
-                FillOpacity = 0.2,
+                FillOpacity = 0.4,
                 FillColor = "#0375ff"
             },
             HoverStyle = new FeatureStyle
@@ -199,7 +205,17 @@
                 FillColor = "#ff0000",
                 FillOpacity = 0.5
             },
-            Opacity = 0.7,
+            SelectionStyle = new FeatureStyle
+            {
+                LineWidth = 2,
+                LineColor = "#00ff00",
+                FillColor = "#00ff00",
+                FillOpacity = 0.6
+            },
+            Opacity = 1.0,
+            // Large dataset - only show at zoom 12+, use viewport culling for performance
+            MinZoom = 15,
+            EnableViewportCulling = true,
             EditableFields =
             [
                 new AttributeFieldConfig
@@ -218,6 +234,11 @@
                     IsReadOnly = true,
                     Order = 0
                 }
+            ],
+            ExcludedProperties =
+            [
+                "geoParcelId",
+                "id"
             ]
         };
 
@@ -240,9 +261,8 @@
             DataUrl = "https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/geojson/vancouver-blocks.json",
             Pickable = true,
             Stroked = true,
-            Filled = true,
             Extruded = false,
-            LineWidthScale = 20,
+            LineWidthScale = 1,
             LineWidthMinPixels = 2,
             FillColor = [160, 160, 180, 100],
             LineColor = [80, 80, 80, 255],
@@ -251,6 +271,7 @@
             DisplayProperty = "id",  // Display the area in square meters
             Visible = true, // Explicitly set to visible
             IsEditable = true,
+            ExcludedProperties = ["growth"],  // Exclude the "growth" property from attribute display
             EditableFields =
             [
                 new AttributeFieldConfig
@@ -315,9 +336,31 @@
         StateHasChanged();
     }
 
+    private System.Threading.Timer? _viewportUpdateTimer;
+    private ViewState? _pendingViewState;
+
     private void OnViewStateChanged(ViewState newViewState)
     {
         viewState = newViewState;
+        
+        // Store the pending view state
+        _pendingViewState = newViewState;
+        
+        // Debounce viewport updates - only update layers after user stops zooming/panning for 300ms
+        _viewportUpdateTimer?.Dispose();
+        _viewportUpdateTimer = new System.Threading.Timer(async _ =>
+        {
+            await InvokeAsync(async () =>
+            {
+                if (deckGLView != null && _pendingViewState != null)
+                {
+                    // Pass the current view state to UpdateLayers for accurate zoom detection
+                    await deckGLView.UpdateLayers(_pendingViewState);
+                    Console.WriteLine($"🌍 Viewport changed - layers updated (zoom: {_pendingViewState.Zoom:F1})");
+                }
+            });
+        }, null, 300, Timeout.Infinite);
+        
         StateHasChanged();
     }
 
@@ -547,5 +590,10 @@
         layers = reorderedLayers;
         
         Console.WriteLine($"Layers reordered: {string.Join(", ", layers.Select(l => l.Id))}");
+    }
+
+    public void Dispose()
+    {
+        _viewportUpdateTimer?.Dispose();
     }
 }

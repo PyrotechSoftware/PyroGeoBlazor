@@ -110,47 +110,40 @@ else
     /// <summary>
     /// The selected feature to display attributes for
     /// </summary>
-    [Parameter]
-    public SelectedFeature? SelectedFeature { get; set; }
+    [Parameter] public SelectedFeature? SelectedFeature { get; set; }
 
     /// <summary>
     /// When true, indicates the layer does not allow attribute editing and displays a lock indicator
     /// </summary>
-    [Parameter]
-    public bool IsLocked { get; set; }
+    [Parameter] public bool IsLocked { get; set; }
 
     /// <summary>
     /// Configuration for editable fields. Defines which fields can be edited and how.
     /// </summary>
-    [Parameter]
-    public List<AttributeFieldConfig>? EditableFieldsConfig { get; set; }
+    [Parameter] public List<AttributeFieldConfig>? EditableFieldsConfig { get; set; }
 
     /// <summary>
     /// Optional list of property names to exclude from the display
     /// </summary>
-    [Parameter]
-    public string[]? ExcludedProperties { get; set; }
+    [Parameter] public string[]? ExcludedProperties { get; set; }
 
     /// <summary>
     /// Event callback invoked when changes are saved.
     /// Provides the modified fields and their new values.
     /// </summary>
-    [Parameter]
-    public EventCallback<AttributeEditContext> OnSaveChanges { get; set; }
+    [Parameter] public EventCallback<AttributeEditContext> OnSaveChanges { get; set; }
 
     /// <summary>
     /// Event callback invoked when changes are reset.
     /// </summary>
-    [Parameter]
-    public EventCallback OnResetChanges { get; set; }
+    [Parameter] public EventCallback OnResetChanges { get; set; }
 
     /// <summary>
     /// Optional dictionary of custom render fragments for specific fields.
     /// Key is the field name, value is a render fragment that receives the field context.
     /// When provided, the custom renderer will be used instead of the default control.
     /// </summary>
-    [Parameter]
-    public Dictionary<string, RenderFragment<FieldRenderContext>>? CustomFieldRenderers { get; set; }
+    [Parameter] public Dictionary<string, RenderFragment<FieldRenderContext>>? CustomFieldRenderers { get; set; }
 
     /// <summary>
     /// Context passed to custom field renderers

@@ -28,17 +28,46 @@ public class ParcelsController : ControllerBase
     }
 
     /// <summary>
-    /// Gets all parcels as GeoJSON.
+    /// Gets parcels as GeoJSON, optionally filtered by viewport bounds and zoom level.
     /// </summary>
-    /// <returns>GeoJSON FeatureCollection of parcels.</returns>
+    /// <param name="minLon">Minimum longitude (west) of viewport bounds.</param>
+    /// <param name="minLat">Minimum latitude (south) of viewport bounds.</param>
+    /// <param name="maxLon">Maximum longitude (east) of viewport bounds.</param>
+    /// <param name="maxLat">Maximum latitude (north) of viewport bounds.</param>
+    /// <param name="zoom">Current zoom level.</param>
+    /// <returns>GeoJSON FeatureCollection of parcels within the specified viewport.</returns>
     [HttpGet]
     [Produces("application/json")]
-    public async Task<IActionResult> Get()
+    public async Task<IActionResult> Get(
+        [FromQuery] double? minLon,
+        [FromQuery] double? minLat,
+        [FromQuery] double? maxLon,
+        [FromQuery] double? maxLat,
+        [FromQuery] double? zoom)
     {
         try
         {
-            var parcels = await _context.VwParcelsLayers
-                .AsNoTracking()
+            var query = _context.VwParcelsLayers.AsNoTracking();
+
+            // Apply viewport culling if bounds provided
+            if (minLon.HasValue && minLat.HasValue && maxLon.HasValue && maxLat.HasValue)
+            {
+                // Create envelope (bounding box) from viewport bounds
+                var envelope = new NetTopologySuite.Geometries.Envelope(
+                    minLon.Value, maxLon.Value, minLat.Value, maxLat.Value);
+                
+                // Create geometry factory with SRID 4326 (WGS84 - standard lat/lon)
+                var geometryFactory = NetTopologySuite.NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
+                var envelopeGeom = geometryFactory.ToGeometry(envelope);
+
+                // Filter features that intersect with viewport
+                query = query.Where(p => p.Geometry.Intersects(envelopeGeom));
+
+                _logger.LogDebug("Viewport culling applied: [{MinLon}, {MinLat}] to [{MaxLon}, {MaxLat}], Zoom: {Zoom}",
+                    minLon, minLat, maxLon, maxLat, zoom ?? -1);
+            }
+
+            var parcels = await query
                 .Select(x => new Feature
                 {
                     Geometry = x.Geometry,
@@ -50,6 +79,9 @@ public class ParcelsController : ControllerBase
                     }
                 })
                 .ToListAsync();
+
+            _logger.LogInformation("Returning {Count} parcels (viewport culling: {Enabled}, bounds: [{MinLon}, {MinLat}] to [{MaxLon}, {MaxLat}])",
+                parcels.Count, minLon.HasValue, minLon ?? 0, minLat ?? 0, maxLon ?? 0, maxLat ?? 0);
 
             var featureCollection = new FeatureCollection(parcels);
 
@@ -68,3 +100,4 @@ public class ParcelsController : ControllerBase
         }
     }
 }
+

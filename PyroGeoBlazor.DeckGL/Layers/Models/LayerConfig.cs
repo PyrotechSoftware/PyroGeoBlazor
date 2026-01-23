@@ -137,6 +137,34 @@ public abstract class LayerConfig
     /// </summary>
     [JsonPropertyName("editableFields")]
     public List<AttributeFieldConfig> EditableFields { get; set; } = [];
+
+    /// <summary>
+    /// Optional list of property names to exclude from the attributes display.
+    /// These properties will not be shown in the FeatureAttributesControl.
+    /// Example: new[] { "geometry", "bbox", "id" }
+    /// </summary>
+    [JsonIgnore]
+    public string[]? ExcludedProperties { get; set; }
+
+    /// <summary>
+    /// Minimum zoom level before the layer's data is fetched from the server.
+    /// Below this zoom level, no data will be loaded (layer appears empty).
+    /// This is useful for performance optimization on layers with large datasets that should only appear when zoomed in.
+    /// Example: Set to 12 for parcel layers that should only load when zoomed to neighborhood level.
+    /// If null or 0, data loads at all zoom levels.
+    /// </summary>
+    [JsonPropertyName("minZoom")]
+    public double? MinZoom { get; set; }
+
+    /// <summary>
+    /// Whether to enable viewport culling for this layer.
+    /// When true, the layer's DataUrl will be automatically appended with viewport bounds and zoom parameters.
+    /// The API endpoint must support minLon, minLat, maxLon, maxLat, and zoom query parameters.
+    /// This significantly reduces data transfer for large datasets by only loading visible features.
+    /// Defaults to false for backward compatibility.
+    /// </summary>
+    [JsonPropertyName("enableViewportCulling")]
+    public bool EnableViewportCulling { get; set; } = false;
 }
 
 /// <summary>

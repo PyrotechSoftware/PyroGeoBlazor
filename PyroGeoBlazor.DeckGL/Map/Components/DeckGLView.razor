@@ -112,13 +112,21 @@
     /// <summary>
     /// Update the layers rendered in the view
     /// </summary>
-    public async Task UpdateLayers()
+    /// <param name="currentViewState">Optional current view state for accurate zoom detection</param>
+    public async Task UpdateLayers(ViewState? currentViewState = null)
     {
         if (_deckGLViewRef != null && Layers != null)
         {
             try
             {
-                await _deckGLViewRef.InvokeVoidAsync("updateLayers", Layers);
+                if (currentViewState != null)
+                {
+                    await _deckGLViewRef.InvokeVoidAsync("updateLayers", Layers, currentViewState);
+                }
+                else
+                {
+                    await _deckGLViewRef.InvokeVoidAsync("updateLayers", Layers);
+                }
             }
             catch (Exception ex)
             {

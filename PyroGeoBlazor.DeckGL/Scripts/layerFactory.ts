@@ -31,7 +31,17 @@ export function createLayerFromConfig(config: LayerConfig, data: any): Layer | n
                 getLineColor: props.getLineColor ?? [0, 0, 0, 255],
                 getPointRadius: props.getPointRadius ?? 100,
                 getLineWidth: props.getLineWidth ?? 1,
-                getElevation: props.getElevation ?? 30
+                getElevation: props.getElevation ?? 30,
+                
+                // Update triggers: Tell deck.gl which properties to watch for changes
+                // This prevents unnecessary recalculations when unrelated properties change
+                updateTriggers: {
+                    getFillColor: [props.getFillColor],
+                    getLineColor: [props.getLineColor],
+                    getLineWidth: [props.getLineWidth],
+                    getPointRadius: [props.getPointRadius],
+                    getElevation: [props.getElevation]
+                }
             });
 
         case 'scatterplot':
@@ -51,7 +61,15 @@ export function createLayerFromConfig(config: LayerConfig, data: any): Layer | n
                 getPosition: props.getPosition ?? ((d: any) => d.position || [d.longitude, d.latitude]),
                 getRadius: props.getRadius ?? ((d: any) => d.radius || 5),
                 getFillColor: props.getFillColor ?? ((d: any) => d.color || [255, 140, 0]),
-                getLineColor: props.getLineColor ?? [0, 0, 0]
+                getLineColor: props.getLineColor ?? [0, 0, 0],
+                
+                // Update triggers for dynamic accessors
+                updateTriggers: {
+                    getPosition: [props.getPosition],
+                    getRadius: [props.getRadius],
+                    getFillColor: [props.getFillColor],
+                    getLineColor: [props.getLineColor]
+                }
             });
 
         case 'arc':
@@ -65,7 +83,16 @@ export function createLayerFromConfig(config: LayerConfig, data: any): Layer | n
                 getSourcePosition: props.getSourcePosition ?? ((d: any) => d.from.coordinates),
                 getTargetPosition: props.getTargetPosition ?? ((d: any) => d.to.coordinates),
                 getSourceColor: props.getSourceColor ?? [0, 128, 255],
-                getTargetColor: props.getTargetColor ?? [255, 0, 128]
+                getTargetColor: props.getTargetColor ?? [255, 0, 128],
+                
+                // Update triggers for arc properties
+                updateTriggers: {
+                    getWidth: [props.getWidth],
+                    getSourcePosition: [props.getSourcePosition],
+                    getTargetPosition: [props.getTargetPosition],
+                    getSourceColor: [props.getSourceColor],
+                    getTargetColor: [props.getTargetColor]
+                }
             });
 
         case 'tile':
@@ -101,6 +128,9 @@ export function createLayerFromConfig(config: LayerConfig, data: any): Layer | n
 
         case 'mvt':
         case 'mvtlayer':
+            // Determine pickable setting (default to false for performance)
+            const isPickable = props.pickable === true;
+            
             return new MVTLayer({
                 id,
                 data: props.dataUrl || data,
@@ -108,7 +138,8 @@ export function createLayerFromConfig(config: LayerConfig, data: any): Layer | n
                 maxZoom: props.maxZoom ?? 22,
                 
                 // Styling properties
-                pickable: props.pickable ?? true,
+                // Default to NOT pickable for better performance (binary mode)
+                pickable: isPickable,
                 stroked: props.stroked ?? true,
                 filled: props.filled ?? true,
                 
@@ -124,8 +155,19 @@ export function createLayerFromConfig(config: LayerConfig, data: any): Layer | n
                 // Point styling
                 pointRadiusMinPixels: props.pointRadiusMinPixels ?? 2,
                 
-                // CRITICAL: Explicitly disable binary mode so we can access GeoJSON features for selection
-                binary: false,
+                // PERFORMANCE OPTIMIZATION: Use binary mode by default for 5-10x faster rendering
+                // Binary mode is disabled automatically when pickable=true (needed for feature selection)
+                // When binary=true: Uses WebGL buffers directly (fast, but no feature access)
+                // When binary=false: Parses as GeoJSON (slower, but enables picking/selection)
+                binary: !isPickable,
+                
+                // Update triggers for MVT styling
+                updateTriggers: {
+                    getFillColor: [props.getFillColor, props.fillColor],
+                    getLineColor: [props.getLineColor, props.lineColor],
+                    getLineWidth: [props.getLineWidth],
+                    getRadius: [props.getRadius]
+                },
                 
                 ...props
             });

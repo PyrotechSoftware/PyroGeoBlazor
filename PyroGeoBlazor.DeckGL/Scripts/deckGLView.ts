@@ -44,6 +44,8 @@ export interface LayerConfig {
     uniqueIdProperty?: string;  // Property name to use as unique feature ID (e.g., "CustomIdentifier")
     displayProperty?: string;  // Property name to use for displaying feature names in UI
     uniqueValueRenderer?: UniqueValueRenderer;  // Attribute-based styling
+    minZoom?: number;  // Minimum zoom level before data is fetched
+    enableViewportCulling?: boolean;  // Whether to append viewport bounds to dataUrl
 }
 
 /**
@@ -151,6 +153,132 @@ private currentMapMode: string = 'Explore';  // 'Explore' | 'SelectFeature' | 'S
 
 // Layer-specific styles storage
 private layerConfigs: Map<string, LayerConfig> = new Map();  // Store original configs
+
+// Track last zoom level for each layer with MinZoom
+private lastZoomByLayer: Map<string, number> = new Map();
+
+// Track last viewport center (lat/lon) for layers with viewport culling
+private lastViewportByLayer: Map<string, { longitude: number; latitude: number }> = new Map();
+
+/**
+ * Check if a layer needs to be updated by comparing old and new configurations
+ * Returns true if the layer must be recreated, false if it can be reused
+ */
+private layerNeedsUpdate(oldConfig: LayerConfig | undefined, newConfig: LayerConfig): boolean {
+    console.log(`🔍 Checking if layer ${newConfig.id} needs update...`);
+    console.log(`  - Has old config: ${!!oldConfig}`);
+    console.log(`  - MinZoom: ${newConfig.minZoom ?? 'none'}`);
+    console.log(`  - EnableViewportCulling: ${newConfig.enableViewportCulling ?? false}`);
+    
+    if (!oldConfig) {
+        console.log(`  ✅ First time creating layer - needs update`);
+        return true;
+    }
+    
+    // Check if zoom crossed MinZoom threshold
+    if (newConfig.minZoom) {
+        const currentZoom = this.getCurrentZoom();
+        const lastZoom = this.lastZoomByLayer.get(newConfig.id) ?? currentZoom;
+        
+        console.log(`  - MinZoom check: current=${currentZoom.toFixed(2)}, last=${lastZoom.toFixed(2)}, threshold=${newConfig.minZoom}`);
+        
+        // Check if we crossed the threshold in either direction
+        const wasBelowMin = lastZoom < newConfig.minZoom;
+        const isNowBelowMin = currentZoom < newConfig.minZoom;
+        
+        console.log(`  - Was below min: ${wasBelowMin}, Is now below min: ${isNowBelowMin}`);
+        
+        if (wasBelowMin !== isNowBelowMin) {
+            console.log(`  ✅ Zoom crossed MinZoom threshold for ${newConfig.id}: ${lastZoom.toFixed(1)} → ${currentZoom.toFixed(1)} (minZoom: ${newConfig.minZoom})`);
+            this.lastZoomByLayer.set(newConfig.id, currentZoom);
+            return true;
+        }
+        
+        // Update last zoom even if threshold not crossed
+        this.lastZoomByLayer.set(newConfig.id, currentZoom);
+    }
+    
+    // Check if viewport changed for layers with viewport culling enabled
+    if (newConfig.enableViewportCulling) {
+        const currentViewState = (this as any)._currentViewState;
+        const currentZoom = this.getCurrentZoom();
+        const lastZoom = this.lastZoomByLayer.get(newConfig.id) ?? currentZoom;
+        const zoomDiff = Math.abs(currentZoom - lastZoom);
+        
+        // Get current and last position
+        const currentLon = currentViewState?.longitude ?? 0;
+        const currentLat = currentViewState?.latitude ?? 0;
+        const lastViewport = this.lastViewportByLayer.get(newConfig.id);
+        
+        console.log(`  - Viewport culling check: zoom=${currentZoom.toFixed(2)}, lastZoom=${lastZoom.toFixed(2)}, diff=${zoomDiff.toFixed(3)}`);
+        console.log(`  - Position: [${currentLon.toFixed(4)}, ${currentLat.toFixed(4)}]`);
+        
+        if (lastViewport) {
+            const lonDiff = Math.abs(currentLon - lastViewport.longitude);
+            const latDiff = Math.abs(currentLat - lastViewport.latitude);
+            console.log(`  - Last position: [${lastViewport.longitude.toFixed(4)}, ${lastViewport.latitude.toFixed(4)}]`);
+            console.log(`  - Position diff: lon=${lonDiff.toFixed(4)}, lat=${latDiff.toFixed(4)}`);
+            
+            // Calculate significant movement threshold based on zoom level
+            // At zoom 10, moving 0.1 degrees (~11km) should trigger refresh
+            // At zoom 17, moving 0.001 degrees (~110m) should trigger refresh
+            const movementThreshold = 1 / Math.pow(2, currentZoom - 8);
+            console.log(`  - Movement threshold for zoom ${currentZoom.toFixed(1)}: ${movementThreshold.toFixed(6)}`);
+            
+            // Update if zoom changed OR position moved significantly
+            if (zoomDiff > 0.01 || lonDiff > movementThreshold || latDiff > movementThreshold) {
+                console.log(`  ✅ Viewport changed for ${newConfig.id} (zoom diff: ${zoomDiff.toFixed(3)}, lon diff: ${lonDiff.toFixed(4)}, lat diff: ${latDiff.toFixed(4)})`);
+                this.lastZoomByLayer.set(newConfig.id, currentZoom);
+                this.lastViewportByLayer.set(newConfig.id, { longitude: currentLon, latitude: currentLat });
+                return true;
+            }
+        } else {
+            // First time - store current position
+            console.log(`  ✅ First viewport check for ${newConfig.id} - will update`);
+            this.lastZoomByLayer.set(newConfig.id, currentZoom);
+            this.lastViewportByLayer.set(newConfig.id, { longitude: currentLon, latitude: currentLat });
+            return true;
+        }
+    }
+    
+    // Check if data source changed
+    if (oldConfig.dataUrl !== newConfig.dataUrl) {
+        console.log(`  ✅ DataUrl changed for ${newConfig.id}`);
+        return true;
+    }
+    
+    if (oldConfig.data !== newConfig.data) {
+        console.log(`  ✅ Data changed for ${newConfig.id}`);
+        return true;
+    }
+    
+    // Check if critical props changed
+    const oldPropsStr = JSON.stringify(oldConfig.props);
+    const newPropsStr = JSON.stringify(newConfig.props);
+    if (oldPropsStr !== newPropsStr) {
+        console.log(`  ✅ Props changed for ${newConfig.id}`);
+        return true;
+    }
+    
+    // Check if styles changed
+    if (JSON.stringify(oldConfig.featureStyle) !== JSON.stringify(newConfig.featureStyle)) {
+        console.log(`  ✅ FeatureStyle changed for ${newConfig.id}`);
+        return true;
+    }
+    
+    if (JSON.stringify(oldConfig.selectionStyle) !== JSON.stringify(newConfig.selectionStyle)) {
+        console.log(`  ✅ SelectionStyle changed for ${newConfig.id}`);
+        return true;
+    }
+    
+    if (JSON.stringify(oldConfig.hoverStyle) !== JSON.stringify(newConfig.hoverStyle)) {
+        console.log(`  ✅ HoverStyle changed for ${newConfig.id}`);
+        return true;
+    }
+    
+    console.log(`  ❌ No changes detected - layer can be reused`);
+    return false;
+}
 
 constructor(config: DeckGLViewConfig, dotNetHelper?: any) {
     this.containerId = config.containerId;
@@ -431,23 +559,59 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     /**
      * Update layers - this is the main method Blazor calls to control rendering
      * Blazor provides layer configurations; JS handles data fetching and layer creation
+     * NOW WITH CACHING: Only recreates layers when config actually changes
      */
-    public async updateLayers(layerConfigs: LayerConfig[]): Promise<void> {
-        console.log(`Updating ${layerConfigs.length} layers`);
+    public async updateLayers(layerConfigs: LayerConfig[], currentViewState?: ViewState): Promise<void> {
+        const startTime = performance.now();
+        console.log(`🔄 Updating ${layerConfigs.length} layers...`);
+        
+        // Store the current view state if provided (for accurate zoom detection)
+        if (currentViewState) {
+            (this as any)._currentViewState = currentViewState;
+            console.log(`📊 Current zoom level from C#: ${currentViewState.zoom.toFixed(2)}`);
+        } else {
+            console.log(`📊 Current zoom level: ${this.getCurrentZoom().toFixed(2)}`);
+        }
+        
+        // Debug: Log each layer's config
+        layerConfigs.forEach(config => {
+            console.log(`📋 Layer ${config.id}: minZoom=${config.minZoom ?? 'none'}, enableViewportCulling=${config.enableViewportCulling ?? false}, dataUrl=${config.dataUrl ?? 'none'}`);
+        });
 
         const layers: Layer[] = [];
+        let recreatedCount = 0;
+        let reusedCount = 0;
 
         for (const config of layerConfigs) {
             try {
-                // Store the config for later reference
-                this.layerConfigs.set(config.id, config);
+                const oldConfig = this.layerConfigs.get(config.id);
+                const existingLayer = this.currentLayers.find(l => l.id === config.id);
                 
-                const layer = await this.createLayer(config);
-                if (layer) {
-                    layers.push(layer);
+                // Check if we can reuse the existing layer
+                if (existingLayer && oldConfig && !this.layerNeedsUpdate(oldConfig, config)) {
+                    console.log(`  ♻️  Reusing layer: ${config.id}`);
+                    layers.push(existingLayer);
+                    reusedCount++;
+                } else {
+                    // Layer needs update - clear cache to force fresh data fetch
+                    if (this.dataCache.has(config.id)) {
+                        console.log(`  🗑️  Clearing cache for ${config.id} (viewport/zoom changed)`);
+                        this.dataCache.delete(config.id);
+                    }
+                    
+                    // Create new layer only if needed
+                    console.log(`  🔨 Creating layer: ${config.id}`);
+                    const layer = await this.createLayer(config);
+                    if (layer) {
+                        layers.push(layer);
+                        recreatedCount++;
+                    }
                 }
+                
+                // Always update the config map with a deep copy to prevent mutation issues
+                this.layerConfigs.set(config.id, JSON.parse(JSON.stringify(config)));
             } catch (error) {
-                console.error(`Error creating layer ${config.id}:`, error);
+                console.error(`❌ Error creating layer ${config.id}:`, error);
             }
         }
 
@@ -460,6 +624,10 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             }
             this.deck.setProps({ layers: allLayers });
         }
+        
+        const endTime = performance.now();
+        const duration = (endTime - startTime).toFixed(2);
+        console.log(`✅ Layer update complete in ${duration}ms (♻️ ${reusedCount} reused, 🔨 ${recreatedCount} recreated)`);
     }
 
     /**
@@ -473,7 +641,22 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         // If dataUrl is provided, fetch the data (JS owns data fetching)
         let data = config.data;
         if (config.dataUrl) {
-            data = await this.fetchData(config.dataUrl, config.id);
+            // Check MinZoom: don't fetch if below minimum zoom level
+            const currentZoom = this.getCurrentZoom();
+            if (config.minZoom && currentZoom < config.minZoom) {
+                console.log(`⏭️ Skipping layer ${config.id}: zoom ${currentZoom.toFixed(1)} < minZoom ${config.minZoom}`);
+                // Return null or empty data - layer won't render
+                data = null;
+            } else {
+                // Build URL with viewport parameters if viewport culling enabled
+                let dataUrl = config.dataUrl;
+                if (config.enableViewportCulling) {
+                    dataUrl = this.buildViewportUrl(config.dataUrl);
+                    console.log(`🌍 Viewport culling enabled for ${config.id}: ${dataUrl}`);
+                }
+                
+                data = await this.fetchData(dataUrl, config.id);
+            }
         }
 
         // Auto-generate IDs for GeoJSON features if they don't have one
@@ -567,10 +750,14 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             const rgbaColor = hexToRgba(style.fillColor, fillOpacity);
             console.log(`    Set fillColor: ${style.fillColor} (opacity: ${fillOpacity}) -> RGBA:`, rgbaColor);
             
-            // Set accessor function to return the static color
-            // This prevents deck.gl from using default colors
+            // Set BOTH the static property and accessor function
+            enhancedProps.fillColor = rgbaColor;
             enhancedProps.getFillColor = () => rgbaColor;
-            console.log(`    Set getFillColor accessor to return RGBA:`, rgbaColor);
+            console.log(`    Set fillColor static property and getFillColor accessor to return RGBA:`, rgbaColor);
+            
+            // Set filled based on fillOpacity: filled when > 0, not filled when = 0
+            enhancedProps.filled = fillOpacity > 0;
+            console.log(`    Set filled based on fillOpacity (${fillOpacity}):`, enhancedProps.filled);
         }
         
         if (style.lineColor) {
@@ -578,9 +765,14 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             const rgbaColor = hexToRgba(style.lineColor, lineOpacity);
             console.log(`    Set lineColor: ${style.lineColor} (opacity: ${lineOpacity}) -> RGBA:`, rgbaColor);
             
-            // Set accessor function to return the static color
+            // Set BOTH the static property and accessor function
+            enhancedProps.lineColor = rgbaColor;
             enhancedProps.getLineColor = () => rgbaColor;
-            console.log(`    Set getLineColor accessor to return RGBA:`, rgbaColor);
+            console.log(`    Set lineColor static property and getLineColor accessor to return RGBA:`, rgbaColor);
+            
+            // IMPORTANT: Ensure stroked is true when we have a line color
+            enhancedProps.stroked = true;
+            console.log(`    Set stroked: true (has lineColor)`);
         }
         
         if (style.lineWidth !== undefined) {
@@ -747,6 +939,131 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     public removeCacheItem(key: string): void {
         this.dataCache.delete(key);
         console.log(`Removed cache item: ${key}`);
+    }
+
+    /**
+     * Get the current zoom level from the deck's view state
+     */
+    private getCurrentZoom(): number {
+        // First, try to use the viewState passed from C# (most accurate)
+        const currentViewState = (this as any)._currentViewState;
+        if (currentViewState?.zoom != null) {
+            console.log(`📍 Got zoom from stored C# viewState: ${currentViewState.zoom}`);
+            return currentViewState.zoom;
+        }
+        
+        if (!this.deck) {
+            console.warn('⚠️ getCurrentZoom: deck is null');
+            return 0;
+        }
+        
+        // Try multiple methods to get the zoom level
+        try {
+            // Method 1: Try viewState property
+            const viewState = (this.deck as any).viewState;
+            if (viewState?.zoom != null) {
+                console.log(`📍 Got zoom from deck.viewState: ${viewState.zoom}`);
+                return viewState.zoom;
+            }
+            
+            // Method 2: Try viewManager
+            const viewManager = (this.deck as any).viewManager;
+            if (viewManager?.getViewState) {
+                const vs = viewManager.getViewState();
+                if (vs?.zoom != null) {
+                    console.log(`📍 Got zoom from viewManager: ${vs.zoom}`);
+                    return vs.zoom;
+                }
+            }
+            
+            // Method 3: Try getViewports
+            const viewports = this.deck.getViewports();
+            if (viewports?.[0]?.zoom != null) {
+                console.log(`📍 Got zoom from getViewports: ${viewports[0].zoom}`);
+                return viewports[0].zoom;
+            }
+            
+            // Method 4: Try _lastViewState (fallback)
+            const lastViewState = (this.deck as any)._lastViewState;
+            if (lastViewState?.zoom != null) {
+                console.log(`📍 Got zoom from _lastViewState: ${lastViewState.zoom}`);
+                return lastViewState.zoom;
+            }
+            
+            console.warn('⚠️ Could not get zoom from any deck.gl property');
+            return 0;
+        } catch (error) {
+            console.error('❌ Error getting current zoom:', error);
+            return 0;
+        }
+    }
+
+    /**
+     * Build a URL with viewport bounds and zoom parameters
+     * Appends minLon, minLat, maxLon, maxLat, and zoom to the URL
+     */
+    private buildViewportUrl(baseUrl: string): string {
+        // ALWAYS use the stored viewState from C# first (most accurate and up-to-date)
+        let viewState: any = (this as any)._currentViewState;
+        
+        // Only fall back to deck.gl if no C# viewState available
+        if (!viewState && this.deck) {
+            // Try viewState property
+            viewState = (this.deck as any).viewState;
+            
+            // Try viewManager
+            if (!viewState) {
+                const viewManager = (this.deck as any).viewManager;
+                if (viewManager?.getViewState) {
+                    viewState = viewManager.getViewState();
+                }
+            }
+            
+            // Try getViewports
+            if (!viewState) {
+                const viewports = this.deck.getViewports();
+                if (viewports?.[0]) {
+                    viewState = viewports[0];
+                }
+            }
+        }
+        
+        if (!viewState) {
+            console.warn('⚠️ Could not get viewState for buildViewportUrl');
+            return baseUrl;
+        }
+        
+        const { longitude, latitude, zoom } = viewState;
+        
+        console.log(`🗺️ Building viewport URL - Center: [${longitude?.toFixed(4)}, ${latitude?.toFixed(4)}], Zoom: ${zoom?.toFixed(2)}`);
+        
+        if (longitude == null || latitude == null || zoom == null) {
+            console.warn('⚠️ ViewState missing required properties:', viewState);
+            return baseUrl;
+        }
+        
+        // Calculate approximate viewport bounds based on zoom level
+        const latDelta = 180 / Math.pow(2, zoom);  // Degrees latitude visible
+        const lonDelta = 360 / Math.pow(2, zoom);  // Degrees longitude visible
+        
+        // Add 50% padding to ensure edge features are included
+        // This also provides a buffer for smooth panning
+        const paddingFactor = 1.5;
+        const paddedLatDelta = latDelta * paddingFactor;
+        const paddedLonDelta = lonDelta * paddingFactor;
+        
+        const minLon = longitude - paddedLonDelta;
+        const maxLon = longitude + paddedLonDelta;
+        const minLat = latitude - paddedLatDelta;
+        const maxLat = latitude + paddedLatDelta;
+        
+        console.log(`📐 Calculated bounds (with ${paddingFactor}x padding): minLon=${minLon.toFixed(4)}, minLat=${minLat.toFixed(4)}, maxLon=${maxLon.toFixed(4)}, maxLat=${maxLat.toFixed(4)}`);
+        console.log(`   (viewport delta: lat=${latDelta.toFixed(4)}, lon=${lonDelta.toFixed(4)})`);
+
+        
+        // Add query parameters to URL
+        const separator = baseUrl.includes('?') ? '&' : '?';
+        return `${baseUrl}${separator}minLon=${minLon}&minLat=${minLat}&maxLon=${maxLon}&maxLat=${maxLat}&zoom=${zoom}`;
     }
 
     /**

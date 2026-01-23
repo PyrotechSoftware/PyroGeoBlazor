@@ -24,12 +24,30 @@ public class GeoJsonLayerConfig : LayerConfig
     }
 
     /// <summary>
-    /// Whether to draw filled polygons
+    /// Whether to draw filled polygons.
+    /// Automatically determined by FeatureStyle.FillOpacity: filled when FillOpacity > 0, not filled when FillOpacity = 0.
     /// </summary>
     [JsonIgnore]
     public bool Filled
     {
-        get => !Props.ContainsKey("filled") || Props["filled"] is bool b && b;
+        get
+        {
+            // If explicitly set in Props, use that value
+            if (Props.TryGetValue("filled", out var value) && value is bool b)
+            {
+                return b;
+            }
+
+            // Otherwise, determine from FeatureStyle.FillOpacity
+            // Filled when FillOpacity > 0, not filled when FillOpacity = 0
+            if (FeatureStyle?.FillOpacity != null)
+            {
+                return FeatureStyle.FillOpacity > 0.0;
+            }
+
+            // Default to true if no FeatureStyle is set
+            return true;
+        }
         set => Props["filled"] = value;
     }
 

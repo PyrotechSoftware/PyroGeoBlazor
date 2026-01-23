@@ -133,4 +133,67 @@ public class LayerConfigTests
         // Assert
         layer.IsEditable.Should().BeFalse();
     }
+
+    [Fact]
+    public void GeoJsonLayerConfig_Filled_DefaultsToTrue_WhenNoFeatureStyle()
+    {
+        // Arrange & Act
+        var layer = new GeoJsonLayerConfig();
+
+        // Assert
+        layer.Filled.Should().BeTrue("filled should default to true when no FeatureStyle is set");
+    }
+
+    [Fact]
+    public void GeoJsonLayerConfig_Filled_IsTrue_WhenFillOpacityGreaterThanZero()
+    {
+        // Arrange
+        var layer = new GeoJsonLayerConfig
+        {
+            FeatureStyle = new FeatureStyle
+            {
+                FillOpacity = 0.5
+            }
+        };
+
+        // Act & Assert
+        layer.Filled.Should().BeTrue("filled should be true when FillOpacity > 0");
+    }
+
+    [Fact]
+    public void GeoJsonLayerConfig_Filled_IsFalse_WhenFillOpacityIsZero()
+    {
+        // Arrange
+        var layer = new GeoJsonLayerConfig
+        {
+            FeatureStyle = new FeatureStyle
+            {
+                FillOpacity = 0.0
+            }
+        };
+
+        // Act & Assert
+        layer.Filled.Should().BeFalse("filled should be false when FillOpacity = 0");
+    }
+
+    [Fact]
+    public void GeoJsonLayerConfig_Filled_CanBeExplicitlySet()
+    {
+        // Arrange
+        var layer = new GeoJsonLayerConfig
+        {
+            FeatureStyle = new FeatureStyle
+            {
+                FillOpacity = 0.0
+            }
+        };
+
+        // Act
+        layer.Filled = true;
+
+        // Assert
+        layer.Filled.Should().BeTrue("explicitly set value should override FillOpacity-based logic");
+        layer.Props.Should().ContainKey("filled");
+    }
 }
+

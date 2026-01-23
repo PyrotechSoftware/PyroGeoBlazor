@@ -56,110 +56,109 @@ else
 }
 
 @code {
-private List<LayerConfig> LayersReverse => Layers.AsEnumerable().Reverse().ToList();
+    private List<LayerConfig> LayersReverse => Layers.AsEnumerable().Reverse().ToList();
 
-[Parameter] public List<LayerConfig> Layers { get; set; } = [];
+    [Parameter] public List<LayerConfig> Layers { get; set; } = [];
 
-/// <summary>
-/// When true, prevents users from changing layer symbology
-/// </summary>
-[Parameter] public bool IsLocked { get; set; }
+    /// <summary>
+    /// When true, prevents users from changing layer symbology
+    /// </summary>
+    [Parameter] public bool IsLocked { get; set; }
 
-[Parameter] public EventCallback<(string LayerId, bool IsVisible)> OnLayerVisibilityChanged { get; set; }
-[Parameter] public EventCallback<(string LayerId, int NewIndex)> OnLayerReordered { get; set; }
-[Parameter] public EventCallback<(string LayerId, MudColor NewColor)> OnLayerColorChanged { get; set; }
+    [Parameter] public EventCallback<(string LayerId, bool IsVisible)> OnLayerVisibilityChanged { get; set; }
+    [Parameter] public EventCallback<(string LayerId, int NewIndex)> OnLayerReordered { get; set; }
+    [Parameter] public EventCallback<(string LayerId, MudColor NewColor)> OnLayerColorChanged { get; set; }
 
-private async Task OnVisibilityToggled(string layerId, bool newValue)
-{
-    if (OnLayerVisibilityChanged.HasDelegate)
+    private async Task OnVisibilityToggled(string layerId, bool newValue)
     {
-        await OnLayerVisibilityChanged.InvokeAsync((layerId, newValue));
-    }
-}
-
-private async Task OnDropHandler(MudItemDropInfo<LayerConfig> dropInfo)
-{
-    if (dropInfo?.Item is null) return;
-
-    var source = Layers.IndexOf(dropInfo.Item);
-
-    // Convert the drop index from reversed display order to original order
-    var count = Layers.Count;
-    var target = count - 1 - dropInfo.IndexInZone; // Mathematical inverse to get the correct index to move to.
-
-    if (source >= 0 && target >= 0 && source != target)
-    {
-        await OnLayerReordered.InvokeAsync((dropInfo.Item.Id, target));
-    }
-}
-
-private string GetLayerColor(LayerConfig layer)
-{
-    if (layer.FeatureStyle?.FillColor != null)
-    {
-        return layer.FeatureStyle.FillColor;
-    }
-
-    if (layer is GeoJsonLayerConfig geoJsonLayer)
-    {
-        if (geoJsonLayer.FillColor is not null)
+        if (OnLayerVisibilityChanged.HasDelegate)
         {
-            return ColorUtilities.RGBToHex(geoJsonLayer.FillColor);
+            await OnLayerVisibilityChanged.InvokeAsync((layerId, newValue));
         }
     }
 
-    return "#000000";
-}
-
-private bool IsLayerLocked(LayerConfig layer)
-{
-    // Check global lock first
-    if (IsLocked)
-        return true;
-    
-    // Check layer-specific lock
-    return !layer.IsEditable;
-}
-
-private async Task OpenColorPicker(LayerConfig layer)
-{
-    // Don't open if locked
-    if (IsLayerLocked(layer))
-        return;
-    
-    var currentColor = GetLayerColor(layer);
-    var mudColor = new MudColor(currentColor);
-
-    var parameters = new DialogParameters<LayerColorPickerDialog>
+    private async Task OnDropHandler(MudItemDropInfo<LayerConfig> dropInfo)
     {
-        { x => x.SelectedColor, mudColor },
-        { x => x.DisableAlpha, false }
-    };
+        if (dropInfo?.Item is null) return;
 
-    var options = new DialogOptionsEx
-    {
-        CloseButton = true,
-        MaxWidth = MaxWidth.Small,
-        FullWidth = false,
-        DragMode = MudDialogDragMode.Simple,
-        Position = DialogPosition.Center,
-        Resizeable = true
-    };
+        var source = Layers.IndexOf(dropInfo.Item);
 
-    var dialog = await DialogService.ShowExAsync<LayerColorPickerDialog>(
-        $"Change Color - {layer.Id}",
-        parameters,
-        options);
+        // Convert the drop index from reversed display order to original order
+        var count = Layers.Count;
+        var target = count - 1 - dropInfo.IndexInZone; // Mathematical inverse to get the correct index to move to.
 
-    var result = await dialog.Result;
-
-    if (result is not null && !result.Canceled && result.Data is MudColor newColor)
-    {
-        if (OnLayerColorChanged.HasDelegate)
+        if (source >= 0 && target >= 0 && source != target)
         {
-            await OnLayerColorChanged.InvokeAsync((layer.Id, newColor));
+            await OnLayerReordered.InvokeAsync((dropInfo.Item.Id, target));
         }
     }
-}
+
+    private string GetLayerColor(LayerConfig layer)
+    {
+        if (layer.FeatureStyle?.FillColor != null)
+        {
+            return layer.FeatureStyle.FillColor;
+        }
+
+        if (layer is GeoJsonLayerConfig geoJsonLayer)
+        {
+            if (geoJsonLayer.FillColor is not null)
+            {
+                return ColorUtilities.RGBToHex(geoJsonLayer.FillColor);
+            }
+        }
+
+        return "#000000";
+    }
+
+    private bool IsLayerLocked(LayerConfig layer)
+    {
+        // Check global lock first
+        if (IsLocked)
+            return true;
+    
+        // Check layer-specific lock
+        return !layer.IsEditable;
+    }
+
+    private async Task OpenColorPicker(LayerConfig layer)
+    {
+        // Don't open if locked
+        if (IsLayerLocked(layer))
+            return;
+    
+        var currentColor = GetLayerColor(layer);
+        var mudColor = new MudColor(currentColor);
+
+        var parameters = new DialogParameters<LayerColorPickerDialog>
+        {
+            { x => x.SelectedColor, mudColor },
+            { x => x.DisableAlpha, false }
+        };
+
+        var options = new DialogOptionsEx
+        {
+            CloseButton = true,
+            MaxWidth = MaxWidth.Small,
+            FullWidth = false,
+            DragMode = MudDialogDragMode.Simple,
+            Position = DialogPosition.Center,
+            Resizeable = true
+        };
+
+        var dialog = await DialogService.ShowExAsync<LayerColorPickerDialog>(
+            $"Change Color - {layer.Id}",
+            parameters,
+            options);
+
+        var result = await dialog.Result;
+
+        if (result is not null && !result.Canceled && result.Data is MudColor newColor)
+        {
+            if (OnLayerColorChanged.HasDelegate)
+            {
+                await OnLayerColorChanged.InvokeAsync((layer.Id, newColor));
+            }
+        }
     }
 }

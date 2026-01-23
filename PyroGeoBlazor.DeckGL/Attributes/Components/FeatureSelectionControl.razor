@@ -91,7 +91,7 @@
         
         <div style="flex: 1 1 50%; overflow-y: auto; overflow-x: hidden; min-height: 0; border-top: 1px solid var(--mud-palette-divider);">
             <FeatureAttributesControl SelectedFeature="@clickedFeature" 
-                                     ExcludedProperties="@ExcludedProperties"
+                                     ExcludedProperties="@GetEffectiveExcludedProperties()"
                                      IsLocked="@IsClickedFeatureLocked()"
                                      EditableFieldsConfig="@GetEditableFieldsConfig()"
                                      OnSaveChanges="@HandleAttributesSaved"
@@ -454,6 +454,29 @@ else
         if (LayerConfigs.TryGetValue(clickedFeature.LayerId, out var layerConfig))
         {
             return layerConfig.EditableFields;
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// Gets the effective excluded properties list, combining the explicit parameter with layer config.
+    /// If ExcludedProperties parameter is set, it takes precedence.
+    /// Otherwise, uses the ExcludedProperties from the layer config.
+    /// </summary>
+    private string[]? GetEffectiveExcludedProperties()
+    {
+        // If explicitly set via parameter, use that
+        if (ExcludedProperties != null && ExcludedProperties.Length > 0)
+            return ExcludedProperties;
+
+        // Otherwise, try to get from layer config
+        if (clickedFeature != null && LayerConfigs != null)
+        {
+            if (LayerConfigs.TryGetValue(clickedFeature.LayerId, out var layerConfig))
+            {
+                return layerConfig.ExcludedProperties;
+            }
         }
 
         return null;

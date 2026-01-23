@@ -178,71 +178,65 @@
         layers.Add(extensionLayer);
 
         // Parcels layer - Large dataset, viewport culling + MinZoom
-        var parcelsLayer = new GeoJsonLayerConfig
-        {
-            Id = "Parcels",
-            DataUrl = "api/parcels",
-            Pickable = true,
-            Stroked = true,
-            Extruded = false,
-            LineWidthScale = 1,
-            LineWidthMinPixels = 0,
-            TooltipConfig = TooltipConfig.ForProperties("customIdentifier", "propertyId"),
-            UniqueIdProperty = "geoParcelId",
-            DisplayProperty = "customIdentifier",
-            IsEditable = true,
-            FeatureStyle = new FeatureStyle
+        var parcelsLayer = MVTLayerConfig.FromGeoServer(
+                    id: "Parcels",
+                    geoserverUrl: "https://lims.koleta.co.mz/geoserver",
+                    workspace: "PlannerSpatial",
+                    layerName: "vwParcelsLayer"
+                );
+
+            // IMPORTANT: Specify the property to use as unique ID for feature deduplication
+            // MVT features that span multiple tiles will appear multiple times,
+            // but this ensures they are treated as a single feature
+            parcelsLayer.UniqueIdProperty = "GeoPropertyID";
+
+            // Optional: Customize styling
+            parcelsLayer.FillColor = [100, 150, 200, 150];
+            parcelsLayer.LineColor = [50, 50, 50, 255];
+            parcelsLayer.FeatureStyle = new()
             {
-                LineWidth = 1,
-                LineColor = "#0375ff",
-                FillOpacity = 0.4,
-                FillColor = "#0375ff"
-            },
-            HoverStyle = new FeatureStyle
+                FillColor = "#0096FF",
+                FillOpacity = 0.3,
+                LineColor = "#0096FF",
+                Opacity = 1.0,
+                LineWidth = 1
+            };
+            parcelsLayer.SelectionStyle = FeatureStyle.Red;
+            parcelsLayer.HoverStyle = new FeatureStyle
             {
-                LineWidth = 1,
-                LineColor = "#ff0000",
-                FillColor = "#ff0000",
-                FillOpacity = 0.5
-            },
-            SelectionStyle = new FeatureStyle
-            {
-                LineWidth = 2,
-                LineColor = "#00ff00",
-                FillColor = "#00ff00",
-                FillOpacity = 0.6
-            },
-            Opacity = 1.0,
-            // Large dataset - only show at zoom 12+, use viewport culling for performance
-            MinZoom = 15,
-            EnableViewportCulling = true,
-            EditableFields =
+                FillColor = "#FFD700",  // Gold
+                FillOpacity = 0.8,
+                LineColor = "#FF8C00",
+                Opacity = 1.0
+            };
+            parcelsLayer.TooltipConfig = TooltipConfig.ForProperties("CustomIdentifier", "GeoPropertyID");
+            parcelsLayer.DisplayProperty = "CustomIdentifier";
+            parcelsLayer.EditableFields =
             [
                 new AttributeFieldConfig
                 {
-                    FieldName = "customIdentifier",
+                    FieldName = "CustomIdentifier",
                     DisplayName = "Custom Identifier",
                     DataType = AttributeDataType.String,
                     IsReadOnly = true,
-                    Order = 1
+                    Order = 2
                 },
                 new AttributeFieldConfig
                 {
-                    FieldName = "propertyId",
-                    DisplayName = "Property ID",
+                    FieldName = "GeoPropertyID",
+                    DisplayName = "GeoProperty ID",
                     DataType = AttributeDataType.Integer,
                     IsReadOnly = true,
-                    Order = 0
+                    Order = 1
                 }
-            ],
-            ExcludedProperties =
+            ];
+            parcelsLayer.ExcludedProperties =
             [
-                "geoParcelId",
-                "id"
-            ]
-        };
+                "id", "InspectionProjectID", "InspectionStateCode", "layerName",
+                "LocationLatitude", "LocationLongitude", "LPI", "Source", "Unit"
+            ];
 
-        layers.Add(parcelsLayer);
+            layers.Add(parcelsLayer);
     }
 
     private async Task OnDeckInitialized()

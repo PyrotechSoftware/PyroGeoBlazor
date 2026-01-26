@@ -131,6 +131,13 @@ export function createLayerFromConfig(config: LayerConfig, data: any): Layer | n
             // Determine pickable setting (default to false for performance)
             const isPickable = props.pickable === true;
             
+            // CRITICAL: When pickable=true, we MUST use binary=false so features have properties
+            const useBinaryMode = !isPickable;
+            
+            console.log(`🔧 Creating MVTLayer: ${id}`);
+            console.log(`  pickable: ${isPickable}`);
+            console.log(`  binary mode: ${useBinaryMode} (${useBinaryMode ? 'fast, no properties' : 'slower, has properties'})`);
+            
             return new MVTLayer({
                 id,
                 data: props.dataUrl || data,
@@ -159,7 +166,7 @@ export function createLayerFromConfig(config: LayerConfig, data: any): Layer | n
                 // Binary mode is disabled automatically when pickable=true (needed for feature selection)
                 // When binary=true: Uses WebGL buffers directly (fast, but no feature access)
                 // When binary=false: Parses as GeoJSON (slower, but enables picking/selection)
-                binary: !isPickable,
+                binary: useBinaryMode,
                 
                 // Update triggers for MVT styling
                 updateTriggers: {

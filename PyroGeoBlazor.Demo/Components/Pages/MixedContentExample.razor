@@ -1,0 +1,147 @@
+@page "/mixed-content-example"
+@using PyroGeoBlazor.DeckGL.Components
+@using PyroGeoBlazor.DeckGL.Models
+
+<PageTitle>DeckGL Mixed Content Example</PageTitle>
+
+<div style="height: 100vh; display: flex; flex-direction: column;">
+    <div style="padding: 16px; background: #f5f5f5;">
+        <h3>DeckGL with Mixed Content</h3>
+        <p>This example shows the <code>&lt;Layers&gt;</code> wrapper separating map layers from UI controls.</p>
+    </div>
+
+    <div style="flex: 1; position: relative;">
+        <DeckGLView @ref="deckView"
+                    InitialViewState="@viewState"
+                    Controller="true"
+                    EnableTooltips="true"
+                    OnViewStateChanged="OnViewStateChanged">
+
+            @* Layers section - only DeckGLLayer components go here *@
+            <LayersContent>
+                <TileLayer Id="basemap"
+                           TileUrl="https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+                           Pickable="false" />
+
+                @if (showGeoJson)
+                {
+                    <GeoJsonLayer Id="vancouver-blocks"
+                                  DataUrl="https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/geojson/vancouver-blocks.json"
+                                  Pickable="true"
+                                  Stroked="true"
+                                  FillColor="@(new[] { 160, 160, 180, 100 })"
+                                  LineColor="@(new[] { 80, 80, 80, 255 })"
+                                  LineWidthMinPixels="2" />
+                }
+
+                @if (showPoints)
+                {
+                    <ScatterplotLayer Id="points"
+                                      Data="@pointData"
+                                      Pickable="true"
+                                      FillColor="@(new[] { 255, 140, 0, 200 })"
+                                      Radius="50"
+                                      RadiusMinPixels="3" />
+                }
+            </LayersContent>
+
+            @* Other UI content - controls, overlays, etc. *@
+            <ChildContent>
+                @* Floating control panel *@
+                <div style="position: absolute; top: 16px; right: 16px; z-index: 1000; 
+                            background: white; padding: 16px; border-radius: 8px; 
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.15); min-width: 200px;">
+                    <h4 style="margin-top: 0;">Layer Controls</h4>
+                    
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" 
+                                   @bind="showGeoJson" 
+                                   @onclick="OnLayerToggle"
+                                   style="margin-right: 8px;" />
+                            <span>Show GeoJSON Layer</span>
+                        </label>
+                    </div>
+
+                    <div style="margin-bottom: 12px;">
+                        <label style="display: flex; align-items: center; cursor: pointer;">
+                            <input type="checkbox" 
+                                   @bind="showPoints" 
+                                   @onclick="OnLayerToggle"
+                                   style="margin-right: 8px;" />
+                            <span>Show Points Layer</span>
+                        </label>
+                    </div>
+
+                    <hr style="margin: 16px 0; border: none; border-top: 1px solid #e0e0e0;" />
+
+                    <div style="font-size: 0.875rem; color: #666;">
+                        <div><strong>Zoom:</strong> @viewState.Zoom.ToString("F2")</div>
+                        <div><strong>Lat:</strong> @viewState.Latitude.ToString("F4")</div>
+                        <div><strong>Lng:</strong> @viewState.Longitude.ToString("F4")</div>
+                    </div>
+                </div>
+
+                @* Bottom info bar *@
+                <div style="position: absolute; bottom: 0; left: 0; right: 0; z-index: 1000;
+                            background: rgba(0, 0, 0, 0.7); color: white; padding: 8px 16px;
+                            font-size: 0.875rem;">
+                    <span>Pan and zoom to explore • </span>
+                    <span>Active Layers: @activeLayerCount</span>
+                </div>
+
+                @* Attribution *@
+                <div style="position: absolute; bottom: 32px; right: 8px; z-index: 1000;
+                            font-size: 0.75rem; color: rgba(0, 0, 0, 0.6);">
+                    © OpenStreetMap contributors
+                </div>
+            </ChildContent>
+
+        </DeckGLView>
+    </div>
+</div>
+
+@code {
+    private DeckGLView? deckView;
+    private bool showGeoJson = true;
+    private bool showPoints = true;
+
+    private ViewState viewState = new()
+    {
+        Longitude = -123.13,
+        Latitude = 49.28,
+        Zoom = 11,
+        Pitch = 0,
+        Bearing = 0
+    };
+
+    private object[] pointData = new[]
+    {
+        new { position = new[] { -123.13, 49.28 }, name = "Point 1" },
+        new { position = new[] { -123.15, 49.30 }, name = "Point 2" },
+        new { position = new[] { -123.11, 49.26 }, name = "Point 3" },
+        new { position = new[] { -123.14, 49.27 }, name = "Point 4" }
+    };
+
+    private int activeLayerCount => 
+        (showGeoJson ? 1 : 0) + (showPoints ? 1 : 0) + 1; // +1 for basemap
+
+    private void OnViewStateChanged(ViewState newViewState)
+    {
+        viewState = newViewState;
+        StateHasChanged();
+    }
+
+    private async Task OnLayerToggle()
+    {
+        // Give the binding time to update
+        await Task.Delay(10);
+        
+        if (deckView != null)
+        {
+            await deckView.UpdateLayers();
+        }
+        
+        StateHasChanged();
+    }
+}

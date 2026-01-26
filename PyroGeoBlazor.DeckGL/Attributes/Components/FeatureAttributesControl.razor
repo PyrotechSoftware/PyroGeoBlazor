@@ -448,8 +448,8 @@ else
     private void RenderBooleanControl(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, DisplayableField field, object? currentValue, bool hasError, string? errorText)
     {
         builder.OpenComponent<MudSwitch<bool>>(0);
-        builder.AddAttribute(1, "Checked", currentValue as bool? ?? false);
-        builder.AddAttribute(2, "CheckedChanged", EventCallback.Factory.Create<bool>(this, value => OnFieldChanged(field.FieldName, value)));
+        builder.AddAttribute(1, "Value", currentValue as bool? ?? false);
+        builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<bool>(this, value => OnFieldChanged(field.FieldName, value)));
         builder.AddAttribute(3, "Color", Color.Primary);
         builder.CloseComponent();
     }

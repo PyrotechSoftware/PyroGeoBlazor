@@ -25,6 +25,13 @@ services.AddDbContext<PlannerContext>(options =>
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+// Increase SignalR message size limits for large feature selection payloads
+builder.Services.AddSignalR(options =>
+{
+    options.MaximumReceiveMessageSize = 10 * 1024 * 1024; // 10 MB (default is 32 KB)
+    options.EnableDetailedErrors = true; // Enable detailed errors for debugging
+});
+
 builder.Services.AddPyroGeoBlazorDeckGL();
 
 builder.Services.AddLeafletMap();

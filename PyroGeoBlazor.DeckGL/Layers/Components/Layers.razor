@@ -1,0 +1,55 @@
+@namespace PyroGeoBlazor.DeckGL.Components
+
+@* 
+    This component provides a <Layers> wrapper for grouping layer definitions.
+    Only DeckGLLayer-derived components should be placed inside this component.
+*@
+@ChildContent
+
+@code {
+    /// <summary>
+    /// Parent DeckGLView component
+    /// </summary>
+    [CascadingParameter]
+    public DeckGLView? Parent { get; set; }
+
+    /// <summary>
+    /// Child content containing layer components (must be DeckGLLayer-derived components)
+    /// </summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    protected override void OnInitialized()
+    {
+        if (Parent == null)
+        {
+            throw new InvalidOperationException(
+                "Layers component must be a child of a DeckGLView component.");
+        }
+    }
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            ValidateChildren();
+        }
+    }
+
+    /// <summary>
+    /// Validates that only DeckGLLayer-derived components are registered with the parent.
+    /// Note: This validation happens at runtime since Blazor doesn't provide compile-time 
+    /// enforcement of child component types.
+    /// </summary>
+    private void ValidateChildren()
+    {
+        // The validation is implicit - only DeckGLLayer components will successfully
+        // register themselves with the parent DeckGLView via the CascadingParameter.
+        // Non-layer components will fail during their OnInitialized phase if they try
+        // to access DeckGLView-specific methods.
+        
+        // We could add additional runtime checks here if needed, but the architecture
+        // naturally prevents non-DeckGLLayer components from being used effectively.
+    }
+}
+

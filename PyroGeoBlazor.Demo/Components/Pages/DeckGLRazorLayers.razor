@@ -1,0 +1,170 @@
+@page "/deckgl-razor-layers"
+@using PyroGeoBlazor.DeckGL.Components
+@using PyroGeoBlazor.DeckGL.Models
+
+<PageTitle>DeckGL Razor Layers</PageTitle>
+
+<div style="height: 100vh; display: flex; flex-direction: column;">
+    <div style="padding: 16px; background: #f5f5f5;">
+        <h3>DeckGL with Razor Layer Syntax</h3>
+        <p>This demo shows how to define layers using declarative Razor syntax instead of C# code.</p>
+    </div>
+
+    <div style="flex: 1; position: relative;">
+        <DeckGLView @ref="deckView"
+                    InitialViewState="initialViewState"
+                    Controller="true"
+                    EnableTooltips="true"
+                    OnViewStateChanged="OnViewStateChanged"
+                    OnDeckInitialized="OnDeckInitialized">
+
+            @* Basemap layer *@
+            <TileLayer Id="carto-basemap"
+                       TileUrl="https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+                       Pickable="false"
+                       Visible="true" />
+
+            @* GeoJSON layer with Vancouver blocks *@
+            <GeoJsonLayer Id="vancouver-blocks"
+                          DataUrl="https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/geojson/vancouver-blocks.json"
+                          Pickable="true"
+                          Stroked="true"
+                          Filled="true"
+                          Extruded="false"
+                          LineWidthScale="1"
+                          LineWidthMinPixels="2"
+                          FillColor="@(new[] { 160, 160, 180, 100 })"
+                          LineColor="@(new[] { 80, 80, 80, 255 })"
+                          UniqueIdProperty="id"
+                          DisplayProperty="id"
+                          Visible="@showVancouverBlocks"
+                          IsEditable="true"
+                          TooltipConfig="@tooltipConfig"
+                          EditableFields="@editableFields" />
+
+            @* Optional: MVT layer example *@
+            @if (showMvtLayer)
+            {
+                <MVTLayer Id="parcels-mvt"
+                          GeoServerUrl="https://lims.koleta.co.mz/geoserver"
+                          Workspace="PlannerSpatial"
+                          LayerName="vwParcelsLayer"
+                          FillColor="@(new[] { 100, 150, 200, 150 })"
+                          LineColor="@(new[] { 50, 50, 50, 255 })"
+                          UniqueIdProperty="GeoPropertyID"
+                          DisplayProperty="CustomIdentifier"
+                          Pickable="true"
+                          Visible="true" />
+            }
+
+            @* Scatterplot example *@
+            <ScatterplotLayer Id="points"
+                              Data="@pointData"
+                              Pickable="true"
+                              FillColor="@(new[] { 255, 140, 0, 200 })"
+                              Radius="50"
+                              RadiusMinPixels="3"
+                              Visible="@showPoints" />
+
+        </DeckGLView>
+    </div>
+
+    <div style="padding: 16px; background: #f5f5f5; display: flex; gap: 16px;">
+        <button @onclick="ToggleVancouverBlocks">
+            @(showVancouverBlocks ? "Hide" : "Show") Vancouver Blocks
+        </button>
+        <button @onclick="TogglePoints">
+            @(showPoints ? "Hide" : "Show") Points
+        </button>
+        <button @onclick="ToggleMvtLayer">
+            @(showMvtLayer ? "Hide" : "Show") MVT Layer
+        </button>
+    </div>
+</div>
+
+@code {
+    private DeckGLView? deckView;
+    private bool showVancouverBlocks = true;
+    private bool showPoints = true;
+    private bool showMvtLayer = false;
+
+    private ViewState initialViewState = new()
+    {
+        Longitude = -123.13,
+        Latitude = 49.28,
+        Zoom = 11,
+        Pitch = 0,
+        Bearing = 0
+    };
+
+    // Sample point data for scatterplot
+    private object[] pointData = new[]
+    {
+        new { position = new[] { -123.13, 49.28 }, name = "Point 1" },
+        new { position = new[] { -123.15, 49.30 }, name = "Point 2" },
+        new { position = new[] { -123.11, 49.26 }, name = "Point 3" }
+    };
+
+    // Tooltip configuration for Vancouver blocks layer
+    private TooltipConfig tooltipConfig = TooltipConfig.ForProperties("valuePerSqm");
+
+    // Editable fields configuration for Vancouver blocks layer
+    private List<AttributeFieldConfig> editableFields = new()
+    {
+        new AttributeFieldConfig
+        {
+            FieldName = "id",
+            DisplayName = "ID",
+            DataType = AttributeDataType.String,
+            IsReadOnly = true,
+            Order = 1
+        },
+        new AttributeFieldConfig
+        {
+            FieldName = "valuePerSqm",
+            DisplayName = "Value per Sqm",
+            DataType = AttributeDataType.Integer,
+            IsReadOnly = false,
+            Placeholder = "Enter value",
+            HelpText = "Property value per square meter",
+            Order = 2
+        }
+    };
+
+    private async Task OnDeckInitialized()
+    {
+        Console.WriteLine("DeckGL initialized with Razor layers!");
+    }
+
+    private void OnViewStateChanged(ViewState newViewState)
+    {
+        Console.WriteLine($"View changed: Zoom={newViewState.Zoom:F1}, Lat={newViewState.Latitude:F4}, Lng={newViewState.Longitude:F4}");
+    }
+
+    private async Task ToggleVancouverBlocks()
+    {
+        showVancouverBlocks = !showVancouverBlocks;
+        if (deckView != null)
+        {
+            await deckView.UpdateLayers();
+        }
+    }
+
+    private async Task TogglePoints()
+    {
+        showPoints = !showPoints;
+        if (deckView != null)
+        {
+            await deckView.UpdateLayers();
+        }
+    }
+
+    private async Task ToggleMvtLayer()
+    {
+        showMvtLayer = !showMvtLayer;
+        if (deckView != null)
+        {
+            await deckView.UpdateLayers();
+        }
+    }
+}

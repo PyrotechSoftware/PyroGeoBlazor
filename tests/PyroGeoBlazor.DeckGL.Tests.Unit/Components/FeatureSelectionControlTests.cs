@@ -11,13 +11,42 @@ using System.Text.Json;
 
 public class FeatureSelectionControlTests : MudBlazorTestContext
 {
+    private DeckGLView CreateMockDeckGLView(FeatureSelectionResult? selectionResult = null, List<LayerConfig>? layers = null)
+    {
+        var deckView = new DeckGLView();
+        
+        // Set SelectionResult using reflection
+        if (selectionResult != null)
+        {
+            var selectionField = typeof(DeckGLView).GetProperty("SelectionResult");
+            selectionField?.SetValue(deckView, selectionResult);
+        }
+        
+        // Add layers using reflection
+        if (layers != null)
+        {
+            var layersField = typeof(DeckGLView).GetField("_layers", 
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            
+            if (layersField != null)
+            {
+                var internalLayers = (List<LayerConfig>)layersField.GetValue(deckView)!;
+                internalLayers.AddRange(layers);
+            }
+        }
+        
+        return deckView;
+    }
 
     [Fact]
     public void FeatureSelectionControl_ShowsEmptyState_WhenNoFeaturesSelected()
     {
-        // Arrange & Act
+        // Arrange
+        var mockDeckView = CreateMockDeckGLView();
+        
+        // Act
         var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
-            .Add(p => p.SelectionResult, null));
+            .Add(p => p.DeckGLView, mockDeckView));
 
         // Assert
         cut.Markup.Should().Contain("No features selected");
@@ -48,10 +77,12 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
                 }
             ]
         };
+        
+        var mockDeckView = CreateMockDeckGLView(selectionResult);
 
         // Act
         var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
-            .Add(p => p.SelectionResult, selectionResult));
+            .Add(p => p.DeckGLView, mockDeckView));
 
         // Assert
         cut.Markup.Should().Contain("test-layer");
@@ -82,15 +113,16 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
             Features = [selectedFeature]
         };
 
-        var layerConfigs = new Dictionary<string, LayerConfig>
+        var layerConfigs = new List<LayerConfig>
         {
-            { "locked-layer", new GeoJsonLayerConfig { Id = "locked-layer", IsEditable = false } }
+            new GeoJsonLayerConfig { Id = "locked-layer", IsEditable = false }
         };
+        
+        var mockDeckView = CreateMockDeckGLView(selectionResult, layerConfigs);
 
         // Act
         var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
-            .Add(p => p.SelectionResult, selectionResult)
-            .Add(p => p.LayerConfigs, layerConfigs));
+            .Add(p => p.DeckGLView, mockDeckView));
 
         // Click the feature to populate clickedFeature
         var featureItem = cut.Find("div[style*='cursor: pointer']");
@@ -125,15 +157,16 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
             Features = [selectedFeature]
         };
 
-        var layerConfigs = new Dictionary<string, LayerConfig>
+        var layerConfigs = new List<LayerConfig>
         {
-            { "editable-layer", new GeoJsonLayerConfig { Id = "editable-layer", IsEditable = true } }
+            new GeoJsonLayerConfig { Id = "editable-layer", IsEditable = true }
         };
+        
+        var mockDeckView = CreateMockDeckGLView(selectionResult, layerConfigs);
 
         // Act
         var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
-            .Add(p => p.SelectionResult, selectionResult)
-            .Add(p => p.LayerConfigs, layerConfigs));
+            .Add(p => p.DeckGLView, mockDeckView));
 
         // Click the feature to populate clickedFeature
         var featureItem = cut.Find("div[style*='cursor: pointer']");
@@ -168,12 +201,13 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
             Features = [selectedFeature]
         };
 
-        var layerConfigs = new Dictionary<string, LayerConfig>();  // Empty - layer not found
+        var layerConfigs = new List<LayerConfig>();  // Empty - layer not found
+        
+        var mockDeckView = CreateMockDeckGLView(selectionResult, layerConfigs);
 
         // Act
         var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
-            .Add(p => p.SelectionResult, selectionResult)
-            .Add(p => p.LayerConfigs, layerConfigs));
+            .Add(p => p.DeckGLView, mockDeckView));
 
         // Click the feature to populate clickedFeature
         var featureItem = cut.Find("div[style*='cursor: pointer']");
@@ -207,9 +241,11 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
             ]
         };
 
+        var mockDeckView = CreateMockDeckGLView(selectionResult);
+
         // Act
         var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
-            .Add(p => p.SelectionResult, selectionResult));
+            .Add(p => p.DeckGLView, mockDeckView));
 
         // Assert
         cut.Markup.Should().Contain("layer-1");
@@ -244,22 +280,20 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
             ]
         };
 
-        var layerConfigs = new Dictionary<string, LayerConfig>
+        var layerConfigs = new List<LayerConfig>
         {
+            new GeoJsonLayerConfig 
             { 
-                "test-layer", 
-                new GeoJsonLayerConfig 
-                { 
-                    Id = "test-layer", 
-                    DisplayProperty = "customName" 
-                } 
+                Id = "test-layer", 
+                DisplayProperty = "customName" 
             }
         };
+        
+        var mockDeckView = CreateMockDeckGLView(selectionResult, layerConfigs);
 
         // Act
         var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
-            .Add(p => p.SelectionResult, selectionResult)
-            .Add(p => p.LayerConfigs, layerConfigs));
+            .Add(p => p.DeckGLView, mockDeckView));
 
         // Assert
         cut.Markup.Should().Contain("Custom Display Name");
@@ -291,22 +325,20 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
             ]
         };
 
-        var layerConfigs = new Dictionary<string, LayerConfig>
+        var layerConfigs = new List<LayerConfig>
         {
+            new GeoJsonLayerConfig 
             { 
-                "test-layer", 
-                new GeoJsonLayerConfig 
-                { 
-                    Id = "test-layer", 
-                    DisplayProperty = "nonexistent" 
-                } 
+                Id = "test-layer", 
+                DisplayProperty = "nonexistent" 
             }
         };
+        
+        var mockDeckView = CreateMockDeckGLView(selectionResult, layerConfigs);
 
         // Act
         var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
-            .Add(p => p.SelectionResult, selectionResult)
-            .Add(p => p.LayerConfigs, layerConfigs));
+            .Add(p => p.DeckGLView, mockDeckView));
 
         // Assert
         cut.Markup.Should().Contain("feature-123");
@@ -336,16 +368,17 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
             ]
         };
 
-        var layerConfigs = new Dictionary<string, LayerConfig>
+        var layerConfigs = new List<LayerConfig>
         {
-            { "layer-a", new GeoJsonLayerConfig { Id = "layer-a", IsEditable = false } },
-            { "layer-b", new GeoJsonLayerConfig { Id = "layer-b", IsEditable = true } }
+            new GeoJsonLayerConfig { Id = "layer-a", IsEditable = false },
+            new GeoJsonLayerConfig { Id = "layer-b", IsEditable = true }
         };
+        
+        var mockDeckView = CreateMockDeckGLView(selectionResult, layerConfigs);
 
         // Act
         var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
-            .Add(p => p.SelectionResult, selectionResult)
-            .Add(p => p.LayerConfigs, layerConfigs));
+            .Add(p => p.DeckGLView, mockDeckView));
 
         // Initial state - no feature clicked yet, so should not show locked chip
         cut.Markup.Should().NotContain("mud-chip-content", "no feature is clicked initially");

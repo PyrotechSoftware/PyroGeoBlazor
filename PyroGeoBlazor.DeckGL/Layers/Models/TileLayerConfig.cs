@@ -27,7 +27,7 @@ public class TileLayerConfig : LayerConfig
     /// Minimum zoom level
     /// </summary>
     [JsonIgnore]
-    public int MinZoom
+    public new int MinZoom
     {
         get => Props.TryGetValue("minZoom", out var value) && value is int i ? i : 0;
         set => Props["minZoom"] = value;

@@ -1,0 +1,43 @@
+@page "/simple-razor-layers"
+@using PyroGeoBlazor.DeckGL.Components
+@using PyroGeoBlazor.DeckGL.Models
+
+<PageTitle>Simple Razor Layer Example</PageTitle>
+
+<div style="height: 100vh; display: flex; flex-direction: column;">
+    <div style="padding: 16px; background: #f5f5f5;">
+        <h3>Simple DeckGL Razor Layer Example</h3>
+        <p>Define layers using clean, declarative Razor syntax - no C# code blocks needed!</p>
+    </div>
+
+    <div style="flex: 1; position: relative;">
+        <DeckGLView InitialViewState="@viewState"
+                    Controller="true"
+                    EnableTooltips="true">
+
+            @* Carto basemap *@
+            <TileLayer Id="basemap"
+                       TileUrl="https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+                       Pickable="false" />
+
+            @* GeoJSON layer *@
+            <GeoJsonLayer Id="data-layer"
+                          DataUrl="https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/geojson/vancouver-blocks.json"
+                          Pickable="true"
+                          Stroked="true"
+                          FillColor="@(new[] { 160, 160, 180, 100 })"
+                          LineColor="@(new[] { 80, 80, 80, 255 })"
+                          LineWidthMinPixels="2" />
+
+        </DeckGLView>
+    </div>
+</div>
+
+@code {
+    private ViewState viewState = new()
+    {
+        Longitude = -123.13,
+        Latitude = 49.28,
+        Zoom = 11
+    };
+}

@@ -24,10 +24,8 @@
                     </CardHeaderContent>
                 </MudCardHeader>
                 <MudCardContent Style="flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; min-height: 0;">
-                    <LayerContentsControl Layers="@layers" IsLocked="false"
-                                          OnLayerVisibilityChanged="@OnLayerVisibilityChanged"
-                                          OnLayerReordered="@MoveLayerToIndex"
-                                          OnLayerColorChanged="@OnLayerColorChanged" />
+                    <LayerContentsControl DeckGLView="@deckGLView" 
+                                          IsLocked="false" />
                 </MudCardContent>
             </MudCard>
         </MudExDockItem>
@@ -37,10 +35,146 @@
                             InitialViewState="@initialViewState"
                             Controller="true"
                             EnableTooltips="true"
-                            Layers="@layers"
                             OnViewStateChanged="@OnViewStateChanged"
-                            OnFeaturesSelectedCallback="@OnFeaturesSelected"
-                            OnDeckInitialized="@OnDeckInitialized" />
+                            OnDeckInitialized="@OnDeckInitialized">
+                    <LayersContent>
+                        <TileLayer Id="carto-basemap"
+                                   TileUrl="https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
+                                   Pickable="false"
+                                   Visible="true" />
+
+                        <GeoJsonLayer Id="vancouver-blocks"
+                                      DataUrl="https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/geojson/vancouver-blocks.json"
+                                      Pickable="true"
+                                      Stroked="true"
+                                      Filled="true"
+                                      Extruded="false"
+                                      LineWidthScale="1"
+                                      LineWidthMinPixels="2"
+                                      FillColor="@(new[] { 160, 160, 180, 100 })"
+                                      LineColor="@(new[] { 80, 80, 80, 255 })"
+                                      UniqueIdProperty="id"
+                                      DisplayProperty="id"
+                                      Visible="true"
+                                      IsEditable="true"
+                                      TooltipConfig="@TooltipConfig.ForProperties("valuePerSqm")"
+                                      EditableFields="@([
+                                                      new AttributeFieldConfig
+                                                      {
+                                                          FieldName = "id",
+                                                          DisplayName = "ID",
+                                                          DataType = AttributeDataType.String,
+                                                          IsReadOnly = true,
+                                                          Order = 1
+                                                      },
+                                                      new AttributeFieldConfig
+                                                      {
+                                                          FieldName = "valuePerSqm",
+                                                          DisplayName = "Value per Sqm",
+                                                          DataType = AttributeDataType.Integer,
+                                                          IsReadOnly = false,  // Allow editing
+                                                          Placeholder = "Enter value",
+                                                          HelpText = "Property value per square meter",
+                                                          Order = 2
+                                                      },
+                                                      new AttributeFieldConfig
+                                                      {
+                                                          FieldName = "growth",
+                                                          DisplayName = "Growth",
+                                                          DataType = AttributeDataType.Double,
+                                                          IsReadOnly = true,
+                                                          Order = 3
+                                                      }
+                                                  ])"
+                                      ExcludedProperties="@(["growth"])" />
+
+                        <GeoJsonLayer Id="Townships"
+                                      DataUrl="api/townships"
+                                      Pickable="false"
+                                      Extruded="false"
+                                      LineWidthScale="1"
+                                      LineWidthMinPixels="1"
+                                      TooltipConfig="@TooltipConfig.ForProperties("townName")"
+                                      UniqueIdProperty="geoTownshipId"
+                                      DisplayProperty="townName"
+                                      IsEditable="false"
+                                      FeatureStyle = "@(new()
+                                                        {
+                                                            FillColor = "#868E96",
+                                                            FillOpacity = 0.2,
+                                                            LineColor = "#868E96",
+                                                            Opacity = 1.0,
+                                                            LineWidth = 1,
+                                                        })"
+                                      />
+
+                            <GeoJsonLayer
+                                        Id="Extensions"
+                                        DataUrl="api/townshipextensions"
+                                        Pickable="false"
+                                        Extruded="false"
+                                        LineWidthScale="1"
+                                        LineWidthMinPixels="1"
+                                        TooltipConfig="@TooltipConfig.ForProperties("townshipExtensionOrFarmName")"
+                                        UniqueIdProperty="geoTownshipExtensionOrFarmId"
+                                        DisplayProperty="townshipExtensionOrFarmName"
+                                        FeatureStyle="@(new()
+                                                        {
+                                                            FillColor = "#FF8C00",
+                                                            FillOpacity = 0.3,
+                                                            LineColor = "#FF8C00",
+                                                            LineWidth = 1,
+                                                        })"
+                                        MinZoom="10"
+                                        EnableViewportCulling
+                                        />
+
+                        <MVTLayer Id="Parcels"
+                                  GeoServerUrl="https://lims.koleta.co.mz/geoserver"
+                                  Workspace="PlannerSpatial"
+                                  LayerName="vwParcelsLayer"
+                                  Pickable="true"
+                                  UniqueIdProperty="GeoPropertyID"
+                                  FeatureStyle="@(new()
+                                                  {
+                                                      FillColor = "#0096FF",
+                                                      FillOpacity = 0.3,
+                                                      LineColor = "#0096FF",
+                                                      Opacity = 1.0,
+                                                      LineWidth = 1
+                                                  })"
+                                  SelectionStyle="@FeatureStyle.Red"
+                                  HoverStyle="@(new()
+                                                {
+                                                    FillColor = "#FFD700",  // Gold
+                                                    FillOpacity = 0.8,
+                                                    LineColor = "#FF8C00",
+                                                    Opacity = 1.0
+                                                })"
+                                  TooltipConfig="@TooltipConfig.ForProperties("CustomIdentifier", "GeoPropertyID")"
+                                  DisplayProperty="CustomIdentifier"
+                                  EditableFields="@([
+                                                        new AttributeFieldConfig
+                                                        {
+                                                            FieldName = "CustomIdentifier",
+                                                            DisplayName = "Custom Identifier",
+                                                            DataType = AttributeDataType.String,
+                                                            IsReadOnly = true,
+                                                            Order = 2
+                                                        },
+                                                        new AttributeFieldConfig
+                                                        {
+                                                            FieldName = "GeoPropertyID",
+                                                            DisplayName = "GeoProperty ID",
+                                                            DataType = AttributeDataType.Integer,
+                                                            IsReadOnly = true,
+                                                            Order = 1
+                                                        }
+                                                    ])"
+                                  ExcludedProperties="@(["id", "InspectionProjectID", "InspectionStateCode", "layerName", "LocationLatitude", "LocationLongitude", "LPI", "Source", "Unit"])"
+                                  />
+                    </LayersContent>
+                </DeckGLView>
             </MudExDockItem>
             <MudExDockItem Title="Selection" HideHeader MaximumWidth="300" Direction="DockDirection.Right">
                 <MudCard Elevation="4" Style="height: 100%; display: flex; flex-direction: column;">
@@ -50,32 +184,25 @@
                         </CardHeaderContent>
                     </MudCardHeader>
                     <MudCardContent Style="flex: 1 1 auto; overflow: hidden; display: flex; flex-direction: column; padding: 0; min-height: 0;">
-                        @if (selectionResult != null && selectionResult.FeatureCount > 0)
-                        {
-                            <div style="padding: 16px; flex-shrink: 0;">
-                                <MudText Typo="Typo.subtitle2" Class="mb-2">
-                                    @selectionResult.FeatureCount @(selectionResult.FeatureCount == 1 ? "Feature" : "Features") Selected
-                                </MudText>
-                            </div>
-                            <div style="flex: 1 1 auto; overflow: hidden; min-height: 0;">
-                                <FeatureSelectionControl SelectionResult="@selectionResult" 
-                                                         LayerConfigs="@layerConfigsDict"
-                                                         OnFeatureClicked="@OnFeatureClickedInList"
-                                                         OnFlashFeature="@OnFlashFeature"
-                                                         OnZoomToFeature="@OnZoomToFeature"
-                                                         OnUnselectFeature="@OnUnselectFeature"
-                                                         OnZoomToLayerFeatures="@OnZoomToLayerFeatures"
-                                                         OnClearLayerSelection="@OnClearLayerSelection"
-                                                         OnAttributesSaved="@OnAttributesSaved"
-                                                         OnAttributesReset="@OnAttributesReset" />
-                            </div>
-                        }
-                        else
-                        {
-                            <div style="padding: 16px;">
-                                <MudText Typo="Typo.body2" Color="Color.Secondary">No features selected</MudText>
-                            </div>
-                        }
+                        <div style="padding: 16px; flex-shrink: 0;">
+                            <MudText Typo="Typo.subtitle2" Class="mb-2">
+                                @if (deckGLView?.SelectionResult != null && deckGLView.SelectionResult.FeatureCount > 0)
+                                {
+                                    <text>@deckGLView.SelectionResult.FeatureCount @(deckGLView.SelectionResult.FeatureCount == 1 ? "Feature" : "Features") Selected</text>
+                                }
+                                else
+                                {
+                                    <text>No features selected</text>
+                                }
+                            </MudText>
+                        </div>
+                        <div style="flex: 1 1 auto; overflow: hidden; min-height: 0;">
+                            @* Always render FeatureSelectionControl so it can subscribe immediately *@
+                            @* The control itself will show "No features selected" when appropriate *@
+                            <FeatureSelectionControl DeckGLView="@deckGLView"
+                                                     OnAttributesSaved="@OnAttributesSaved"
+                                                     OnAttributesReset="@OnAttributesReset" />
+                        </div>
                     </MudCardContent>
                 </MudCard>
             </MudExDockItem>
@@ -85,12 +212,10 @@
 
 @code {
 
-    private MapMode currentMapMode = MapMode.Explore;
-    private DeckGLView? deckGLView;
-    private FeatureSelectionResult? selectionResult;
-    private Dictionary<string, LayerConfig> layerConfigsDict = new();
+private MapMode currentMapMode = MapMode.Explore;
+private DeckGLView? deckGLView;
 
-    private ViewState initialViewState = new()
+private ViewState initialViewState = new()
     {
         Longitude = -123.13,  // Vancouver coordinates
         Latitude = 49.28,
@@ -106,204 +231,14 @@
         Zoom = 11
     };
 
-    private List<LayerConfig> layers = [];
-
     protected override void OnInitialized()
     {
         // Don't add layers here - wait for OnDeckInitialized callback
     }
 
-    private async Task AddSqlLayers()
-    {
-        Console.WriteLine("Adding SQL layers...");
-
-        // Townships layer - Small dataset, no culling needed
-        var townshipLayer = new GeoJsonLayerConfig
-        {
-            Id = "Townships",
-            DataUrl = "api/townships",
-            Pickable = false,
-            Stroked = true,
-            Extruded = false,
-            LineWidthScale = 1,
-            LineWidthMinPixels = 1,
-            TooltipConfig = TooltipConfig.ForProperties("townName"),
-            UniqueIdProperty = "geoTownshipId",
-            DisplayProperty = "townName",
-            IsEditable = false,
-            FeatureStyle = new()
-            {
-                FillColor = "#868E96",
-                FillOpacity = 0.2,
-                LineColor = "#868E96",
-                Opacity = 1.0,
-                LineWidth = 1,
-            },
-            Opacity = 1,
-            // Small dataset - load at all zooms, no viewport culling
-            MinZoom = null,
-            EnableViewportCulling = false
-        };
-
-        layers.Add(townshipLayer);
-
-        // Extensions layer - Medium dataset, viewport culling enabled
-        var extensionLayer = new GeoJsonLayerConfig
-        {
-            Id = "Extensions",
-            DataUrl = "api/townshipextensions",
-            Pickable = false,
-            Stroked = true,
-            Extruded = false,
-            LineWidthScale = 1,
-            LineWidthMinPixels = 1,
-            TooltipConfig = TooltipConfig.ForProperties("townshipExtensionOrFarmName"),
-            UniqueIdProperty = "geoTownshipExtensionOrFarmId",
-            DisplayProperty = "townshipExtensionOrFarmName",
-            IsEditable = true,
-            FeatureStyle = new()
-            {
-                FillColor = "#FF8C00",
-                FillOpacity = 0.3,
-                LineColor = "#FF8C00",
-                Opacity = 1.0,
-                LineWidth = 1,
-            },
-            Opacity = 1,
-            // Medium dataset - start showing at zoom 10, use viewport culling
-            MinZoom = 10,
-            EnableViewportCulling = true
-        };
-
-        layers.Add(extensionLayer);
-
-        // Parcels layer - Large dataset, viewport culling + MinZoom
-        var parcelsLayer = MVTLayerConfig.FromGeoServer(
-                    id: "Parcels",
-                    geoserverUrl: "https://lims.koleta.co.mz/geoserver",
-                    workspace: "PlannerSpatial",
-                    layerName: "vwParcelsLayer"
-                );
-
-            // IMPORTANT: Specify the property to use as unique ID for feature deduplication
-            // MVT features that span multiple tiles will appear multiple times,
-            // but this ensures they are treated as a single feature
-            parcelsLayer.UniqueIdProperty = "GeoPropertyID";
-
-            // Optional: Customize styling
-            parcelsLayer.FillColor = [100, 150, 200, 150];
-            parcelsLayer.LineColor = [50, 50, 50, 255];
-            parcelsLayer.FeatureStyle = new()
-            {
-                FillColor = "#0096FF",
-                FillOpacity = 0.3,
-                LineColor = "#0096FF",
-                Opacity = 1.0,
-                LineWidth = 1
-            };
-            parcelsLayer.SelectionStyle = FeatureStyle.Red;
-            parcelsLayer.HoverStyle = new FeatureStyle
-            {
-                FillColor = "#FFD700",  // Gold
-                FillOpacity = 0.8,
-                LineColor = "#FF8C00",
-                Opacity = 1.0
-            };
-            parcelsLayer.TooltipConfig = TooltipConfig.ForProperties("CustomIdentifier", "GeoPropertyID");
-            parcelsLayer.DisplayProperty = "CustomIdentifier";
-            parcelsLayer.EditableFields =
-            [
-                new AttributeFieldConfig
-                {
-                    FieldName = "CustomIdentifier",
-                    DisplayName = "Custom Identifier",
-                    DataType = AttributeDataType.String,
-                    IsReadOnly = true,
-                    Order = 2
-                },
-                new AttributeFieldConfig
-                {
-                    FieldName = "GeoPropertyID",
-                    DisplayName = "GeoProperty ID",
-                    DataType = AttributeDataType.Integer,
-                    IsReadOnly = true,
-                    Order = 1
-                }
-            ];
-            parcelsLayer.ExcludedProperties =
-            [
-                "id", "InspectionProjectID", "InspectionStateCode", "layerName",
-                "LocationLatitude", "LocationLongitude", "LPI", "Source", "Unit"
-            ];
-
-            layers.Add(parcelsLayer);
-    }
-
     private async Task OnDeckInitialized()
     {
         Console.WriteLine("🎉 Deck.gl initialized! Adding layers...");
-
-        // Add Carto basemap (renders first/underneath)
-        var cartoBasemap = TileLayerConfig.CartoLight("carto-basemap");
-        cartoBasemap.Visible = true; // Explicitly set to visible
-        layers.Add(cartoBasemap);
-
-        // Add sample GeoJSON layer (renders on top of basemap)
-        var geoJsonLayer = new GeoJsonLayerConfig
-        {
-            Id = "geojson-layer",
-            DataUrl = "https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/geojson/vancouver-blocks.json",
-            Pickable = true,
-            Stroked = true,
-            Extruded = false,
-            LineWidthScale = 1,
-            LineWidthMinPixels = 2,
-            FillColor = [160, 160, 180, 100],
-            LineColor = [80, 80, 80, 255],
-            TooltipConfig = TooltipConfig.ForProperties("valuePerSqm"),
-            UniqueIdProperty = "id",
-            DisplayProperty = "id",  // Display the area in square meters
-            Visible = true, // Explicitly set to visible
-            IsEditable = true,
-            ExcludedProperties = ["growth"],  // Exclude the "growth" property from attribute display
-            EditableFields =
-            [
-                new AttributeFieldConfig
-                {
-                    FieldName = "id",
-                    DisplayName = "ID",
-                    DataType = AttributeDataType.String,
-                    IsReadOnly = true,
-                    Order = 1
-                },
-                new AttributeFieldConfig
-                {
-                    FieldName = "valuePerSqm",
-                    DisplayName = "Value per Sqm",
-                    DataType = AttributeDataType.Integer,
-                    IsReadOnly = false,  // Allow editing
-                    Placeholder = "Enter value",
-                    HelpText = "Property value per square meter",
-                    Order = 2
-                },
-                new AttributeFieldConfig
-                {
-                    FieldName = "growth",
-                    DisplayName = "Growth",
-                    DataType = AttributeDataType.Double,
-                    IsReadOnly = true,
-                    Order = 3
-                }
-            ]
-        };
-
-        layers.Add(geoJsonLayer);
-
-        // Add SQL-based layers
-        await AddSqlLayers();
-
-        // Build the dictionary for quick lookup
-        layerConfigsDict = layers.ToDictionary(l => l.Id, l => l);
 
         // Update layers in the DeckGLView
         if (deckGLView != null)
@@ -318,9 +253,6 @@
     private async Task OnMapModeChanged(MapMode newMode)
     {
         currentMapMode = newMode;
-
-        // Clear previous selection when mode changes
-        selectionResult = null;
 
         if (deckGLView != null)
         {
@@ -358,71 +290,6 @@
         StateHasChanged();
     }
 
-    private void OnFeaturesSelected(FeatureSelectionResult result)
-    {
-        selectionResult = result;
-
-        var selectionType = result.FeatureCount switch
-        {
-            0 => "cleared",
-            1 => "single feature",
-            _ => $"{result.FeatureCount} features"
-        };
-
-        Console.WriteLine($"Selection updated: {selectionType}");
-        StateHasChanged();
-    }
-
-    private void OnFeatureClickedInList(SelectedFeature feature)
-    {
-        Console.WriteLine($"Feature clicked in list: {feature.LayerId}");
-    }
-
-    private async Task OnFlashFeature((string LayerId, string FeatureId) data)
-    {
-        if (deckGLView != null)
-        {
-            await deckGLView.FlashFeature(data.LayerId, data.FeatureId);
-            Console.WriteLine($"Flashing feature {data.FeatureId} in layer {data.LayerId}");
-        }
-    }
-
-    private async Task OnZoomToFeature((string LayerId, string FeatureId) data)
-    {
-        if (deckGLView != null)
-        {
-            await deckGLView.ZoomToFeature(data.LayerId, data.FeatureId);
-            Console.WriteLine($"Zooming to feature {data.FeatureId} in layer {data.LayerId}");
-        }
-    }
-
-    private async Task OnUnselectFeature(string featureId)
-    {
-        if (deckGLView != null)
-        {
-            await deckGLView.UnselectFeature(featureId);
-            Console.WriteLine($"Unselecting feature {featureId}");
-        }
-    }
-
-    private async Task OnZoomToLayerFeatures(SelectedFeature[] features)
-    {
-        if (deckGLView != null && features.Length > 0)
-        {
-            await deckGLView.ZoomToSelectedFeatures(features);
-            Console.WriteLine($"Zooming to {features.Length} selected features");
-        }
-    }
-
-    private async Task OnClearLayerSelection(string layerId)
-    {
-        if (deckGLView != null)
-        {
-            await deckGLView.ClearLayerSelection(layerId);
-            Console.WriteLine($"Clearing selection for layer {layerId}");
-        }
-    }
-
     private Task OnAttributesSaved((string LayerId, string FeatureId, AttributeEditContext EditContext) data)
     {
         Console.WriteLine($"💾 Saving attributes for feature {data.FeatureId} in layer {data.LayerId}");
@@ -453,141 +320,9 @@
         return Task.CompletedTask;
     }
 
-    private async Task OnLayerVisibilityChanged((string LayerId, bool IsVisible) data)
-    {
-        if (deckGLView == null) return;
-
-        // Find the layer and update its Visible property
-        var layer = layers.FirstOrDefault(l => l.Id == data.LayerId);
-        if (layer != null)
-        {
-            layer.Visible = data.IsVisible;
-
-            // Update the layer visibility in DeckGLView
-            await deckGLView.SetLayerVisibility(data.LayerId, data.IsVisible);
-
-            Console.WriteLine($"Layer {data.LayerId} visibility set to {data.IsVisible}");
-            StateHasChanged();
-        }
-    }
-
-    private async Task OnLayerColorChanged((string LayerId, MudColor NewColor) data)
-    {
-        if (deckGLView == null) return;
-
-        // Find the layer
-        var layer = layers.FirstOrDefault(l => l.Id == data.LayerId);
-        if (layer != null)
-        {
-            // Update the layer's fill color
-            var hexColor = data.NewColor.ToString(MudColorOutputFormats.Hex);
-
-            // Get the opacity from the MudColor (0-1 range)
-            var opacity = data.NewColor.A / 255.0;
-
-            // Update FeatureStyle if it exists
-            if (layer.FeatureStyle != null)
-            {
-                layer.FeatureStyle.LineColor = hexColor;
-                layer.FeatureStyle.FillColor = hexColor;
-                layer.FeatureStyle.FillOpacity = opacity;
-                layer.FeatureStyle.Opacity = 1;
-            }
-            else
-            {
-                // Create a new FeatureStyle
-                layer.FeatureStyle = new FeatureStyle
-                {
-                    LineColor = hexColor,
-                    FillColor = hexColor,
-                    FillOpacity = opacity,
-                    Opacity = 1
-                };
-            }
-
-            // For GeoJsonLayerConfig, also update the direct FillColor and LineColor properties
-            if (layer is GeoJsonLayerConfig geoJsonLayer)
-            {
-                // Convert hex to RGBA array
-                var color = System.Drawing.ColorTranslator.FromHtml(hexColor);
-                geoJsonLayer.FillColor = [color.R, color.G, color.B, (int)(0.7 * 255)];
-                geoJsonLayer.LineColor = [color.R, color.G, color.B, 1];
-            }
-
-            // Apply the new style to the layer
-            await deckGLView.SetLayerFeatureStyle(data.LayerId, layer.FeatureStyle);
-
-            Console.WriteLine($"Layer {data.LayerId} color changed to {hexColor}");
-            StateHasChanged();
-        }
-    }
-
-    private async Task MoveLayerToIndex((string layerId, int newIndex) data)
-    {
-        if (deckGLView == null) return;
-        // Move in the DeckGLView and get the updated order
-        var updatedLayerIds = await deckGLView.MoveLayerToIndex(data.layerId, data.newIndex);
-
-        if (updatedLayerIds.Length > 0)
-        {
-            // Reorder the local layers list to match
-            ReorderLayersFromIds(updatedLayerIds);
-            StateHasChanged();
-        }
-    }
-
-    private async Task MoveLayerUp(string layerId)
-    {
-        if (deckGLView == null) return;
-
-        // Move in the DeckGLView and get the updated order
-        var updatedLayerIds = await deckGLView.MoveLayerUp(layerId);
-        
-        if (updatedLayerIds.Length > 0)
-        {
-            // Reorder the local layers list to match
-            ReorderLayersFromIds(updatedLayerIds);
-            StateHasChanged();
-        }
-    }
-
-    private async Task MoveLayerDown(string layerId)
-    {
-        if (deckGLView == null) return;
-
-        // Move in the DeckGLView and get the updated order
-        var updatedLayerIds = await deckGLView.MoveLayerDown(layerId);
-        
-        if (updatedLayerIds.Length > 0)
-        {
-            // Reorder the local layers list to match
-            ReorderLayersFromIds(updatedLayerIds);
-            StateHasChanged();
-        }
-    }
-
-    private void ReorderLayersFromIds(string[] layerIds)
-    {
-        // Create a new ordered list based on the returned layer IDs
-        var reorderedLayers = new List<LayerConfig>();
-        
-        foreach (var layerId in layerIds)
-        {
-            var layer = layers.FirstOrDefault(l => l.Id == layerId);
-            if (layer != null)
-            {
-                reorderedLayers.Add(layer);
-            }
-        }
-        
-        // Replace the layers list with the reordered version
-        layers = reorderedLayers;
-        
-        Console.WriteLine($"Layers reordered: {string.Join(", ", layers.Select(l => l.Id))}");
-    }
-
     public void Dispose()
     {
         _viewportUpdateTimer?.Dispose();
     }
 }
+

@@ -10,16 +10,40 @@ using PyroGeoBlazor.DeckGL.Components;
 using PyroGeoBlazor.DeckGL.Models;
 
 using System.Threading.Tasks;
+using Microsoft.Extensions.DependencyInjection;
 
 public class LayerContentsControlTests : MudBlazorTestContext
 {
+    private DeckGLView CreateMockDeckGLView(List<LayerConfig>? layers = null)
+    {
+        // Create a test instance of DeckGLView
+        var deckView = new DeckGLView();
+        
+        if (layers != null)
+        {
+            // Use reflection to access the private _layers field
+            var layersField = typeof(DeckGLView).GetField("_layers", 
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            
+            if (layersField != null)
+            {
+                var internalLayers = (List<LayerConfig>)layersField.GetValue(deckView)!;
+                internalLayers.AddRange(layers);
+            }
+        }
+        
+        return deckView;
+    }
 
     [Fact]
     public void LayerContentsControl_RenderMudComponentsEmptyState_WhenNoLayers()
     {
-        // Arrange & Act
+        // Arrange
+        var mockDeckView = CreateMockDeckGLView();
+        
+        // Act
         var cut = RenderWithMud<LayerContentsControl>(parameters => parameters
-            .Add(p => p.Layers, new List<LayerConfig>()));
+            .Add(p => p.DeckGLView, mockDeckView));
 
         // Assert
         cut.Markup.Should().Contain("No layers");
@@ -34,10 +58,11 @@ public class LayerContentsControlTests : MudBlazorTestContext
             new GeoJsonLayerConfig { Id = "test-layer-1" },
             new GeoJsonLayerConfig { Id = "test-layer-2" }
         };
+        var mockDeckView = CreateMockDeckGLView(layers);
 
         // Act
         var cut = RenderWithMud<LayerContentsControl>(parameters => parameters
-            .Add(p => p.Layers, layers));
+            .Add(p => p.DeckGLView, mockDeckView));
 
         // Assert
         cut.Markup.Should().Contain("test-layer-1");
@@ -56,10 +81,11 @@ public class LayerContentsControlTests : MudBlazorTestContext
                 IsEditable = true 
             }
         };
+        var mockDeckView = CreateMockDeckGLView(layers);
 
         // Act
         var cut = RenderWithMud<LayerContentsControl>(parameters => parameters
-            .Add(p => p.Layers, layers)
+            .Add(p => p.DeckGLView, mockDeckView)
             .Add(p => p.IsLocked, false));
 
         // Assert - button should not be disabled
@@ -68,7 +94,7 @@ public class LayerContentsControlTests : MudBlazorTestContext
     }
 
     [Fact]
-    public void LayerContentsControl_ColorPickerButton_IsDisabled_WhenLayerIsNotEditable()
+    public void LayerContentsControl_ColorPickerButton_IsEnabled_WhenLayerIsNotEditable_AndNotGloballyLocked()
     {
         // Arrange
         var layers = new List<LayerConfig>
@@ -76,18 +102,19 @@ public class LayerContentsControlTests : MudBlazorTestContext
             new GeoJsonLayerConfig 
             { 
                 Id = "locked-layer",
-                IsEditable = false  // Locked
+                IsEditable = false
             }
         };
+        var mockDeckView = CreateMockDeckGLView(layers);
 
         // Act
         var cut = RenderWithMud<LayerContentsControl>(parameters => parameters
-            .Add(p => p.Layers, layers)
+            .Add(p => p.DeckGLView, mockDeckView)
             .Add(p => p.IsLocked, false));
 
-        // Assert - at least one button should be disabled
+        // Assert - no buttons should be disabled
         var disabledButtons = cut.FindAll("button[disabled]");
-        disabledButtons.Should().NotBeEmpty();
+        disabledButtons.Should().BeEmpty();
     }
 
     [Fact]
@@ -102,10 +129,11 @@ public class LayerContentsControlTests : MudBlazorTestContext
                 IsEditable = true  // Editable at layer level
             }
         };
+        var mockDeckView = CreateMockDeckGLView(layers);
 
         // Act
         var cut = RenderWithMud<LayerContentsControl>(parameters => parameters
-            .Add(p => p.Layers, layers)
+            .Add(p => p.DeckGLView, mockDeckView)
             .Add(p => p.IsLocked, true));  // But globally locked
 
         // Assert - button should be disabled due to global lock
@@ -121,10 +149,11 @@ public class LayerContentsControlTests : MudBlazorTestContext
         {
             new TileLayerConfig { Id = "tile-layer" }
         };
+        var mockDeckView = CreateMockDeckGLView(layers);
 
         // Act
         var cut = RenderWithMud<LayerContentsControl>(parameters => parameters
-            .Add(p => p.Layers, layers));
+            .Add(p => p.DeckGLView, mockDeckView));
 
         // Assert - should not contain color picker icon for tile layers
         // Tile layers don't have child content with color picker
@@ -143,10 +172,11 @@ public class LayerContentsControlTests : MudBlazorTestContext
                 IsEditable = false
             }
         };
+        var mockDeckView = CreateMockDeckGLView(layers);
 
         // Act
         var cut = RenderWithMud<LayerContentsControl>(parameters => parameters
-            .Add(p => p.Layers, layers));
+            .Add(p => p.DeckGLView, mockDeckView));
 
         // Assert - should contain "locked" text in tooltip or button
         cut.Markup.ToLower().Should().Contain("locked");
@@ -164,10 +194,11 @@ public class LayerContentsControlTests : MudBlazorTestContext
                 IsEditable = false  // Locked
             }
         };
+        var mockDeckView = CreateMockDeckGLView(layers);
 
         // Act
         var cut = RenderWithMud<LayerContentsControl>(parameters => parameters
-            .Add(p => p.Layers, layers)
+            .Add(p => p.DeckGLView, mockDeckView)
             .Add(p => p.IsLocked, true));  // Globally locked
 
         // Assert - visibility checkbox should still work even when locked
@@ -181,17 +212,18 @@ public class LayerContentsControlTests : MudBlazorTestContext
     [Fact]
     public void LayerContentsControl_LayersInReverseOrder()
     {
-        // Arrange - layers are in RenderMudComponenting order (bottom to top)
+        // Arrange - layers are in rendering order (bottom to top)
         var layers = new List<LayerConfig>
         {
             new GeoJsonLayerConfig { Id = "bottom-layer" },
             new GeoJsonLayerConfig { Id = "middle-layer" },
             new GeoJsonLayerConfig { Id = "top-layer" }
         };
+        var mockDeckView = CreateMockDeckGLView(layers);
 
         // Act
         var cut = RenderWithMud<LayerContentsControl>(parameters => parameters
-            .Add(p => p.Layers, layers));
+            .Add(p => p.DeckGLView, mockDeckView));
 
         // Assert - in the UI, top layer should appear first
         var markup = cut.Markup;

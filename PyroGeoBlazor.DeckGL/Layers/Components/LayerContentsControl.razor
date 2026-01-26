@@ -21,7 +21,8 @@
                     <MudCheckBox T="bool" 
                                  Value="@context.Visible"
                                  ValueChanged="@(async (bool newValue) => await OnVisibilityToggled(context.Id, newValue))"
-                                 Color="Color.Primary" />
+                                 Color="Color.Primary"
+                                 Disabled="@IsLocked" />
                     <MudText Typo="Typo.body2" Style="flex: 1;">
                         @context.Id
                     </MudText>
@@ -55,9 +56,15 @@ else
 }
 
 @code {
-    private List<LayerConfig> LayersReverse => Layers.AsEnumerable().Reverse().ToList();
+private List<LayerConfig> Layers => DeckGLView?.Layers.ToList() ?? [];
+private List<LayerConfig> LayersReverse => Layers.AsEnumerable().Reverse().ToList();
 
-    [Parameter] public List<LayerConfig> Layers { get; set; } = [];
+/// <summary>
+/// Reference to the DeckGLView component. The LayerContentsControl will read layers
+/// and interact directly with the DeckGLView.
+/// </summary>
+[Parameter, EditorRequired] 
+public DeckGLView? DeckGLView { get; set; }
 
     /// <summary>
     /// Controls whether the layer control UI is locked (read-only).
@@ -71,21 +78,18 @@ else
     /// </summary>
     [Parameter] public bool IsLocked { get; set; }
 
-    [Parameter] public EventCallback<(string LayerId, bool IsVisible)> OnLayerVisibilityChanged { get; set; }
-    [Parameter] public EventCallback<(string LayerId, int NewIndex)> OnLayerReordered { get; set; }
-    [Parameter] public EventCallback<(string LayerId, MudColor NewColor)> OnLayerColorChanged { get; set; }
-
     private async Task OnVisibilityToggled(string layerId, bool newValue)
     {
-        if (OnLayerVisibilityChanged.HasDelegate)
+        if (DeckGLView is not null)
         {
-            await OnLayerVisibilityChanged.InvokeAsync((layerId, newValue));
+            await DeckGLView.SetLayerVisibility(layerId, newValue);
+            StateHasChanged();
         }
     }
 
     private async Task OnDropHandler(MudItemDropInfo<LayerConfig> dropInfo)
     {
-        if (dropInfo?.Item is null) return;
+        if (IsLocked || dropInfo?.Item is null || DeckGLView is null) return;
 
         var source = Layers.IndexOf(dropInfo.Item);
 
@@ -95,7 +99,8 @@ else
 
         if (source >= 0 && target >= 0 && source != target)
         {
-            await OnLayerReordered.InvokeAsync((dropInfo.Item.Id, target));
+            await DeckGLView.MoveLayerToIndex(dropInfo.Item.Id, target);
+            StateHasChanged();
         }
     }
 
@@ -156,12 +161,29 @@ else
 
         var result = await dialog.Result;
 
-        if (result is not null && !result.Canceled && result.Data is MudColor newColor)
+        if (result is not null && !result.Canceled && result.Data is MudColor newColor && DeckGLView is not null)
         {
-            if (OnLayerColorChanged.HasDelegate)
+            // Update the layer's feature style
+            var hexColor = newColor.ToString(MudColorOutputFormats.Hex);
+            var opacity = newColor.A / 255.0;
+
+            var featureStyle = layer.FeatureStyle ?? new FeatureStyle();
+            featureStyle.LineColor = hexColor;
+            featureStyle.FillColor = hexColor;
+            featureStyle.FillOpacity = opacity;
+            featureStyle.Opacity = 1;
+
+            // For GeoJsonLayerConfig, also update the direct FillColor and LineColor properties
+            if (layer is GeoJsonLayerConfig geoJsonLayer)
             {
-                await OnLayerColorChanged.InvokeAsync((layer.Id, newColor));
+                var color = System.Drawing.ColorTranslator.FromHtml(hexColor);
+                geoJsonLayer.FillColor = [color.R, color.G, color.B, (int)(opacity * 255)];
+                geoJsonLayer.LineColor = [color.R, color.G, color.B, 255];
             }
+
+            // Apply the new style to the layer
+            await DeckGLView.SetLayerFeatureStyle(layer.Id, featureStyle);
+            StateHasChanged();
         }
     }
 }

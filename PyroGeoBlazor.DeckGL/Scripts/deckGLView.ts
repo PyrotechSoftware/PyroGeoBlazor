@@ -3,6 +3,12 @@ import { EditableGeoJsonLayer, DrawPolygonMode, ViewMode } from '@deck.gl-commun
 import { PathStyleExtension } from '@deck.gl/extensions';
 
 /**
+ * Debug logging control
+ * Set to false to disable verbose logging in production
+ */
+const DEBUG_LOGGING = true;
+
+/**
  * View state for controlling the deck.gl camera
  */
 export interface ViewState {
@@ -706,31 +712,35 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      * Apply base feature style to layer configuration
      */
     private applyFeatureStyle(config: LayerConfig): LayerConfig {
-        console.log(`🎨 [applyFeatureStyle] START - Layer: ${config.id}`);
-        console.log(`  Input config.featureStyle:`, config.featureStyle);
-        console.log(`  Input config.uniqueValueRenderer:`, config.uniqueValueRenderer);
-        console.log(`  Input config.props.fillColor:`, config.props.fillColor);
-        console.log(`  Input config.props.getFillColor:`, config.props.getFillColor);
-        console.log(`  Input config.props.lineColor:`, config.props.lineColor);
-        console.log(`  Input config.props.getLineColor:`, config.props.getLineColor);
+        if (DEBUG_LOGGING) {
+            console.log(`🎨 [applyFeatureStyle] START - Layer: ${config.id}`);
+            console.log(`  Input config.featureStyle:`, config.featureStyle);
+            console.log(`  Input config.uniqueValueRenderer:`, config.uniqueValueRenderer);
+            console.log(`  Input config.props.fillColor:`, config.props.fillColor);
+            console.log(`  Input config.props.getFillColor:`, config.props.getFillColor);
+            console.log(`  Input config.props.lineColor:`, config.props.lineColor);
+            console.log(`  Input config.props.getLineColor:`, config.props.getLineColor);
+        }
         
         if (!config.featureStyle && !config.uniqueValueRenderer) {
-            console.log(`  ❌ No featureStyle or uniqueValueRenderer - returning config unchanged`);
+            if (DEBUG_LOGGING) console.log(`  ❌ No featureStyle or uniqueValueRenderer - returning config unchanged`);
             return config;
         }
 
         const enhancedProps = { ...config.props };
-        console.log(`  Created enhancedProps copy`);
+        if (DEBUG_LOGGING) console.log(`  Created enhancedProps copy`);
 
         // If unique value renderer is specified, use attribute-based styling
         if (config.uniqueValueRenderer) {
-            console.log(`  ✅ Applying unique value renderer...`);
+            if (DEBUG_LOGGING) console.log(`  ✅ Applying unique value renderer...`);
             this.applyUniqueValueRenderer(config, enhancedProps);
             
-            console.log(`  After unique value renderer:`);
-            console.log(`    enhancedProps.getFillColor:`, typeof enhancedProps.getFillColor);
-            console.log(`    enhancedProps.getLineColor:`, typeof enhancedProps.getLineColor);
-            console.log(`🎨 [applyFeatureStyle] END (unique value renderer)`);
+            if (DEBUG_LOGGING) {
+                console.log(`  After unique value renderer:`);
+                console.log(`    enhancedProps.getFillColor:`, typeof enhancedProps.getFillColor);
+                console.log(`    enhancedProps.getLineColor:`, typeof enhancedProps.getLineColor);
+                console.log(`🎨 [applyFeatureStyle] END (unique value renderer)`);
+            }
             
             return {
                 ...config,
@@ -740,57 +750,49 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
 
         // Otherwise, apply simple feature style
         const style = config.featureStyle!;
-        console.log(`  ✅ Applying simple feature style:`, style);
+        if (DEBUG_LOGGING) console.log(`  ✅ Applying simple feature style:`, style);
 
         // Apply style properties based on layer type
-        // IMPORTANT: Deck.gl prefers accessor functions over static properties
-        // We must SET accessor functions that return our colors, not delete them
         if (style.fillColor) {
             const fillOpacity = style.fillOpacity ?? 1.0;
             const rgbaColor = hexToRgba(style.fillColor, fillOpacity);
-            console.log(`    Set fillColor: ${style.fillColor} (opacity: ${fillOpacity}) -> RGBA:`, rgbaColor);
+            if (DEBUG_LOGGING) console.log(`    Set fillColor: ${style.fillColor} (opacity: ${fillOpacity}) -> RGBA:`, rgbaColor);
             
-            // Set BOTH the static property and accessor function
             enhancedProps.fillColor = rgbaColor;
             enhancedProps.getFillColor = () => rgbaColor;
-            console.log(`    Set fillColor static property and getFillColor accessor to return RGBA:`, rgbaColor);
+            if (DEBUG_LOGGING) console.log(`    Set fillColor static property and getFillColor accessor to return RGBA:`, rgbaColor);
             
-            // Set filled based on fillOpacity: filled when > 0, not filled when = 0
             enhancedProps.filled = fillOpacity > 0;
-            console.log(`    Set filled based on fillOpacity (${fillOpacity}):`, enhancedProps.filled);
+            if (DEBUG_LOGGING) console.log(`    Set filled based on fillOpacity (${fillOpacity}):`, enhancedProps.filled);
         }
         
         if (style.lineColor) {
             const lineOpacity = style.opacity ?? 1.0;
             const rgbaColor = hexToRgba(style.lineColor, lineOpacity);
-            console.log(`    Set lineColor: ${style.lineColor} (opacity: ${lineOpacity}) -> RGBA:`, rgbaColor);
+            if (DEBUG_LOGGING) console.log(`    Set lineColor: ${style.lineColor} (opacity: ${lineOpacity}) -> RGBA:`, rgbaColor);
             
-            // Set BOTH the static property and accessor function
             enhancedProps.lineColor = rgbaColor;
             enhancedProps.getLineColor = () => rgbaColor;
-            console.log(`    Set lineColor static property and getLineColor accessor to return RGBA:`, rgbaColor);
+            if (DEBUG_LOGGING) console.log(`    Set lineColor static property and getLineColor accessor to return RGBA:`, rgbaColor);
             
-            // IMPORTANT: Ensure stroked is true when we have a line color
             enhancedProps.stroked = true;
-            console.log(`    Set stroked: true (has lineColor)`);
+            if (DEBUG_LOGGING) console.log(`    Set stroked: true (has lineColor)`);
         }
         
         if (style.lineWidth !== undefined) {
             enhancedProps.lineWidth = style.lineWidth;
-            console.log(`    Set lineWidth:`, style.lineWidth);
+            if (DEBUG_LOGGING) console.log(`    Set lineWidth:`, style.lineWidth);
             
-            // Set accessor function to return the static width
             enhancedProps.getLineWidth = () => style.lineWidth;
-            console.log(`    Set getLineWidth accessor to return:`, style.lineWidth);
+            if (DEBUG_LOGGING) console.log(`    Set getLineWidth accessor to return:`, style.lineWidth);
         }
         
         if (style.radiusScale !== undefined) {
             enhancedProps.radiusScale = style.radiusScale;
-            console.log(`    Set radiusScale:`, style.radiusScale);
+            if (DEBUG_LOGGING) console.log(`    Set radiusScale:`, style.radiusScale);
         }
 
         // Add update triggers to force deck.gl to re-evaluate the style
-        // Use a timestamp to ensure the trigger value changes each time
         const timestamp = Date.now();
         enhancedProps.updateTriggers = {
             ...enhancedProps.updateTriggers,
@@ -799,13 +801,15 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             getLineWidth: `style-${timestamp}`,
             getRadius: `style-${timestamp}`
         };
-        console.log(`    Set updateTriggers with timestamp: ${timestamp}`);
+        if (DEBUG_LOGGING) console.log(`    Set updateTriggers with timestamp: ${timestamp}`);
 
-        console.log(`  Final enhancedProps.fillColor:`, enhancedProps.fillColor);
-        console.log(`  Final enhancedProps.lineColor:`, enhancedProps.lineColor);
-        console.log(`  Final enhancedProps.getFillColor:`, enhancedProps.getFillColor);
-        console.log(`  Final enhancedProps.getLineColor:`, enhancedProps.getLineColor);
-        console.log(`🎨 [applyFeatureStyle] END (simple style)`);
+        if (DEBUG_LOGGING) {
+            console.log(`  Final enhancedProps.fillColor:`, enhancedProps.fillColor);
+            console.log(`  Final enhancedProps.lineColor:`, enhancedProps.lineColor);
+            console.log(`  Final enhancedProps.getFillColor:`, enhancedProps.getFillColor);
+            console.log(`  Final enhancedProps.getLineColor:`, enhancedProps.getLineColor);
+            console.log(`🎨 [applyFeatureStyle] END (simple style)`);
+        }
 
         return {
             ...config,
@@ -1363,12 +1367,19 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             
             console.log(`Adding selection accessors for layer ${config.id} (${config.type}), ${selectedIds.size} features selected`);
             
+            // Track which features we've logged to avoid spam
+            const loggedFeatures = new Set<string>();
+            
             (enhancedConfig.props as any).getFillColor = (d: any) => {
                 const featureId = this.getFeatureId(d, config.id);
                 const isSelected = featureId && selectedIds.has(featureId);
                 
                 if (isSelected) {
-                    console.log(`  Styling selected feature: ${featureId}`);
+                    // Only log the first time we style each selected feature
+                    if (DEBUG_LOGGING && !loggedFeatures.has(featureId!)) {
+                        console.log(`  Styling selected feature: ${featureId}`);
+                        loggedFeatures.add(featureId!);
+                    }
                     if (selectionStyle.fillColor) {
                         const fillOpacity = selectionStyle.fillOpacity ?? 0.6;
                         return hexToRgba(selectionStyle.fillColor, fillOpacity);
@@ -1813,7 +1824,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             // Set cursor for the editable layer
             getCursor: () => 'crosshair',
             
-            onEdit: ({ updatedData, editType, editContext }: any) => {
+            onEdit: async ({ updatedData, editType, editContext }: any) => {
                 console.log('📝 Edit event:', editType, editContext);
                 
                 // Handle feature completion
@@ -1825,7 +1836,16 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     // Perform selection with the completed polygon
                     if (newFeature.geometry.type === 'Polygon') {
                         const polygon = newFeature.geometry.coordinates[0];
-                        this.performSelection(polygon);
+                        console.log('🔵 About to call performSelection with polygon:', polygon.length, 'points');
+                        
+                        try {
+                            await this.performSelection(polygon);
+                            console.log('🟢 performSelection completed successfully');
+                        } catch (error) {
+                            console.error('🔴 performSelection failed:', error);
+                        }
+                    } else {
+                        console.warn('⚠️ Feature is not a Polygon:', newFeature.geometry.type);
                     }
                     
                     // Clear the drawn feature and reset for next polygon
@@ -2501,35 +2521,65 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         return selectedFeatures;
     }
     
-    private performSelection(polygon: [number, number][]): void {
+    private async performSelection(polygon: [number, number][]): Promise<void> {
+        console.log('🟡 performSelection START - polygon has', polygon.length, 'points');
+        console.log('🟡 dotNetHelper exists:', !!this.dotNetHelper);
+        
         const selectedFeatures = this.selectFeaturesInPolygon(polygon);
         
         console.log(`✅ Selection complete: ${selectedFeatures.length} features selected (before deduplication)`);
         
-        // Deduplicate features by ID (MVT features can span multiple tiles)
+        // CRITICAL: Deduplicate BEFORE extracting IDs and applying styles
+        // This prevents styling the same feature ID multiple times across MVT tiles
         const uniqueFeatures = this.deduplicateFeatures(selectedFeatures);
         
         console.log(`✅ After deduplication: ${uniqueFeatures.length} unique features`);
         
-        // Extract feature IDs and update selection state
-        const featureIds = uniqueFeatures
+        // Extract unique feature IDs only once
+        const uniqueFeatureIds = uniqueFeatures
             .map(sf => this.getFeatureId(sf.feature, sf.layerId))
             .filter(id => id !== null) as string[];
         
-        this.setSelectedFeatures(featureIds);
+        console.log(`📊 Applying selection styling to ${uniqueFeatureIds.length} unique feature IDs`);
+        
+        // Apply selection styling to deduplicated features only
+        this.setSelectedFeatures(uniqueFeatureIds);
         
         if (this.dotNetHelper) {
+            const sanitizeStart = performance.now();
+            
             // Sanitize features to remove circular references before sending to .NET
             const sanitizedFeatures = uniqueFeatures.map(sf => ({
                 layerId: sf.layerId,
                 feature: this.sanitizeFeature(sf.feature)
             }));
             
-            this.dotNetHelper.invokeMethodAsync('OnFeaturesSelected', {
+            const sanitizeTime = performance.now() - sanitizeStart;
+            
+            const result = {
                 polygon,
                 features: sanitizedFeatures,
                 featureCount: uniqueFeatures.length
-            });
+            };
+            
+            // Check payload size
+            const payloadSize = JSON.stringify(result).length;
+            console.log(`📦 Payload size: ${(payloadSize / 1024).toFixed(2)} KB`);
+            console.log(`⏱️ Sanitization took: ${sanitizeTime.toFixed(2)}ms`);
+            console.log(`📤 Calling .NET OnFeaturesSelected with ${result.featureCount} features`);
+            
+            const invokeStart = performance.now();
+            try {
+                await this.dotNetHelper.invokeMethodAsync('OnFeaturesSelected', result);
+                const invokeTime = performance.now() - invokeStart;
+                console.log(`✅ .NET OnFeaturesSelected callback succeeded in ${invokeTime.toFixed(2)}ms`);
+            } catch (error) {
+                const invokeTime = performance.now() - invokeStart;
+                console.error(`❌ Failed to invoke .NET OnFeaturesSelected after ${invokeTime.toFixed(2)}ms:`, error);
+                console.error(`   This usually means the Blazor connection was disconnected.`);
+                console.error(`   Features are selected in JavaScript but .NET won't be notified.`);
+                console.error(`   Payload size was: ${(payloadSize / 1024).toFixed(2)} KB`);
+            }
         }
     }
     
@@ -2566,18 +2616,36 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     
     /**
      * Sanitize a feature object to remove circular references and non-serializable properties
-     * Only keeps essential GeoJSON properties
+     * Only keeps essential GeoJSON properties. Omits geometry coordinates for complex shapes
+     * to reduce payload size (the feature ID and properties are sufficient for most use cases).
      */
     private sanitizeFeature(feature: any): any {
         if (!feature) return null;
         
+        // Debug: Log what properties we're receiving
+        if (DEBUG_LOGGING) {
+            console.log(`  Sanitizing feature:`, {
+                hasProperties: !!feature.properties,
+                propertyCount: feature.properties ? Object.keys(feature.properties).length : 0,
+                sampleProps: feature.properties ? Object.keys(feature.properties).slice(0, 5) : []
+            });
+        }
+        
+        // Check if geometry is complex (polygon with many points)
+        // Complex geometries can be thousands of coordinates for parcels/buildings
+        const hasComplexGeometry = feature.geometry?.coordinates?.[0]?.length > 100 ||
+                                    feature.geometry?.coordinates?.length > 100;
+        
         return {
             type: feature.type || 'Feature',
             id: feature.id,
-            geometry: feature.geometry ? {
+            geometry: hasComplexGeometry ? {
+                type: feature.geometry.type,
+                coordinates: null // Omit to reduce payload size
+            } : (feature.geometry ? {
                 type: feature.geometry.type,
                 coordinates: feature.geometry.coordinates
-            } : null,
+            } : null),
             properties: feature.properties ? { ...feature.properties } : {}
         };
     }
@@ -2597,9 +2665,17 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         
         // Iterate through all current layers to find features
         for (const layer of this.currentLayers) {
-            const layerData = (layer.props as any).data;
-            const layerType = layer.constructor.name;
             const layerId = layer.id;
+            const layerType = layer.constructor.name;
+            
+            // CRITICAL: Skip non-pickable layers
+            const isPickable = (layer.props as any).pickable !== false;
+            if (!isPickable) {
+                console.log(`⏭️ Skipping non-pickable layer: ${layerId}`);
+                continue;
+            }
+            
+            const layerData = (layer.props as any).data;
             
             console.log(`Checking layer ${layerId} (${layerType}) for selection`);
             
@@ -2647,92 +2723,77 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     
     /**
      * Select MVT features within polygon using deck.gl's picking system
+     * Uses pickObjects which properly returns features with properties (unlike manual sublayer access)
      */
     private selectMVTFeaturesInPolygon(layer: any, polygon: [number, number][], bbox: any, selectedFeatures: any[]): void {
-        // MVT layers render sublayers (GeoJsonLayers) for each tile
-        // We need to get the rendered sublayers and check their features
-        const subLayers = layer.getSubLayers?.();
+        if (!this.deck) return;
         
-        console.log(`MVT layer ${layer.id}: checking for sublayers...`);
+        console.log(`MVT layer ${layer.id}: using pickObjects for proper feature properties...`);
         
-        if (!subLayers || subLayers.length === 0) {
-            console.log(`  ❌ No sublayers found for MVT layer ${layer.id}`);
+        // Use deck.gl's pickObjects to sample points within the polygon
+        // This ensures we get features with properties properly parsed
+        const samplingDensity = 20; // Sample every 20 pixels
+        const pickedObjects: any[] = [];
+        
+        // Convert polygon to screen coordinates and sample within the bounding box
+        const viewport = this.deck.getViewports()[0];
+        if (!viewport) {
+            console.log(`  ❌ No viewport found`);
             return;
         }
         
-        console.log(`  ✅ Found ${subLayers.length} sublayers for MVT layer ${layer.id}`);
+        // Project polygon points to screen space to get bounding box
+        const screenPoints = polygon.map(([lng, lat]) => viewport.project([lng, lat]));
+        const screenBBox = {
+            minX: Math.min(...screenPoints.map(p => p[0])),
+            maxX: Math.max(...screenPoints.map(p => p[0])),
+            minY: Math.min(...screenPoints.map(p => p[1])),
+            maxY: Math.max(...screenPoints.map(p => p[1]))
+        };
         
-        let totalChecked = 0;
-        let totalMatched = 0;
+        console.log(`  Sampling area: ${Math.round(screenBBox.maxX - screenBBox.minX)}x${Math.round(screenBBox.maxY - screenBBox.minY)} pixels`);
         
-        // Check each sublayer's features
-        for (const subLayer of subLayers) {
-            const subLayerType = subLayer.constructor.name;
-            
-            // Get the tile's bounding box from props
-            const tileBBox = subLayer.props?.tile?.bbox;
-            if (!tileBBox) {
-                console.log(`    Sublayer ${subLayer.id}: No bbox found, skipping`);
-                continue;
-            }
-            
-            console.log(`    Sublayer: ${subLayer.id}, bbox:`, tileBBox);
-            
-            // Try multiple ways to access the data
-            let features: any[] = [];
-            
-            // Method 1: Check state.features (for binary or non-binary mode)
-            if (subLayer.state?.features) {
-                const stateFeatures = subLayer.state.features;
+        // Sample points within the screen bounding box
+        const pickedFeatures = new Set<string>();
+        let sampleCount = 0;
+        
+        for (let x = screenBBox.minX; x <= screenBBox.maxX; x += samplingDensity) {
+            for (let y = screenBBox.minY; y <= screenBBox.maxY; y += samplingDensity) {
+                sampleCount++;
                 
-                // Collect all features from the different geometry types
-                if (stateFeatures.polygonFeatures) {
-                    features.push(...stateFeatures.polygonFeatures);
-                }
-                if (stateFeatures.pointFeatures) {
-                    features.push(...stateFeatures.pointFeatures);
-                }
-                if (stateFeatures.lineFeatures) {
-                    features.push(...stateFeatures.lineFeatures);
-                }
-            }
-            
-            // Method 2: Check props.data
-            if (features.length === 0) {
-                const subLayerData = subLayer.props?.data;
-                if (subLayerData) {
-                    if (subLayerData.type === 'FeatureCollection' && subLayerData.features) {
-                        features = subLayerData.features;
-                    } else if (Array.isArray(subLayerData)) {
-                        features = subLayerData;
+                // Use pickObject to get feature at this point
+                const picked = this.deck.pickObject({
+                    x,
+                    y,
+                    layerIds: [layer.id]
+                });
+                
+                if (picked && picked.object && picked.layer && picked.layer.id === layer.id) {
+                    const feature = picked.object;
+                    const featureId = this.getFeatureId(feature, layer.id);
+                    
+                    // Deduplicate by feature ID
+                    if (featureId && !pickedFeatures.has(featureId)) {
+                        // Get world coordinates of the picked point to verify it's in polygon
+                        const worldCoords = viewport.unproject([x, y]);
+                        if (this.pointInPolygon([worldCoords[0], worldCoords[1]], polygon)) {
+                            pickedFeatures.add(featureId);
+                            
+                            if (DEBUG_LOGGING) {
+                                console.log(`    Picked feature ${featureId} with ${feature.properties ? Object.keys(feature.properties).length : 0} properties`);
+                            }
+                            
+                            selectedFeatures.push({
+                                layerId: layer.id,
+                                feature: feature
+                            });
+                        }
                     }
-                }
-            }
-            
-            if (features.length === 0) {
-                console.log(`      No features found in sublayer`);
-                continue;
-            }
-            
-            console.log(`      Checking ${features.length} features in sublayer`);
-            
-            for (const feature of features) {
-                if (!feature || !feature.geometry) continue;
-                
-                totalChecked++;
-                
-                // Convert MVT tile coordinates to world coordinates and check
-                if (this.isFeatureInPolygonMVT(feature, polygon, tileBBox)) {
-                    totalMatched++;
-                    selectedFeatures.push({
-                        layerId: layer.id, // Use parent MVT layer ID
-                        feature: feature
-                    });
                 }
             }
         }
         
-        console.log(`  MVT layer ${layer.id}: checked ${totalChecked} features, matched ${totalMatched}`);
+        console.log(`  Sampled ${sampleCount} points, found ${pickedFeatures.size} unique features`);
     }
     
     /**
@@ -3117,7 +3178,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     /**
      * Handle single feature selection (SelectFeature mode)
      */
-    private handleSingleFeatureSelection(info: any): void {
+    private async handleSingleFeatureSelection(info: any): Promise<void> {
         if (!info.object || !info.layer) return;
         
         const layerId = info.layer.id;
@@ -3154,7 +3215,15 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     }],
                     featureCount: 1
                 };
-                this.dotNetHelper.invokeMethodAsync('OnFeaturesSelected', result);
+                
+                console.log(`📤 Calling .NET OnFeaturesSelected with 1 feature`);
+                
+                try {
+                    await this.dotNetHelper.invokeMethodAsync('OnFeaturesSelected', result);
+                    console.log(`✅ .NET OnFeaturesSelected callback succeeded`);
+                } catch (error) {
+                    console.error(`❌ Failed to invoke .NET OnFeaturesSelected:`, error);
+                }
             }
         } else {
             console.log(`❌ Feature deselected`);
@@ -3166,7 +3235,12 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     features: [],
                     featureCount: 0
                 };
-                this.dotNetHelper.invokeMethodAsync('OnFeaturesSelected', result);
+                
+                try {
+                    await this.dotNetHelper.invokeMethodAsync('OnFeaturesSelected', result);
+                } catch (error) {
+                    console.error(`❌ Failed to invoke .NET OnFeaturesSelected:`, error);
+                }
             }
         }
         

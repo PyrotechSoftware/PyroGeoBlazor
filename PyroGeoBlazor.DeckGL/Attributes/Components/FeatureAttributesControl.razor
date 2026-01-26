@@ -2,12 +2,12 @@
 @using PyroGeoBlazor.DeckGL.Models
 @using System.Text.Json
 
-@if (SelectedFeature != null)
+@if (SelectedFeature != null || (SelectedFeatures != null && SelectedFeatures.Count > 0))
 {
     <div style="padding: 8px;">
         <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-2">
             <MudText Typo="Typo.subtitle2">
-                <strong>Feature Attributes</strong>
+                <strong>@(IsMultiEditMode ? $"Feature Attributes ({SelectedFeatures!.Count} selected)" : "Feature Attributes")</strong>
             </MudText>
             <MudStack Row Spacing="1">
                 @if (IsLocked)
@@ -18,13 +18,13 @@
                         </MudChip>
                     </MudTooltip>
                 }
-                @if (EditContext != null && EditContext.IsDirty)
+                @if ((EditContext != null && EditContext.IsDirty) || (MultiEditContext != null && MultiEditContext.IsDirty))
                 {
                     <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled">
                         Modified
                     </MudChip>
                 }
-                @if (EditContext != null && !EditContext.IsValid)
+                @if ((EditContext != null && !EditContext.IsValid) || (MultiEditContext != null && !MultiEditContext.IsValid))
                 {
                     <MudChip T="string" Size="Size.Small" Color="Color.Error" Variant="Variant.Filled">
                         Invalid
@@ -58,7 +58,7 @@
                             <td style="vertical-align: middle;">
                                 @if (field.IsEditable && !IsLocked)
                                 {
-                                    @RenderEditControl(field)
+                                    @RenderEditableField(field)
                                 }
                                 else
                                 {
@@ -70,7 +70,7 @@
                 </tbody>
             </MudSimpleTable>
 
-            @if (EditContext != null && EditContext.IsDirty && !IsLocked)
+            @if (((EditContext != null && EditContext.IsDirty) || (MultiEditContext != null && MultiEditContext.IsDirty)) && !IsLocked)
             {
                 <MudStack Row Justify="Justify.FlexEnd" Spacing="2" Class="mt-2">
                     <MudButton Size="Size.Small" 
@@ -82,7 +82,7 @@
                     <MudButton Size="Size.Small" 
                                Variant="Variant.Filled" 
                                Color="Color.Primary"
-                               Disabled="@(!EditContext.IsValid)"
+                               Disabled="@(!(EditContext?.IsValid ?? MultiEditContext?.IsValid ?? false))"
                                OnClick="SaveChanges">
                         Save Changes
                     </MudButton>
@@ -107,15 +107,21 @@ else
 }
 
 @code {
-    /// <summary>
-    /// The selected feature to display attributes for
-    /// </summary>
-    [Parameter] public SelectedFeature? SelectedFeature { get; set; }
+/// <summary>
+/// The selected feature to display attributes for (single feature mode)
+/// </summary>
+[Parameter] public SelectedFeature? SelectedFeature { get; set; }
 
-    /// <summary>
-    /// When true, indicates the layer does not allow attribute editing and displays a lock indicator
-    /// </summary>
-    [Parameter] public bool IsLocked { get; set; }
+/// <summary>
+/// List of selected features for batch editing (multi-feature mode)
+/// When set, takes precedence over SelectedFeature parameter
+/// </summary>
+[Parameter] public List<SelectedFeature>? SelectedFeatures { get; set; }
+
+/// <summary>
+/// When true, indicates the layer does not allow attribute editing and displays a lock indicator
+/// </summary>
+[Parameter] public bool IsLocked { get; set; }
 
     /// <summary>
     /// Configuration for editable fields. Defines which fields can be edited and how.
@@ -129,9 +135,9 @@ else
 
     /// <summary>
     /// Event callback invoked when changes are saved.
-    /// Provides the modified fields and their new values.
+    /// Provides either AttributeEditContext (single feature) or MultiFeatureEditContext (batch edit).
     /// </summary>
-    [Parameter] public EventCallback<AttributeEditContext> OnSaveChanges { get; set; }
+    [Parameter] public EventCallback<object> OnSaveChanges { get; set; }
 
     /// <summary>
     /// Event callback invoked when changes are reset.
@@ -159,19 +165,36 @@ else
     );
 
     private AttributeEditContext? EditContext { get; set; }
+    private MultiFeatureEditContext? MultiEditContext { get; set; }
+    
+    // Track which fields are in edit mode for multi-select with different values
+    private readonly HashSet<string> _fieldsInEditMode = new();
+    
+    // Helper property to determine if we're in multi-edit mode
+    private bool IsMultiEditMode => SelectedFeatures != null && SelectedFeatures.Count > 1;
 
     protected override void OnParametersSet()
     {
         base.OnParametersSet();
 
-        // Initialize edit context when feature changes
-        if (SelectedFeature != null && EditableFieldsConfig != null && EditableFieldsConfig.Any())
+        // Initialize edit context based on mode
+        if (IsMultiEditMode)
+        {
+            InitializeMultiEditContext();
+            EditContext = null;
+            _fieldsInEditMode.Clear(); // Reset edit mode tracking when features change
+        }
+        else if (SelectedFeature != null && EditableFieldsConfig != null && EditableFieldsConfig.Any())
         {
             InitializeEditContext();
+            MultiEditContext = null;
+            _fieldsInEditMode.Clear();
         }
         else
         {
             EditContext = null;
+            MultiEditContext = null;
+            _fieldsInEditMode.Clear();
         }
     }
 
@@ -209,6 +232,82 @@ else
         }
     }
 
+    private void InitializeMultiEditContext()
+    {
+        if (SelectedFeatures == null || SelectedFeatures.Count == 0) return;
+
+        MultiEditContext = new MultiFeatureEditContext
+        {
+            Features = SelectedFeatures
+        };
+
+        // Analyze each field to determine if values are common or different across features
+        foreach (var fieldConfig in EditableFieldsConfig ?? [])
+        {
+            var fieldState = AnalyzeFieldAcrossFeatures(fieldConfig.FieldName, fieldConfig.DataType);
+            MultiEditContext.FieldStates[fieldConfig.FieldName] = fieldState;
+        }
+    }
+
+    private FieldValueState AnalyzeFieldAcrossFeatures(string fieldName, AttributeDataType dataType)
+    {
+        if (SelectedFeatures == null || SelectedFeatures.Count == 0)
+        {
+            return new FieldValueState { AllNull = true, CommonValue = null };
+        }
+
+        var values = new List<object?>();
+        
+        foreach (var feature in SelectedFeatures)
+        {
+            object? value = null;
+            
+            // Handle "id" at root level
+            if (fieldName.Equals("id", StringComparison.OrdinalIgnoreCase))
+            {
+                if (feature.Feature.TryGetProperty("id", out var idValue))
+                {
+                    value = ConvertJsonElementToObject(idValue, dataType);
+                }
+            }
+            // Handle properties
+            else if (feature.Feature.TryGetProperty("properties", out var properties))
+            {
+                if (properties.TryGetProperty(fieldName, out var propValue))
+                {
+                    value = ConvertJsonElementToObject(propValue, dataType);
+                }
+            }
+            
+            values.Add(value);
+        }
+
+        // Check if all values are null
+        if (values.All(v => v == null))
+        {
+            return new FieldValueState { AllNull = true, CommonValue = null, HasDifferentValues = false };
+        }
+
+        // Check if all non-null values are the same
+        var nonNullValues = values.Where(v => v != null).ToList();
+        if (nonNullValues.Count == 0)
+        {
+            return new FieldValueState { AllNull = true, CommonValue = null, HasDifferentValues = false };
+        }
+
+        var firstValue = nonNullValues[0];
+        var allSame = nonNullValues.All(v => Equals(v, firstValue));
+
+        if (allSame && values.All(v => v != null || values.Count(x => x == null) == values.Count))
+        {
+            // All values are the same (including all null case handled above)
+            return new FieldValueState { HasDifferentValues = false, CommonValue = firstValue, AllNull = false };
+        }
+        
+        // Values differ
+        return new FieldValueState { HasDifferentValues = true, CommonValue = null, AllNull = false };
+    }
+
     private record DisplayableField(
         string FieldName,
         string DisplayName,
@@ -219,7 +318,16 @@ else
 
     private List<DisplayableField> GetDisplayableFields()
     {
-        if (SelectedFeature == null)
+        if (IsMultiEditMode && SelectedFeatures != null && SelectedFeatures.Count > 0)
+        {
+            // In multi-edit mode, collect all unique fields across all features
+            return GetDisplayableFieldsForMultipleFeatures();
+        }
+        
+        // Single-edit mode: Use the single feature
+        var referenceFeature = SelectedFeature;
+        
+        if (referenceFeature == null)
             return [];
 
         var fields = new List<DisplayableField>();
@@ -227,7 +335,7 @@ else
         var configuredFields = EditableFieldsConfig?.ToDictionary(f => f.FieldName, StringComparer.OrdinalIgnoreCase) ?? [];
 
         // Add feature ID if available (it's at root level in GeoJSON, not in properties)
-        if (SelectedFeature.Feature.TryGetProperty("id", out var idElement) && !excludedProps.Contains("id"))
+        if (referenceFeature.Feature.TryGetProperty("id", out var idElement) && !excludedProps.Contains("id"))
         {
             if (configuredFields.TryGetValue("id", out var idConfig))
             {
@@ -253,7 +361,7 @@ else
         }
 
         // Get properties from feature
-        if (SelectedFeature.Feature.TryGetProperty("properties", out var properties))
+        if (referenceFeature.Feature.TryGetProperty("properties", out var properties))
         {
             foreach (var property in properties.EnumerateObject())
             {
@@ -292,8 +400,80 @@ else
             .ToList();
     }
 
+    private List<DisplayableField> GetDisplayableFieldsForMultipleFeatures()
+    {
+        if (SelectedFeatures == null || SelectedFeatures.Count == 0)
+            return [];
+
+        var fields = new List<DisplayableField>();
+        var excludedProps = new HashSet<string>(ExcludedProperties ?? [], StringComparer.OrdinalIgnoreCase);
+        var configuredFields = EditableFieldsConfig?.ToDictionary(f => f.FieldName, StringComparer.OrdinalIgnoreCase) ?? [];
+        var allFieldNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Collect all unique field names from all features
+        foreach (var feature in SelectedFeatures)
+        {
+            // Check for "id" at root level
+            if (feature.Feature.TryGetProperty("id", out _))
+            {
+                allFieldNames.Add("id");
+            }
+
+            // Collect property names
+            if (feature.Feature.TryGetProperty("properties", out var properties))
+            {
+                foreach (var property in properties.EnumerateObject())
+                {
+                    if (!excludedProps.Contains(property.Name))
+                    {
+                        allFieldNames.Add(property.Name);
+                    }
+                }
+            }
+        }
+
+        // Build displayable fields for all collected field names
+        foreach (var fieldName in allFieldNames)
+        {
+            if (configuredFields.TryGetValue(fieldName, out var config))
+            {
+                fields.Add(new DisplayableField(
+                    fieldName,
+                    config.EffectiveDisplayName,
+                    !config.IsReadOnly && !IsLocked,
+                    config,
+                    config.HelpText
+                ));
+            }
+            else
+            {
+                // Show as read-only if no config
+                fields.Add(new DisplayableField(
+                    fieldName,
+                    fieldName,
+                    false,
+                    null,
+                    null
+                ));
+            }
+        }
+
+        // Sort by order if specified, otherwise alphabetically
+        return fields
+            .OrderBy(f => f.Config?.Order ?? int.MaxValue)
+            .ThenBy(f => f.DisplayName)
+            .ToList();
+    }
+
     private string GetFieldDisplayValue(string fieldName)
     {
+        // Multi-edit mode: Use MultiEditContext
+        if (IsMultiEditMode && MultiEditContext != null)
+        {
+            return MultiEditContext.GetDisplayValue(fieldName);
+        }
+
+        // Single-edit mode: Use EditContext
         if (EditContext != null && EditContext.CurrentValues.TryGetValue(fieldName, out var value))
         {
             return FormatValue(value);
@@ -330,6 +510,48 @@ else
         };
     }
 
+    private RenderFragment RenderEditableField(DisplayableField field)
+    {
+        return builder =>
+        {
+            // In multi-edit mode with different values, show text until clicked
+            if (IsMultiEditMode && MultiEditContext != null &&
+                MultiEditContext.FieldStates.TryGetValue(field.FieldName, out var fieldState) &&
+                fieldState.HasDifferentValues &&
+                !_fieldsInEditMode.Contains(field.FieldName))
+            {
+                // Show "(Different values)" text with click handler
+                builder.OpenElement(0, "div");
+                builder.AddAttribute(1, "style", "cursor: pointer; padding: 8px; border: 1px solid transparent; border-radius: 4px;");
+                builder.AddAttribute(2, "onmouseover", "this.style.borderColor='var(--mud-palette-divider)'");
+                builder.AddAttribute(3, "onmouseout", "this.style.borderColor='transparent'");
+                builder.AddAttribute(4, "onclick", EventCallback.Factory.Create(this, () => EnterEditMode(field.FieldName)));
+                
+                builder.OpenComponent<MudText>(5);
+                builder.AddAttribute(6, "Typo", Typo.body2);
+                builder.AddAttribute(7, "Color", Color.Secondary);
+                builder.AddAttribute(8, "ChildContent", (RenderFragment)(textBuilder =>
+                {
+                    textBuilder.AddContent(0, "(Different values)");
+                }));
+                builder.CloseComponent();
+                
+                builder.CloseElement();
+            }
+            else
+            {
+                // Show edit control
+                RenderEditControl(field).Invoke(builder);
+            }
+        };
+    }
+
+    private void EnterEditMode(string fieldName)
+    {
+        _fieldsInEditMode.Add(fieldName);
+        StateHasChanged();
+    }
+
     private RenderFragment RenderEditControl(DisplayableField field)
     {
         return builder =>
@@ -337,9 +559,42 @@ else
             if (field.Config == null) return;
 
             var config = field.Config;
-            var currentValue = EditContext?.GetCurrentValue(field.FieldName);
-            var hasError = EditContext?.ValidationErrors.ContainsKey(field.FieldName) == true;
-            var errorText = hasError ? EditContext!.ValidationErrors[field.FieldName] : null;
+            
+            // Get current value and error state from appropriate context
+            object? currentValue;
+            bool hasError;
+            string? errorText;
+            
+            if (IsMultiEditMode && MultiEditContext != null)
+            {
+                currentValue = MultiEditContext.GetCurrentValue(field.FieldName);
+                
+                // If not modified, check if we should show a placeholder for different values
+                if (currentValue == null && 
+                    MultiEditContext.FieldStates.TryGetValue(field.FieldName, out var fieldState) &&
+                    fieldState.HasDifferentValues)
+                {
+                    // Will be handled by placeholder in control rendering
+                }
+                else if (currentValue == null && 
+                         MultiEditContext.FieldStates.TryGetValue(field.FieldName, out fieldState))
+                {
+                    currentValue = fieldState.CommonValue;
+                }
+                
+                hasError = MultiEditContext.ValidationErrors.ContainsKey(field.FieldName);
+                errorText = hasError ? MultiEditContext.ValidationErrors[field.FieldName] : null;
+            }
+            else if (EditContext != null)
+            {
+                currentValue = EditContext.GetCurrentValue(field.FieldName);
+                hasError = EditContext.ValidationErrors.ContainsKey(field.FieldName);
+                errorText = hasError ? EditContext.ValidationErrors[field.FieldName] : null;
+            }
+            else
+            {
+                return; // No context available
+            }
 
             // Check if a custom renderer is provided for this field
             if (CustomFieldRenderers?.TryGetValue(field.FieldName, out var customRenderer) == true)
@@ -399,10 +654,21 @@ else
 
     private void RenderTextInput(Microsoft.AspNetCore.Components.Rendering.RenderTreeBuilder builder, DisplayableField field, object? currentValue, bool hasError, string? errorText)
     {
+        // Determine placeholder text for multi-edit mode
+        string? placeholder = field.Config?.Placeholder;
+        
+        if (IsMultiEditMode && MultiEditContext != null && 
+            currentValue == null && 
+            MultiEditContext.FieldStates.TryGetValue(field.FieldName, out var fieldState) &&
+            fieldState.HasDifferentValues)
+        {
+            placeholder = "(Different values)";
+        }
+        
         builder.OpenComponent<MudTextField<string>>(0);
         builder.AddAttribute(1, "Value", currentValue?.ToString() ?? string.Empty);
         builder.AddAttribute(2, "ValueChanged", EventCallback.Factory.Create<string>(this, value => OnFieldChanged(field.FieldName, value)));
-        builder.AddAttribute(3, "Placeholder", field.Config?.Placeholder);
+        builder.AddAttribute(3, "Placeholder", placeholder);
         builder.AddAttribute(4, "Required", field.Config?.IsRequired ?? false);
         builder.AddAttribute(5, "MaxLength", field.Config?.MaxLength);
         builder.AddAttribute(6, "Error", hasError);
@@ -515,26 +781,47 @@ else
 
     private void OnFieldChanged(string fieldName, object? value)
     {
-        if (EditContext == null) return;
-
-        EditContext.SetCurrentValue(fieldName, value);
-        ValidateField(fieldName, value);
+        if (IsMultiEditMode && MultiEditContext != null)
+        {
+            MultiEditContext.SetCurrentValue(fieldName, value);
+            ValidateField(fieldName, value);
+        }
+        else if (EditContext != null)
+        {
+            EditContext.SetCurrentValue(fieldName, value);
+            ValidateField(fieldName, value);
+        }
+        
         StateHasChanged();
     }
 
     private void ValidateField(string fieldName, object? value)
     {
-        if (EditContext == null) return;
-
         var config = EditableFieldsConfig?.FirstOrDefault(f => f.FieldName.Equals(fieldName, StringComparison.OrdinalIgnoreCase));
         if (config == null) return;
 
-        EditContext.ClearValidationError(fieldName);
+        // Clear errors in appropriate context
+        if (IsMultiEditMode && MultiEditContext != null)
+        {
+            MultiEditContext.ClearValidationError(fieldName);
+        }
+        else if (EditContext != null)
+        {
+            EditContext.ClearValidationError(fieldName);
+        }
 
         // Required validation
         if (config.IsRequired && (value == null || (value is string str && string.IsNullOrWhiteSpace(str))))
         {
-            EditContext.SetValidationError(fieldName, $"{config.EffectiveDisplayName} is required");
+            var errorMsg = $"{config.EffectiveDisplayName} is required";
+            if (IsMultiEditMode && MultiEditContext != null)
+            {
+                MultiEditContext.SetValidationError(fieldName, errorMsg);
+            }
+            else if (EditContext != null)
+            {
+                EditContext.SetValidationError(fieldName, errorMsg);
+            }
             return;
         }
 
@@ -543,7 +830,15 @@ else
         {
             if (!codedDomain.CodedValues.Any(cv => Equals(cv.Code, value)))
             {
-                EditContext.SetValidationError(fieldName, $"Invalid value for {config.EffectiveDisplayName}");
+                var errorMsg = $"Invalid value for {config.EffectiveDisplayName}";
+                if (IsMultiEditMode && MultiEditContext != null)
+                {
+                    MultiEditContext.SetValidationError(fieldName, errorMsg);
+                }
+                else if (EditContext != null)
+                {
+                    EditContext.SetValidationError(fieldName, errorMsg);
+                }
                 return;
             }
         }
@@ -553,7 +848,15 @@ else
             var numValue = Convert.ToDouble(value);
             if (numValue < rangeDomain.MinValue || numValue > rangeDomain.MaxValue)
             {
-                EditContext.SetValidationError(fieldName, $"{config.EffectiveDisplayName} must be between {rangeDomain.MinValue} and {rangeDomain.MaxValue}");
+                var errorMsg = $"{config.EffectiveDisplayName} must be between {rangeDomain.MinValue} and {rangeDomain.MaxValue}";
+                if (IsMultiEditMode && MultiEditContext != null)
+                {
+                    MultiEditContext.SetValidationError(fieldName, errorMsg);
+                }
+                else if (EditContext != null)
+                {
+                    EditContext.SetValidationError(fieldName, errorMsg);
+                }
                 return;
             }
         }
@@ -561,20 +864,41 @@ else
         // Max length validation for strings
         if (config.MaxLength.HasValue && value is string stringValue && stringValue.Length > config.MaxLength.Value)
         {
-            EditContext.SetValidationError(fieldName, $"{config.EffectiveDisplayName} cannot exceed {config.MaxLength.Value} characters");
+            var errorMsg = $"{config.EffectiveDisplayName} cannot exceed {config.MaxLength.Value} characters";
+            if (IsMultiEditMode && MultiEditContext != null)
+            {
+                MultiEditContext.SetValidationError(fieldName, errorMsg);
+            }
+            else if (EditContext != null)
+            {
+                EditContext.SetValidationError(fieldName, errorMsg);
+            }
         }
     }
 
     private async Task SaveChanges()
     {
-        if (EditContext == null || !EditContext.IsValid) return;
-
-        await OnSaveChanges.InvokeAsync(EditContext);
+        if (IsMultiEditMode && MultiEditContext != null && MultiEditContext.IsValid)
+        {
+            await OnSaveChanges.InvokeAsync(MultiEditContext);
+        }
+        else if (EditContext != null && EditContext.IsValid)
+        {
+            await OnSaveChanges.InvokeAsync(EditContext);
+        }
     }
 
     private async Task ResetChanges()
     {
-        EditContext?.ResetAll();
+        if (IsMultiEditMode && MultiEditContext != null)
+        {
+            MultiEditContext.ResetAll();
+        }
+        else if (EditContext != null)
+        {
+            EditContext.ResetAll();
+        }
+        
         await OnResetChanges.InvokeAsync();
         StateHasChanged();
     }

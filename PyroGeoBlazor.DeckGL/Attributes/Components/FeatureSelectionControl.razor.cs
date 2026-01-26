@@ -28,9 +28,11 @@ public partial class FeatureSelectionControl : IDisposable
     [Parameter] public string[]? ExcludedProperties { get; set; }
 
     /// <summary>
-    /// Callback when attribute changes are saved
+    /// Callback when attribute changes are saved.
+    /// For single feature: (string LayerId, string FeatureId, AttributeEditContext EditContext)
+    /// For multi-feature: (List<(string LayerId, string FeatureId)> Features, MultiFeatureEditContext EditContext)
     /// </summary>
-    [Parameter] public EventCallback<(string LayerId, string FeatureId, AttributeEditContext EditContext)> OnAttributesSaved { get; set; }
+    [Parameter] public EventCallback<object> OnAttributesSaved { get; set; }
 
     /// <summary>
     /// Callback when attribute changes are reset
@@ -74,6 +76,10 @@ public partial class FeatureSelectionControl : IDisposable
     private record LayerGrouping(string LayerId, List<SelectedFeature> Features);
 
     private SelectedFeature? clickedFeature;
+    
+    // Multi-select state
+    private readonly HashSet<(string LayerId, string FeatureId)> _multiSelectedFeatures = new();
+    private List<SelectedFeature>? _multiSelectedFeatureList;
 
     // Context menu state
     private string? currentLayerContextMenu;
@@ -133,6 +139,50 @@ public partial class FeatureSelectionControl : IDisposable
         foreach (var feature in result.Features)
         {
             Console.WriteLine($"  - Layer: {feature.LayerId}");
+        }
+        
+        // Reconcile multi-selection state with the new SelectionResult
+        // Remove any features from multi-select that are no longer in the SelectionResult
+        var currentSelectionIds = new HashSet<(string LayerId, string FeatureId)>();
+        foreach (var feature in result.Features)
+        {
+            var featureId = GetFeatureId(feature, feature.LayerId);
+            if (!string.IsNullOrEmpty(featureId))
+            {
+                currentSelectionIds.Add((feature.LayerId, featureId));
+            }
+        }
+        
+        // Remove features from multi-selection that are no longer selected
+        var featuresToRemove = _multiSelectedFeatures
+            .Where(f => !currentSelectionIds.Contains(f))
+            .ToList();
+            
+        foreach (var feature in featuresToRemove)
+        {
+            _multiSelectedFeatures.Remove(feature);
+            Console.WriteLine($"[FeatureSelectionControl] Removed {feature.FeatureId} from multi-select (no longer in SelectionResult)");
+        }
+        
+        // Update the multi-selected feature list
+        if (_multiSelectedFeatures.Count > 0)
+        {
+            UpdateMultiSelectedFeatureList();
+        }
+        else
+        {
+            _multiSelectedFeatureList = null;
+        }
+        
+        // Clear clicked feature if it's no longer in the selection
+        if (clickedFeature != null)
+        {
+            var clickedId = GetFeatureId(clickedFeature, clickedFeature.LayerId);
+            if (!string.IsNullOrEmpty(clickedId) && !currentSelectionIds.Contains((clickedFeature.LayerId, clickedId)))
+            {
+                clickedFeature = null;
+                Console.WriteLine($"[FeatureSelectionControl] Cleared clicked feature (no longer in SelectionResult)");
+            }
         }
         
         // Trigger re-render when selection changes in DeckGLView
@@ -255,11 +305,104 @@ public partial class FeatureSelectionControl : IDisposable
         return string.Empty;
     }
 
-    private async Task OnFeatureClickInternal(SelectedFeature feature)
+    private async Task OnFeatureClickInternal(SelectedFeature feature, MouseEventArgs? e = null)
     {
-        // Update the clicked feature for attributes display
+        // For multi-selection, we need a feature ID
+        if (e?.CtrlKey == true)
+        {
+            var featureId = GetFeatureId(feature, feature.LayerId);
+            if (string.IsNullOrEmpty(featureId))
+            {
+                Console.WriteLine($"[FeatureSelectionControl] Cannot identify feature for multi-select - feature has no ID");
+                // Fall through to normal single-select behavior
+            }
+            else
+            {
+                var featureKey = (feature.LayerId, featureId);
+                
+                // Check if we already have features selected from a different layer
+                if (_multiSelectedFeatures.Count > 0)
+                {
+                    var firstSelectedLayer = _multiSelectedFeatures.First().LayerId;
+                    if (firstSelectedLayer != feature.LayerId)
+                    {
+                        // Trying to multi-select from a different layer - clear previous selection and start fresh
+                        Console.WriteLine($"[FeatureSelectionControl] Cannot multi-select across layers. Clearing previous selection from '{firstSelectedLayer}' and starting new selection in '{feature.LayerId}'");
+                        _multiSelectedFeatures.Clear();
+                    }
+                }
+                
+                // Ctrl+Click: Toggle multi-selection
+                if (_multiSelectedFeatures.Contains(featureKey))
+                {
+                    _multiSelectedFeatures.Remove(featureKey);
+                    Console.WriteLine($"[FeatureSelectionControl] Removed feature from multi-select: {featureId}");
+                }
+                else
+                {
+                    _multiSelectedFeatures.Add(featureKey);
+                    Console.WriteLine($"[FeatureSelectionControl] Added feature to multi-select: {featureId}");
+                }
+
+                // Update the multi-selected feature list
+                UpdateMultiSelectedFeatureList();
+                StateHasChanged();
+                return;
+            }
+        }
+
+        // Normal click: Clear multi-selection and set single clicked feature
+        _multiSelectedFeatures.Clear();
+        _multiSelectedFeatureList = null;
         clickedFeature = feature;
+        Console.WriteLine($"[FeatureSelectionControl] Single-select feature");
+
         StateHasChanged();
+    }
+
+    private void UpdateMultiSelectedFeatureList()
+    {
+        if (_multiSelectedFeatures.Count == 0)
+        {
+            _multiSelectedFeatureList = null;
+            return;
+        }
+
+        if (SelectionResult == null)
+        {
+            _multiSelectedFeatureList = null;
+            return;
+        }
+
+        _multiSelectedFeatureList = new List<SelectedFeature>();
+        
+        foreach (var feature in SelectionResult.Features)
+        {
+            var featureId = GetFeatureId(feature, feature.LayerId);
+            if (!string.IsNullOrEmpty(featureId) && _multiSelectedFeatures.Contains((feature.LayerId, featureId)))
+            {
+                _multiSelectedFeatureList.Add(feature);
+            }
+        }
+
+        Console.WriteLine($"[FeatureSelectionControl] Updated multi-select list: {_multiSelectedFeatureList.Count} features");
+    }
+
+    private bool IsFeatureMultiSelected(SelectedFeature feature, string layerId)
+    {
+        var featureId = GetFeatureId(feature, layerId);
+        if (string.IsNullOrEmpty(featureId))
+            return false;
+
+        return _multiSelectedFeatures.Contains((layerId, featureId));
+    }
+
+    private string GetFeatureStyle(SelectedFeature feature, string layerId)
+    {
+        var isSelected = IsFeatureMultiSelected(feature, layerId);
+        return isSelected 
+            ? "cursor: pointer; background-color: var(--mud-palette-action-selected);" 
+            : "cursor: pointer;";
     }
 
     private async Task OnFeatureFlash(SelectedFeature feature, string layerId)
@@ -293,8 +436,12 @@ public partial class FeatureSelectionControl : IDisposable
             var featureId = GetFeatureId(feature, layerId);
             if (!string.IsNullOrEmpty(featureId))
             {
+                // Call DeckGLView to unselect (this will also update the visual highlighting)
+                // This will trigger OnFeaturesSelected callback which will update SelectionResult
+                // and trigger OnSelectionChanged, which will clean up multi-selection state
                 await DeckGLView.UnselectFeature(featureId);
-                StateHasChanged();
+                
+                // StateHasChanged will be called by OnSelectionChanged
             }
         }
     }
@@ -315,12 +462,55 @@ public partial class FeatureSelectionControl : IDisposable
         }
     }
 
+    private void OnLayerClick(string layerId)
+    {
+        if (SelectionResult == null)
+            return;
+
+        Console.WriteLine($"[FeatureSelectionControl] Layer clicked: {layerId}");
+
+        // Get all features in this layer
+        var layerFeatures = SelectionResult.Features
+            .Where(f => f.LayerId == layerId)
+            .ToList();
+
+        if (layerFeatures.Count == 0)
+        {
+            Console.WriteLine($"[FeatureSelectionControl] No features found in layer {layerId}");
+            return;
+        }
+
+        // Clear any existing multi-selection and clicked feature
+        _multiSelectedFeatures.Clear();
+        clickedFeature = null;
+
+        // Add all features from this layer to multi-selection
+        foreach (var feature in layerFeatures)
+        {
+            var featureId = GetFeatureId(feature, layerId);
+            if (!string.IsNullOrEmpty(featureId))
+            {
+                _multiSelectedFeatures.Add((layerId, featureId));
+            }
+        }
+
+        Console.WriteLine($"[FeatureSelectionControl] Selected all {_multiSelectedFeatures.Count} features in layer {layerId}");
+
+        // Update the multi-selected feature list
+        UpdateMultiSelectedFeatureList();
+        StateHasChanged();
+    }
+
     private async Task OnLayerClearSelection(string layerId)
     {
         if (DeckGLView != null)
         {
+            // Call DeckGLView to clear layer selection
+            // This will trigger OnFeaturesSelected callback which will update SelectionResult
+            // and trigger OnSelectionChanged, which will clean up multi-selection state
             await DeckGLView.ClearLayerSelection(layerId);
-            StateHasChanged();
+            
+            // StateHasChanged will be called by OnSelectionChanged
         }
     }
 
@@ -363,18 +553,29 @@ public partial class FeatureSelectionControl : IDisposable
     }
 
     /// <summary>
-    /// Determines if the currently clicked feature's layer is locked (not editable)
+    /// Determines if the currently clicked feature's (or multi-selected features') layer is locked (not editable)
     /// </summary>
     private bool IsClickedFeatureLocked()
     {
-        if (clickedFeature == null || LayerConfigs == null)
+        if (LayerConfigs == null)
             return false;
 
-        // Get the layer config for the clicked feature's layer
-        if (LayerConfigs.TryGetValue(clickedFeature.LayerId, out var layerConfig))
+        // In multi-select mode, check the first selected feature's layer
+        if (_multiSelectedFeatureList != null && _multiSelectedFeatureList.Count > 0)
         {
-            // Return the inverse of IsEditable (if not editable, it's locked)
-            return !layerConfig.IsEditable;
+            var firstFeature = _multiSelectedFeatureList[0];
+            if (LayerConfigs.TryGetValue(firstFeature.LayerId, out var layerConfig))
+            {
+                return !layerConfig.IsEditable;
+            }
+        }
+        // In single-select mode, check the clicked feature's layer
+        else if (clickedFeature != null)
+        {
+            if (LayerConfigs.TryGetValue(clickedFeature.LayerId, out var layerConfig))
+            {
+                return !layerConfig.IsEditable;
+            }
         }
 
         // Default to locked if we can't find the layer config (safe default)
@@ -382,17 +583,29 @@ public partial class FeatureSelectionControl : IDisposable
     }
 
     /// <summary>
-    /// Gets the editable fields configuration for the currently clicked feature's layer
+    /// Gets the editable fields configuration for the currently clicked feature's (or multi-selected features') layer
     /// </summary>
     private List<AttributeFieldConfig>? GetEditableFieldsConfig()
     {
-        if (clickedFeature == null || LayerConfigs == null)
+        if (LayerConfigs == null)
             return null;
 
-        // Get the layer config for the clicked feature's layer
-        if (LayerConfigs.TryGetValue(clickedFeature.LayerId, out var layerConfig))
+        // In multi-select mode, use the first selected feature's layer config
+        if (_multiSelectedFeatureList != null && _multiSelectedFeatureList.Count > 0)
         {
-            return layerConfig.EditableFields;
+            var firstFeature = _multiSelectedFeatureList[0];
+            if (LayerConfigs.TryGetValue(firstFeature.LayerId, out var layerConfig))
+            {
+                return layerConfig.EditableFields;
+            }
+        }
+        // In single-select mode, use the clicked feature's layer config
+        else if (clickedFeature != null)
+        {
+            if (LayerConfigs.TryGetValue(clickedFeature.LayerId, out var layerConfig))
+            {
+                return layerConfig.EditableFields;
+            }
         }
 
         return null;
@@ -409,8 +622,17 @@ public partial class FeatureSelectionControl : IDisposable
         if (ExcludedProperties != null && ExcludedProperties.Length > 0)
             return ExcludedProperties;
 
-        // Otherwise, try to get from layer config
-        if (clickedFeature != null && LayerConfigs != null)
+        // In multi-select mode, use the first selected feature's layer config
+        if (_multiSelectedFeatureList != null && _multiSelectedFeatureList.Count > 0 && LayerConfigs != null)
+        {
+            var firstFeature = _multiSelectedFeatureList[0];
+            if (LayerConfigs.TryGetValue(firstFeature.LayerId, out var layerConfig))
+            {
+                return layerConfig.ExcludedProperties;
+            }
+        }
+        // In single-select mode, use the clicked feature's layer config
+        else if (clickedFeature != null && LayerConfigs != null)
         {
             if (LayerConfigs.TryGetValue(clickedFeature.LayerId, out var layerConfig))
             {
@@ -424,21 +646,62 @@ public partial class FeatureSelectionControl : IDisposable
     /// <summary>
     /// Handles attribute save callback from FeatureAttributesControl
     /// </summary>
-    private async Task HandleAttributesSaved(AttributeEditContext editContext)
+    private async Task HandleAttributesSaved(object editContextObj)
     {
-        if (clickedFeature == null || !OnAttributesSaved.HasDelegate)
+        if (!OnAttributesSaved.HasDelegate)
             return;
 
-        // Get the feature ID
-        var featureId = GetFeatureId(clickedFeature, clickedFeature.LayerId);
-        if (string.IsNullOrEmpty(featureId))
+        // Handle multi-feature edit
+        if (editContextObj is MultiFeatureEditContext multiEditContext)
         {
-            Console.WriteLine("Cannot save attributes: No feature ID found");
-            return;
-        }
+            if (_multiSelectedFeatureList == null || _multiSelectedFeatureList.Count == 0)
+            {
+                Console.WriteLine("Cannot save attributes: No features in multi-select list");
+                return;
+            }
 
-        // Invoke the parent callback with layer ID, feature ID, and edit context
-        await OnAttributesSaved.InvokeAsync((clickedFeature.LayerId, featureId, editContext));
+            // Build list of (LayerId, FeatureId) tuples
+            var featureIds = new List<(string LayerId, string FeatureId)>();
+            
+            foreach (var feature in _multiSelectedFeatureList)
+            {
+                var featureId = GetFeatureId(feature, feature.LayerId);
+                if (!string.IsNullOrEmpty(featureId))
+                {
+                    featureIds.Add((feature.LayerId, featureId));
+                }
+            }
+
+            if (featureIds.Count == 0)
+            {
+                Console.WriteLine("Cannot save attributes: No valid feature IDs found");
+                return;
+            }
+
+            // Invoke callback with multi-feature data
+            await OnAttributesSaved.InvokeAsync((featureIds, multiEditContext));
+            Console.WriteLine($"[FeatureSelectionControl] Saved batch edit to {featureIds.Count} features");
+        }
+        // Handle single-feature edit
+        else if (editContextObj is AttributeEditContext editContext)
+        {
+            if (clickedFeature == null)
+            {
+                Console.WriteLine("Cannot save attributes: No clicked feature");
+                return;
+            }
+
+            var featureId = GetFeatureId(clickedFeature, clickedFeature.LayerId);
+            if (string.IsNullOrEmpty(featureId))
+            {
+                Console.WriteLine("Cannot save attributes: No feature ID found");
+                return;
+            }
+
+            // Invoke callback with single-feature data
+            await OnAttributesSaved.InvokeAsync((clickedFeature.LayerId, featureId, editContext));
+            Console.WriteLine($"[FeatureSelectionControl] Saved single feature: {featureId}");
+        }
     }
 
     /// <summary>

@@ -125,7 +125,8 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
             .Add(p => p.DeckGLView, mockDeckView));
 
         // Click the feature to populate clickedFeature
-        var featureItem = cut.Find("div[style*='cursor: pointer']");
+        // Find feature item (has padding-left), not layer header (has padding: 8px 0)
+        var featureItem = cut.Find(".mud-list-item[style*='padding-left: 32px'] div[style*='cursor: pointer']");
         featureItem.Click();
 
         // Assert - should contain locked indicator from FeatureAttributesControl
@@ -169,7 +170,8 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
             .Add(p => p.DeckGLView, mockDeckView));
 
         // Click the feature to populate clickedFeature
-        var featureItem = cut.Find("div[style*='cursor: pointer']");
+        // Find feature item (has padding-left), not layer header (has padding: 8px 0)
+        var featureItem = cut.Find(".mud-list-item[style*='padding-left: 32px'] div[style*='cursor: pointer']");
         featureItem.Click();
 
         // Assert - should NOT contain locked indicator
@@ -210,7 +212,8 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
             .Add(p => p.DeckGLView, mockDeckView));
 
         // Click the feature to populate clickedFeature
-        var featureItem = cut.Find("div[style*='cursor: pointer']");
+        // Find feature item (has padding-left), not layer header (has padding: 8px 0)
+        var featureItem = cut.Find(".mud-list-item[style*='padding-left: 32px'] div[style*='cursor: pointer']");
         featureItem.Click();
 
         // Assert - should be locked by default for safety
@@ -399,5 +402,144 @@ public class FeatureSelectionControlTests : MudBlazorTestContext
         // Assert - should NOT show locked chip anymore and should show Feature 2
         cut.Markup.Should().Contain("Feature 2");
         cut.Markup.Should().NotContain("mud-chip-content", "clicking a feature from an editable layer should remove the locked chip");
+    }
+
+    [Fact]
+    public void FeatureSelectionControl_NormalClick_ClearsMultiSelection()
+    {
+        // Arrange
+        var feature1Json = """{"type": "Feature", "id": "feature-1", "properties": {"name": "Feature 1"}}""";
+        var feature2Json = """{"type": "Feature", "id": "feature-2", "properties": {"name": "Feature 2"}}""";
+        
+        var selectionResult = new FeatureSelectionResult
+        {
+            Features =
+            [
+                new SelectedFeature 
+                { 
+                    LayerId = "test-layer", 
+                    Feature = JsonSerializer.Deserialize<JsonElement>(feature1Json) 
+                },
+                new SelectedFeature 
+                { 
+                    LayerId = "test-layer", 
+                    Feature = JsonSerializer.Deserialize<JsonElement>(feature2Json) 
+                }
+            ]
+        };
+
+        var layerConfigs = new List<LayerConfig>
+        {
+            new GeoJsonLayerConfig { Id = "test-layer", UniqueIdProperty = "id" }
+        };
+        
+        var mockDeckView = CreateMockDeckGLView(selectionResult, layerConfigs);
+
+        // Act
+        var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
+            .Add(p => p.DeckGLView, mockDeckView));
+
+        // Normal click should select single feature (no multi-select background initially)
+        // Find feature item (has padding-left), not layer header
+        var feature1Element = cut.Find(".mud-list-item[style*='padding-left: 32px'] div[style*='cursor: pointer']");
+        feature1Element.Click();
+
+        // Assert - should not show multi-select background
+        cut.Markup.Should().NotContain("background-color: var(--mud-palette-action-selected)");
+    }
+
+    [Fact]
+    public void FeatureSelectionControl_MultiSelect_ShowsVisualIndicators()
+    {
+        // Arrange
+        var feature1Json = """{"type": "Feature", "id": "feature-1", "properties": {"name": "Feature 1"}}""";
+        var feature2Json = """{"type": "Feature", "id": "feature-2", "properties": {"name": "Feature 2"}}""";
+        
+        var selectionResult = new FeatureSelectionResult
+        {
+            Features =
+            [
+                new SelectedFeature 
+                { 
+                    LayerId = "test-layer", 
+                    Feature = JsonSerializer.Deserialize<JsonElement>(feature1Json) 
+                },
+                new SelectedFeature 
+                { 
+                    LayerId = "test-layer", 
+                    Feature = JsonSerializer.Deserialize<JsonElement>(feature2Json) 
+                }
+            ]
+        };
+
+        var layerConfigs = new List<LayerConfig>
+        {
+            new GeoJsonLayerConfig { Id = "test-layer", UniqueIdProperty = "id" }
+        };
+        
+        var mockDeckView = CreateMockDeckGLView(selectionResult, layerConfigs);
+
+        // Act
+        var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
+            .Add(p => p.DeckGLView, mockDeckView));
+
+        // Ctrl+Click first feature - find fresh before each click to avoid stale elements
+        // Find feature items (have padding-left), not layer headers
+        var featureElements = cut.FindAll(".mud-list-item[style*='padding-left: 32px'] div[style*='cursor: pointer']");
+        featureElements[0].Click(new Microsoft.AspNetCore.Components.Web.MouseEventArgs { CtrlKey = true });
+        
+        // Assert - should show background color for first feature
+        cut.Markup.Should().Contain("background-color: var(--mud-palette-action-selected)");
+        
+        // Ctrl+Click second feature - refresh element list after DOM change
+        featureElements = cut.FindAll(".mud-list-item[style*='padding-left: 32px'] div[style*='cursor: pointer']");
+        featureElements[1].Click(new Microsoft.AspNetCore.Components.Web.MouseEventArgs { CtrlKey = true });
+        
+        // Assert - should show backgrounds and selected count in header
+        var backgroundMatches = System.Text.RegularExpressions.Regex.Matches(cut.Markup, "background-color: var\\(--mud-palette-action-selected\\)");
+        backgroundMatches.Count.Should().Be(2, "both features should be multi-selected");
+        cut.Markup.Should().Contain("(2 selected)", "header should show count of multi-selected features");
+    }
+
+    [Fact]
+    public void FeatureSelectionControl_CtrlClickToggle_AddsAndRemovesFromMultiSelection()
+    {
+        // Arrange
+        var feature1Json = """{"type": "Feature", "id": "feature-1", "properties": {"name": "Feature 1"}}""";
+        
+        var selectionResult = new FeatureSelectionResult
+        {
+            Features =
+            [
+                new SelectedFeature 
+                { 
+                    LayerId = "test-layer", 
+                    Feature = JsonSerializer.Deserialize<JsonElement>(feature1Json) 
+                }
+            ]
+        };
+
+        var layerConfigs = new List<LayerConfig>
+        {
+            new GeoJsonLayerConfig { Id = "test-layer", UniqueIdProperty = "id" }
+        };
+        
+        var mockDeckView = CreateMockDeckGLView(selectionResult, layerConfigs);
+
+        // Act
+        var cut = RenderWithMud<FeatureSelectionControl>(parameters => parameters
+            .Add(p => p.DeckGLView, mockDeckView));
+
+        // Find feature item (has padding-left), not layer header
+        var featureElement = cut.Find(".mud-list-item[style*='padding-left: 32px'] div[style*='cursor: pointer']");
+        
+        // Ctrl+Click to add to multi-select
+        featureElement.Click(new Microsoft.AspNetCore.Components.Web.MouseEventArgs { CtrlKey = true });
+        // Check for background color which indicates multi-select
+        cut.Markup.Should().Contain("background-color: var(--mud-palette-action-selected)", "feature should be visually marked as multi-selected");
+        
+        // Ctrl+Click again to remove from multi-select
+        featureElement.Click(new Microsoft.AspNetCore.Components.Web.MouseEventArgs { CtrlKey = true });
+        cut.Markup.Should().NotContain("background-color: var(--mud-palette-action-selected)", "feature should be deselected");
     }
 }

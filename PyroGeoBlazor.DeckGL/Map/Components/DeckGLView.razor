@@ -13,5 +13,9 @@
         {
             @ChildContent
         }
+        @if (ShowStatusBar)
+        {
+            <MapStatusBar CurrentViewState="CurrentViewState" />
+        }
     </div>
 </CascadingValue>

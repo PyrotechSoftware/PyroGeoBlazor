@@ -17,6 +17,7 @@ public partial class DeckGLView
     private DotNetObjectReference<DeckGLView>? _dotNetRef;
     private List<DeckGLLayer> _childLayers = [];
     private List<LayerConfig> _layers = [];
+    private ViewState? _currentViewState;
 
     /// <summary>
     /// Event raised when the selection changes (features selected or deselected).
@@ -97,6 +98,17 @@ public partial class DeckGLView
     public FeatureSelectionResult? SelectionResult { get; private set; }
 
     /// <summary>
+    /// Current view state of the map. Updated when the camera moves.
+    /// </summary>
+    public ViewState? CurrentViewState => _currentViewState;
+
+    /// <summary>
+    /// Whether to display the status bar showing view state information.
+    /// </summary>
+    [Parameter]
+    public bool ShowStatusBar { get; set; } = true;
+
+    /// <summary>
     /// Callback when features are selected (both single and multi-selection)
     /// </summary>
     [Parameter]
@@ -146,6 +158,8 @@ public partial class DeckGLView
         {
             _jsBinder = new DeckGLJSBinder(JSRuntime);
             var module = await _jsBinder.GetDeckGLModule();
+
+            _currentViewState = InitialViewState;
 
             var config = new DeckGLViewOptions
             {
@@ -270,6 +284,9 @@ public partial class DeckGLView
     [JSInvokable]
     public async Task OnViewStateChangedCallback(ViewState viewState)
     {
+        _currentViewState = viewState;
+        StateHasChanged();
+        
         if (OnViewStateChanged.HasDelegate)
         {
             await OnViewStateChanged.InvokeAsync(viewState);

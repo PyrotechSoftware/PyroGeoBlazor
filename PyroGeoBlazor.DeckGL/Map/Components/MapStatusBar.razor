@@ -1,0 +1,67 @@
+@namespace PyroGeoBlazor.DeckGL.Components
+
+@if (CurrentViewState != null)
+{
+    <div class="map-status-bar @CssClass" style="height: @(Height)px;">
+        <div class="status-bar-content">
+            <span class="status-item">
+                <strong>Lon:</strong> @CurrentViewState.Longitude.ToString("F5")
+            </span>
+            <span class="status-item">
+                <strong>Lat:</strong> @CurrentViewState.Latitude.ToString("F5")
+            </span>
+            <span class="status-item">
+                <strong>Zoom:</strong> @CurrentViewState.Zoom.ToString("F2")
+            </span>
+            @if (CurrentViewState.Pitch.HasValue)
+            {
+                <span class="status-item">
+                    <strong>Pitch:</strong> @CurrentViewState.Pitch.Value.ToString("F1")°
+                </span>
+            }
+            @if (CurrentViewState.Bearing.HasValue)
+            {
+                <span class="status-item">
+                    <strong>Bearing:</strong> @CurrentViewState.Bearing.Value.ToString("F1")°
+                </span>
+            }
+        </div>
+    </div>
+
+    <style>
+        .map-status-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background-color: rgba(255, 255, 255, 0.95);
+            border-top: 1px solid #ddd;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            font-size: 12px;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            z-index: 1000;
+            box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .status-bar-content {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 16px;
+            margin-left: auto;
+        }
+
+        .status-item {
+            white-space: nowrap;
+            color: #333;
+        }
+
+            .status-item strong {
+                font-weight: 600;
+                color: #555;
+                margin-right: 4px;
+            }
+    </style>
+}

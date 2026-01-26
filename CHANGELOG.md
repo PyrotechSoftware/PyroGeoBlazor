@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Context menu for `LayerContentsControl` with right-click activation
+  - "Zoom to Layer" - zooms and pans map to layer bounds (fully functional)
+  - "Data Design" - placeholder for future implementation
+  - "Label" - placeholder for future label toggle functionality
+- Bounds caching system for viewport-culled layers
+  - Layers now cache their full extent as data is loaded across different viewports
+  - Cached bounds expand cumulatively as you explore different areas
+  - "Zoom to Layer" now works even when you've panned away from viewport-culled layers
+- Comprehensive logging for bounds calculation and zoom operations (temporary, for debugging)
+
+### Changed
+- **BREAKING**: Changed default padding from 50 pixels to 0 pixels for zoom methods (`ZoomToLayer`, `ZoomToFeature`, `ZoomToSelectedFeatures`)
+- Moved viewport culling padding logic from JavaScript client to C# API controllers
+  - JavaScript now sends exact viewport bounds to server
+  - Server-side controllers add 50% padding when querying database for smoother panning experience
+  - Cached bounds are now exact feature extents without padding
+- Fixed zoom calculation formula to properly account for viewport dimensions
+  - Old formula: `log2(360 / lngDiff)` - didn't consider viewport pixel size
+  - New formula: `log2((viewportWidth * 360) / (lngDiff * 256))` - calculates zoom based on actual viewport
+  - Added Web Mercator latitude distortion correction for accurate fitting
+  - Bounds now fit exactly to viewport with no extra padding
+- Improved visibility handling for layers
+  - Invisible layers no longer fetch data when zooming or panning
+  - Added visibility checks in `layerNeedsUpdate` and `createLayer` methods
+  - Saves bandwidth and reduces unnecessary server load
+
+### Fixed
+- Fixed MVTLoader deprecation warning by using `loadOptions.mvt.shape` instead of deprecated `options.gis`
+- Fixed bug where invisible layers would still fetch data on viewport changes
+- Fixed excessive padding when zooming to layer bounds
+- Set Parcels layer to `Visible="false"` by default in demo for testing
+
+### Updated
+- ParcelsController, TownshipsController, and TownshipExtensionsController to handle viewport padding server-side
+- `buildViewportUrl` in TypeScript to send exact viewport bounds without client-side padding multiplication
+
 ## [1.0.2] - 2026-01-20
 
 ### Added

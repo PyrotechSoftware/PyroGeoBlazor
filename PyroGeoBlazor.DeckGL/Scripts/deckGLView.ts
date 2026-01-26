@@ -124,54 +124,52 @@ function hexToRgba(hex: string, opacity: number = 1.0): [number, number, number,
 }
 
 /**
- * Manages a deck.gl instance and provides an imperative API for Blazor
- * JS owns the WebGL context, data fetching, and rendering
- * Blazor controls configuration, layer updates, and receives callbacks
+ * Manages a deck.gl instance and provides an imperative API for Blazor.
+ * JavaScript owns the WebGL context, data fetching, and rendering.
+ * Blazor controls configuration, layer updates, and receives callbacks.
  */
 export class DeckGLView {
-private deck: Deck | null = null;
-private containerId: string;
-private dotNetHelper: any = null;
-private currentLayers: Layer[] = [];
-private dataCache: Map<string, any> = new Map();
+    private deck: Deck | null = null;
+    private containerId: string;
+    private dotNetHelper: any = null;
+    private currentLayers: Layer[] = [];
+    private dataCache: Map<string, any> = new Map();
     
-// Editable layer state
-private editableLayer: EditableGeoJsonLayer | null = null;
-private drawingMode: any = ViewMode; // Start in view mode
-private drawnFeatures: any[] = [];
+    // Editable layer state
+    private editableLayer: EditableGeoJsonLayer | null = null;
+    private drawingMode: any = ViewMode;
+    private drawnFeatures: any[] = [];
 
-// Selection state
-private selectedFeatureIds: Set<string> = new Set();
-private globalSelectionStyle: FeatureStyleConfig = {
-    fillColor: '#4169E1',
-    fillOpacity: 0.6,
-    lineColor: '#4169E1',
-    opacity: 1.0,
-    lineWidth: 3
-};
+    // Selection state
+    private selectedFeatureIds: Set<string> = new Set();
+    private globalSelectionStyle: FeatureStyleConfig = {
+        fillColor: '#4169E1',
+        fillOpacity: 0.6,
+        lineColor: '#4169E1',
+        opacity: 1.0,
+        lineWidth: 3
+    };
 
-// Hover state
-private hoveredFeatureId: string | null = null;
-private hoveredLayerId: string | null = null;
+    // Hover state
+    private hoveredFeatureId: string | null = null;
+    private hoveredLayerId: string | null = null;
 
-// Map mode state
-private currentMapMode: string = 'Explore';  // 'Explore' | 'SelectFeature' | 'SelectByPolygon'
+    // Map mode state
+    private currentMapMode: string = 'Explore';
 
-// Layer-specific styles storage
-private layerConfigs: Map<string, LayerConfig> = new Map();  // Store original configs
+    // Layer-specific styles and configurations
+    private layerConfigs: Map<string, LayerConfig> = new Map();
 
-// Track last zoom level for each layer with MinZoom
-private lastZoomByLayer: Map<string, number> = new Map();
+    // Zoom and viewport tracking for MinZoom and viewport culling
+    private lastZoomByLayer: Map<string, number> = new Map();
+    private lastViewportByLayer: Map<string, { longitude: number; latitude: number }> = new Map();
 
-// Track last viewport center (lat/lon) for layers with viewport culling
-private lastViewportByLayer: Map<string, { longitude: number; latitude: number }> = new Map();
-
-// Cache bounds for layers with viewport culling (stores the full extent ever seen)
-private layerBoundsCache: Map<string, { minLng: number, minLat: number, maxLng: number, maxLat: number }> = new Map();
+    // Bounds cache for layers with viewport culling
+    private layerBoundsCache: Map<string, { minLng: number, minLat: number, maxLng: number, maxLat: number }> = new Map();
 
 /**
- * Check if a layer needs to be updated by comparing old and new configurations
- * Returns true if the layer must be recreated, false if it can be reused
+ * Checks if a layer configuration needs to be updated.
+ * Returns true if the layer must be recreated, false if it can be reused.
  */
 private layerNeedsUpdate(oldConfig: LayerConfig | undefined, newConfig: LayerConfig): boolean {
 console.log(`🔍 Checking if layer ${newConfig.id} needs update...`);
@@ -583,9 +581,9 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     }
 
     /**
-     * Update layers - this is the main method Blazor calls to control rendering
-     * Blazor provides layer configurations; JS handles data fetching and layer creation
-     * NOW WITH CACHING: Only recreates layers when config actually changes
+     * Updates layers using provided configurations.
+     * Implements caching to avoid redundant recreation.
+     * Only recreates layers when configuration actually changes.
      */
     public async updateLayers(layerConfigs: LayerConfig[], currentViewState?: ViewState): Promise<void> {
         const startTime = performance.now();
@@ -657,8 +655,8 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     }
 
     /**
-     * Create a layer from configuration
-     * Handles data fetching if dataUrl is provided and applies feature style
+     * Creates a layer from configuration.
+     * Handles data fetching and applies feature styles.
      */
     private async createLayer(config: LayerConfig): Promise<Layer | null> {
         // Import the layer class dynamically based on type
@@ -705,8 +703,8 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     }
 
     /**
-     * Ensure all features have unique IDs
-     * Auto-generates IDs for features that don't have one
+     * Ensures all features have unique IDs.
+     * Auto-generates IDs for features without one.
      */
     private ensureFeatureIds(data: any, layerId: string): any {
         if (!data) return data;
@@ -736,7 +734,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     }
 
     /**
-     * Apply base feature style to layer configuration
+     * Applies base feature style to layer configuration.
      */
     private applyFeatureStyle(config: LayerConfig): LayerConfig {
         if (DEBUG_LOGGING) {
@@ -927,9 +925,8 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     }
 
     /**
-     * Fetch data from an API endpoint
-     * Caches data to avoid redundant requests
-     * Also caches/updates layer bounds for viewport-culled layers
+     * Fetches data from an API endpoint with caching.
+     * Updates layer bounds cache for viewport-culled layers.
      */
     private async fetchData(url: string, cacheKey: string): Promise<any> {
         // Check cache first
@@ -961,7 +958,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     }
 
     /**
-     * Clear the data cache
+     * Clears the data cache.
      */
     public clearCache(): void {
         this.dataCache.clear();
@@ -969,7 +966,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     }
 
     /**
-     * Remove a specific item from cache
+     * Removes a specific item from cache.
      */
     public removeCacheItem(key: string): void {
         this.dataCache.delete(key);
@@ -977,8 +974,8 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     }
 
     /**
-     * Update the bounds cache for a layer based on newly loaded data
-     * Expands existing bounds if new data extends beyond current bounds
+     * Updates the bounds cache for a layer based on newly loaded data.
+     * Expands existing bounds if new data extends beyond current bounds.
      */
     private updateLayerBoundsCache(layerId: string, data: any): void {
         if (!data) return;
@@ -1006,22 +1003,30 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
 
         if (minLng === Infinity) return;
 
-        console.log(`📐 [updateLayerBoundsCache] Calculated bounds from ${features.length} features for ${layerId}:`, 
-            { minLng, minLat, maxLng, maxLat });
+        if (DEBUG_LOGGING) {
+            console.log(`📐 [updateLayerBoundsCache] Calculated bounds from ${features.length} features for ${layerId}:`, 
+                { minLng, minLat, maxLng, maxLat });
+        }
 
         // Get existing cached bounds
         const existingBounds = this.layerBoundsCache.get(layerId);
         
         if (existingBounds) {
-            console.log(`📐 [updateLayerBoundsCache] Existing cached bounds for ${layerId}:`, existingBounds);
+            if (DEBUG_LOGGING) {
+                console.log(`📐 [updateLayerBoundsCache] Existing cached bounds for ${layerId}:`, existingBounds);
+            }
             // Expand existing bounds
             minLng = Math.min(minLng, existingBounds.minLng);
             minLat = Math.min(minLat, existingBounds.minLat);
             maxLng = Math.max(maxLng, existingBounds.maxLng);
             maxLat = Math.max(maxLat, existingBounds.maxLat);
-            console.log(`📐 [updateLayerBoundsCache] Expanded bounds for ${layerId}:`, { minLng, minLat, maxLng, maxLat });
+            if (DEBUG_LOGGING) {
+                console.log(`📐 [updateLayerBoundsCache] Expanded bounds for ${layerId}:`, { minLng, minLat, maxLng, maxLat });
+            }
         } else {
-            console.log(`📐 [updateLayerBoundsCache] Created initial bounds cache for ${layerId}:`, { minLng, minLat, maxLng, maxLat });
+            if (DEBUG_LOGGING) {
+                console.log(`📐 [updateLayerBoundsCache] Created initial bounds cache for ${layerId}:`, { minLng, minLat, maxLng, maxLat });
+            }
         }
 
         // Store updated bounds
@@ -1029,7 +1034,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     }
 
     /**
-     * Get the current zoom level from the deck's view state
+     * Gets the current zoom level from the deck's view state.
      */
     private getCurrentZoom(): number {
         // First, try to use the viewState passed from C# (most accurate)
@@ -1086,8 +1091,8 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     }
 
     /**
-     * Build a URL with viewport bounds and zoom parameters
-     * Appends minLon, minLat, maxLon, maxLat, and zoom to the URL
+     * Builds a URL with viewport bounds and zoom parameters.
+     * Appends minLon, minLat, maxLon, maxLat, and zoom to the URL.
      */
     private buildViewportUrl(baseUrl: string): string {
         // ALWAYS use the stored viewState from C# first (most accurate and up-to-date)
@@ -1149,7 +1154,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     }
 
     /**
-     * Set the global selection style for selected features
+     * Sets the global selection style for selected features.
      */
     public setGlobalSelectionStyle(style: FeatureStyleConfig): void {
         this.globalSelectionStyle = { ...this.globalSelectionStyle, ...style };
@@ -2157,7 +2162,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     }
 
     /**
-     * Flash a feature to highlight it temporarily
+     * Flashes a feature to highlight it temporarily.
      */
     public flashFeature(layerId: string, featureId: string, durationMs: number = 2000): void {
         console.log(`⚡ Flashing feature: ${featureId} in layer: ${layerId} for ${durationMs}ms`);
@@ -2202,7 +2207,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     }
 
     /**
-     * Zoom to a specific feature's bounds
+     * Zooms to a specific feature's bounds.
      */
     public zoomToFeature(layerId: string, featureId: string, padding: number = 0): void {
         console.log(`🔍 Zooming to feature: ${featureId} in layer: ${layerId}`);
@@ -2254,11 +2259,13 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     }
 
     /**
-     * Zoom to all features in a layer
-     * For viewport-culled layers, uses cached bounds if no features currently loaded
+     * Zooms to all features in a layer.
+     * For viewport-culled layers, uses cached bounds if no features currently loaded.
      */
     public zoomToLayer(layerId: string, padding: number = 0): void {
-        console.log(`🔍 [zoomToLayer] Called for layer: ${layerId}, padding: ${padding}`);
+        if (DEBUG_LOGGING) {
+            console.log(`🔍 [zoomToLayer] Called for layer: ${layerId}, padding: ${padding}`);
+        }
         
         const layer = this.currentLayers.find(l => l.id === layerId);
         if (!layer) {
@@ -2275,13 +2282,17 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             features = layerData;
         }
 
-        console.log(`🔍 [zoomToLayer] Found ${features.length} features in current layer data`);
+        if (DEBUG_LOGGING) {
+            console.log(`🔍 [zoomToLayer] Found ${features.length} features in current layer data`);
+        }
 
         // If no features in current viewport, check if we have cached bounds
         if (features.length === 0) {
             const cachedBounds = this.layerBoundsCache.get(layerId);
             if (cachedBounds) {
-                console.log(`✅ [zoomToLayer] Using cached bounds for ${layerId}:`, cachedBounds);
+                if (DEBUG_LOGGING) {
+                    console.log(`✅ [zoomToLayer] Using cached bounds for ${layerId}:`, cachedBounds);
+                }
                 this.zoomToBounds(cachedBounds, padding);
                 return;
             }
@@ -2304,8 +2315,10 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         }
 
         if (minLng !== Infinity) {
-            console.log(`✅ [zoomToLayer] Calculated bounds from ${features.length} current features:`, 
-                { minLng, minLat, maxLng, maxLat });
+            if (DEBUG_LOGGING) {
+                console.log(`✅ [zoomToLayer] Calculated bounds from ${features.length} current features:`, 
+                    { minLng, minLat, maxLng, maxLat });
+            }
             this.zoomToBounds({ minLng, minLat, maxLng, maxLat }, padding);
         } else {
             console.warn(`❌ [zoomToLayer] Could not calculate bounds from features`);
@@ -2313,7 +2326,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     }
 
     /**
-     * Zoom to the bounds of specific selected features
+     * Zooms to the bounds of specific selected features.
      */
     public zoomToSelectedFeatures(selectedFeatures: any[], padding: number = 0): void {
         console.log(`🔍 Zooming to ${selectedFeatures.length} selected features`);
@@ -2387,7 +2400,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     }
 
     /**
-     * Calculate bounds for a feature
+     * Calculates bounds for a feature.
      */
     private calculateFeatureBounds(feature: any): { minLng: number, minLat: number, maxLng: number, maxLat: number } | null {
         if (!feature) return null;
@@ -2430,10 +2443,12 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     }
 
     /**
-     * Zoom to specific bounds
+     * Zooms to specific bounds with optional padding.
      */
     private zoomToBounds(bounds: { minLng: number, minLat: number, maxLng: number, maxLat: number }, padding: number): void {
-        console.log(`🎯 [zoomToBounds] Called with bounds:`, bounds, `padding: ${padding}`);
+        if (DEBUG_LOGGING) {
+            console.log(`🎯 [zoomToBounds] Called with bounds:`, bounds, `padding: ${padding}`);
+        }
         
         if (!this.deck) return;
 
@@ -2455,14 +2470,16 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         const lngDiff = maxLng - minLng;
         const latDiff = maxLat - minLat;
 
-        console.log(`🔍 Bounds calculation:`, {
-            bounds: { minLng, minLat, maxLng, maxLat },
-            lngDiff,
-            latDiff,
-            padding,
-            viewportWidth,
-            viewportHeight
-        });
+        if (DEBUG_LOGGING) {
+            console.log(`🔍 Bounds calculation:`, {
+                bounds: { minLng, minLat, maxLng, maxLat },
+                lngDiff,
+                latDiff,
+                padding,
+                viewportWidth,
+                viewportHeight
+            });
+        }
 
         // Apply padding only if specified
         let adjustedLngDiff = lngDiff;
@@ -2472,9 +2489,13 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             const paddingFraction = padding / Math.min(viewportWidth, viewportHeight);
             adjustedLngDiff = lngDiff / (1 - paddingFraction * 1.0);
             adjustedLatDiff = latDiff / (1 - paddingFraction * 1.0);
-            console.log(`🔍 Applied padding:`, { paddingFraction, adjustedLngDiff, adjustedLatDiff });
+            if (DEBUG_LOGGING) {
+                console.log(`🔍 Applied padding:`, { paddingFraction, adjustedLngDiff, adjustedLatDiff });
+            }
         } else {
-            console.log(`🔍 No padding applied (padding = 0)`);
+            if (DEBUG_LOGGING) {
+                console.log(`🔍 No padding applied (padding = 0)`);
+            }
         }
 
         // Calculate zoom to fit the bounds in the viewport
@@ -2492,25 +2513,31 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         const latScale = 1 / Math.cos(centerLat * Math.PI / 180);
         const latZoom = Math.log2((viewportHeight * 180) / (adjustedLatDiff * 256 * latScale));
 
-        console.log(`🔍 Calculated zoom levels:`, { lngZoom, latZoom, centerLat, latScale });
+        if (DEBUG_LOGGING) {
+            console.log(`🔍 Calculated zoom levels:`, { lngZoom, latZoom, centerLat, latScale });
+        }
 
         // Use the smaller zoom to ensure everything fits
         let zoom = Math.min(lngZoom, latZoom);
         zoom = Math.max(0, Math.min(20, zoom)); // Clamp between 0 and 20
 
-        console.log(`🔍 Final zoom (clamped):`, zoom);
+        if (DEBUG_LOGGING) {
+            console.log(`🔍 Final zoom (clamped):`, zoom);
+        }
 
         // Get current zoom to determine if we're zooming in or out
         const currentViewState = (this.deck as any).viewState || (this.deck as any).props?.initialViewState || {};
         const currentZoom = currentViewState.zoom || 0;
 
-        console.log(`Zooming to bounds:`, { 
-            center: { longitude, latitude }, 
-            calculatedZoom: zoom,
-            currentZoom: currentZoom,
-            bounds: { minLng, minLat, maxLng, maxLat },
-            viewport: { width: viewportWidth, height: viewportHeight }
-        });
+        if (DEBUG_LOGGING) {
+            console.log(`Zooming to bounds:`, { 
+                center: { longitude, latitude }, 
+                calculatedZoom: zoom,
+                currentZoom: currentZoom,
+                bounds: { minLng, minLat, maxLng, maxLat },
+                viewport: { width: viewportWidth, height: viewportHeight }
+            });
+        }
 
         // Use longer duration for zoom out, shorter for zoom in
         const isZoomingOut = zoom < currentZoom;

@@ -16,19 +16,19 @@
 
     <div style="flex: 1 1 auto; overflow: hidden; min-height: 0;">
         <MudExDockLayout ContainerStyle="height: 100%; overflow: hidden;">
-        <MudExDockItem HideHeader Direction="DockDirection.Left" MaximumWidth="300">
-            <MudCard Elevation="4" Style="height: 100%; display: flex; flex-direction: column;">
-                <MudCardHeader>
-                    <CardHeaderContent>
-                        <MudText>Layers</MudText>
-                    </CardHeaderContent>
-                </MudCardHeader>
-                <MudCardContent Style="flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; min-height: 0;">
-                    <LayerContentsControl DeckGLView="@deckGLView" 
-                                          IsLocked="false" />
-                </MudCardContent>
-            </MudCard>
-        </MudExDockItem>
+            <MudExDockItem HideHeader Direction="DockDirection.Left" MaximumWidth="300">
+                <MudCard Elevation="4" Style="height: 100%; display: flex; flex-direction: column;">
+                    <MudCardHeader>
+                        <CardHeaderContent>
+                            <MudText>Layers</MudText>
+                        </CardHeaderContent>
+                    </MudCardHeader>
+                    <MudCardContent Style="flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; min-height: 0;">
+                        <LayerContentsControl DeckGLView="@deckGLView"
+                                              IsLocked="false" />
+                    </MudCardContent>
+                </MudCard>
+            </MudExDockItem>
             <MudExDockItem HideHeader Style="display: flex; flex-direction: column;">
                 <DeckGLView @ref="deckGLView"
                             ContainerId="workspace-deckgl"
@@ -59,33 +59,33 @@
                                       IsEditable="true"
                                       TooltipConfig="@TooltipConfig.ForProperties("valuePerSqm")"
                                       EditableFields="@([
-                                                      new AttributeFieldConfig
-                                                      {
-                                                          FieldName = "id",
-                                                          DisplayName = "ID",
-                                                          DataType = AttributeDataType.String,
-                                                          IsReadOnly = true,
-                                                          Order = 1
-                                                      },
-                                                      new AttributeFieldConfig
-                                                      {
-                                                          FieldName = "valuePerSqm",
-                                                          DisplayName = "Value per Sqm",
-                                                          DataType = AttributeDataType.Integer,
-                                                          IsReadOnly = false,  // Allow editing
-                                                          Placeholder = "Enter value",
-                                                          HelpText = "Property value per square meter",
-                                                          Order = 2
-                                                      },
-                                                      new AttributeFieldConfig
-                                                      {
-                                                          FieldName = "growth",
-                                                          DisplayName = "Growth",
-                                                          DataType = AttributeDataType.Double,
-                                                          IsReadOnly = true,
-                                                          Order = 3
-                                                      }
-                                                  ])"
+                                                                                            new AttributeFieldConfig
+                                                                                            {
+                                                                                                FieldName = "id",
+                                                                                                DisplayName = "ID",
+                                                                                                DataType = AttributeDataType.String,
+                                                                                                IsReadOnly = true,
+                                                                                                Order = 1
+                                                                                            },
+                                                                                            new AttributeFieldConfig
+                                                                                            {
+                                                                                                FieldName = "valuePerSqm",
+                                                                                                DisplayName = "Value per Sqm",
+                                                                                                DataType = AttributeDataType.Integer,
+                                                                                                IsReadOnly = false,  // Allow editing
+                                                                                                Placeholder = "Enter value",
+                                                                                                HelpText = "Property value per square meter",
+                                                                                                Order = 2
+                                                                                            },
+                                                                                            new AttributeFieldConfig
+                                                                                            {
+                                                                                                FieldName = "growth",
+                                                                                                DisplayName = "Growth",
+                                                                                                DataType = AttributeDataType.Double,
+                                                                                                IsReadOnly = true,
+                                                                                                Order = 3
+                                                                                            }
+                                                                                        ])"
                                       ExcludedProperties="@(["growth"])" />
 
                         <GeoJsonLayer Id="Townships"
@@ -98,36 +98,33 @@
                                       UniqueIdProperty="geoTownshipId"
                                       DisplayProperty="townName"
                                       IsEditable="false"
-                                      FeatureStyle = "@(new()
-                                                        {
-                                                            FillColor = "#868E96",
-                                                            FillOpacity = 0.2,
-                                                            LineColor = "#868E96",
-                                                            Opacity = 1.0,
-                                                            LineWidth = 1,
-                                                        })"
-                                      />
+                                      FeatureStyle="@(new()
+                                      {
+                                          FillColor = "#868E96",
+                                          FillOpacity = 0.2,
+                                          LineColor = "#868E96",
+                                          Opacity = 1.0,
+                                          LineWidth = 1,
+                                      })" />
 
-                            <GeoJsonLayer
-                                        Id="Extensions"
-                                        DataUrl="api/townshipextensions"
-                                        Pickable="false"
-                                        Extruded="false"
-                                        LineWidthScale="1"
-                                        LineWidthMinPixels="1"
-                                        TooltipConfig="@TooltipConfig.ForProperties("townshipExtensionOrFarmName")"
-                                        UniqueIdProperty="geoTownshipExtensionOrFarmId"
-                                        DisplayProperty="townshipExtensionOrFarmName"
-                                        FeatureStyle="@(new()
-                                                        {
-                                                            FillColor = "#FF8C00",
-                                                            FillOpacity = 0.3,
-                                                            LineColor = "#FF8C00",
-                                                            LineWidth = 1,
-                                                        })"
-                                        MinZoom="10"
-                                        EnableViewportCulling
-                                        />
+                        <GeoJsonLayer Id="Extensions"
+                                      DataUrl="api/townshipextensions"
+                                      Pickable="true"
+                                      Extruded="false"
+                                      LineWidthScale="1"
+                                      LineWidthMinPixels="1"
+                                      TooltipConfig="@TooltipConfig.ForProperties("townshipExtensionOrFarmName")"
+                                      UniqueIdProperty="geoTownshipExtensionOrFarmId"
+                                      DisplayProperty="townshipExtensionOrFarmName"
+                                      FeatureStyle="@(new()
+                                      {
+                                          FillColor = "#FF8C00",
+                                          FillOpacity = 0.3,
+                                          LineColor = "#FF8C00",
+                                          LineWidth = 1,
+                                      })"
+                                      MinZoom="10"
+                                      EnableViewportCulling />
 
                         <MVTLayer Id="Parcels"
                                   GeoServerUrl="https://lims.koleta.co.mz/geoserver"
@@ -137,43 +134,42 @@
                                   Visible="false"
                                   UniqueIdProperty="GeoPropertyID"
                                   FeatureStyle="@(new()
-                                                  {
-                                                      FillColor = "#0096FF",
-                                                      FillOpacity = 0.3,
-                                                      LineColor = "#0096FF",
-                                                      Opacity = 1.0,
-                                                      LineWidth = 1
-                                                  })"
+                                  {
+                                      FillColor = "#0096FF",
+                                      FillOpacity = 0.3,
+                                      LineColor = "#0096FF",
+                                      Opacity = 1.0,
+                                      LineWidth = 1
+                                  })"
                                   SelectionStyle="@FeatureStyle.Red"
                                   HoverStyle="@(new()
-                                                {
-                                                    FillColor = "#FFD700",  // Gold
-                                                    FillOpacity = 0.8,
-                                                    LineColor = "#FF8C00",
-                                                    Opacity = 1.0
-                                                })"
+                                  {
+                                      FillColor = "#FFD700",  // Gold
+                                      FillOpacity = 0.8,
+                                      LineColor = "#FF8C00",
+                                      Opacity = 1.0
+                                  })"
                                   TooltipConfig="@TooltipConfig.ForProperties("CustomIdentifier", "GeoPropertyID")"
                                   DisplayProperty="CustomIdentifier"
                                   EditableFields="@([
-                                                        new AttributeFieldConfig
-                                                        {
-                                                            FieldName = "CustomIdentifier",
-                                                            DisplayName = "Custom Identifier",
-                                                            DataType = AttributeDataType.String,
-                                                            IsReadOnly = true,
-                                                            Order = 2
-                                                        },
-                                                        new AttributeFieldConfig
-                                                        {
-                                                            FieldName = "GeoPropertyID",
-                                                            DisplayName = "GeoProperty ID",
-                                                            DataType = AttributeDataType.Integer,
-                                                            IsReadOnly = true,
-                                                            Order = 1
-                                                        }
-                                                    ])"
-                                  ExcludedProperties="@(["id", "InspectionProjectID", "InspectionStateCode", "layerName", "LocationLatitude", "LocationLongitude", "LPI", "Source", "Unit"])"
-                                  />
+                                                                                          new AttributeFieldConfig
+                                                                                          {
+                                                                                              FieldName = "CustomIdentifier",
+                                                                                              DisplayName = "Custom Identifier",
+                                                                                              DataType = AttributeDataType.String,
+                                                                                              IsReadOnly = true,
+                                                                                              Order = 2
+                                                                                          },
+                                                                                          new AttributeFieldConfig
+                                                                                          {
+                                                                                              FieldName = "GeoPropertyID",
+                                                                                              DisplayName = "GeoProperty ID",
+                                                                                              DataType = AttributeDataType.Integer,
+                                                                                              IsReadOnly = true,
+                                                                                              Order = 1
+                                                                                          }
+                                                                                      ])"
+                                  ExcludedProperties="@(["id", "InspectionProjectID", "InspectionStateCode", "layerName", "LocationLatitude", "LocationLongitude", "LPI", "Source", "Unit"])" />
                     </LayersContent>
                 </DeckGLView>
             </MudExDockItem>
@@ -185,18 +181,6 @@
                         </CardHeaderContent>
                     </MudCardHeader>
                     <MudCardContent Style="flex: 1 1 auto; overflow: hidden; display: flex; flex-direction: column; padding: 0; min-height: 0;">
-                        <div style="padding: 16px; flex-shrink: 0;">
-                            <MudText Typo="Typo.subtitle2" Class="mb-2">
-                                @if (deckGLView?.SelectionResult != null && deckGLView.SelectionResult.FeatureCount > 0)
-                                {
-                                    <text>@deckGLView.SelectionResult.FeatureCount @(deckGLView.SelectionResult.FeatureCount == 1 ? "Feature" : "Features") Selected</text>
-                                }
-                                else
-                                {
-                                    <text>No features selected</text>
-                                }
-                            </MudText>
-                        </div>
                         <div style="flex: 1 1 auto; overflow: hidden; min-height: 0;">
                             @* Always render FeatureSelectionControl so it can subscribe immediately *@
                             @* The control itself will show "No features selected" when appropriate *@
@@ -213,10 +197,10 @@
 
 @code {
 
-private MapMode currentMapMode = MapMode.Explore;
-private DeckGLView? deckGLView;
+    private MapMode currentMapMode = MapMode.Explore;
+    private DeckGLView? deckGLView;
 
-private ViewState initialViewState = new()
+    private ViewState initialViewState = new()
     {
         Longitude = -123.13,  // Vancouver coordinates
         Latitude = 49.28,
@@ -269,10 +253,10 @@ private ViewState initialViewState = new()
     private void OnViewStateChanged(ViewState newViewState)
     {
         viewState = newViewState;
-        
+
         // Store the pending view state
         _pendingViewState = newViewState;
-        
+
         // Debounce viewport updates - only update layers after user stops zooming/panning for 300ms
         _viewportUpdateTimer?.Dispose();
         _viewportUpdateTimer = new System.Threading.Timer(async _ =>
@@ -287,7 +271,7 @@ private ViewState initialViewState = new()
                 }
             });
         }, null, 300, Timeout.Infinite);
-        
+
         StateHasChanged();
     }
 
@@ -295,7 +279,7 @@ private ViewState initialViewState = new()
     {
         Console.WriteLine($"💾 Saving attributes for feature {data.FeatureId} in layer {data.LayerId}");
         Console.WriteLine($"   Modified fields: {string.Join(", ", data.EditContext.ModifiedFields)}");
-        
+
         foreach (var fieldName in data.EditContext.ModifiedFields)
         {
             var newValue = data.EditContext.GetCurrentValue(fieldName);
@@ -307,7 +291,7 @@ private ViewState initialViewState = new()
         // 1. Calling a backend API to persist the changes
         // 2. Updating the feature data in the layer
         // 3. Refreshing the layer to show the updated data
-        
+
         // Example of what you might do:
         // await SaveFeatureToDatabase(data.LayerId, data.FeatureId, data.EditContext.CurrentValues);
         // await RefreshLayer(data.LayerId);

@@ -52,9 +52,20 @@ public class ParcelsController : ControllerBase
             // Apply viewport culling if bounds provided
             if (minLon.HasValue && minLat.HasValue && maxLon.HasValue && maxLat.HasValue)
             {
-                // Create envelope (bounding box) from viewport bounds
+                // Add 50% padding to viewport bounds to load features near edges
+                // This provides a buffer for smooth panning without visible data loading
+                var lonRange = maxLon.Value - minLon.Value;
+                var latRange = maxLat.Value - minLat.Value;
+                var paddingFactor = 0.5; // 50% padding on each side
+                
+                var paddedMinLon = minLon.Value - (lonRange * paddingFactor);
+                var paddedMaxLon = maxLon.Value + (lonRange * paddingFactor);
+                var paddedMinLat = minLat.Value - (latRange * paddingFactor);
+                var paddedMaxLat = maxLat.Value + (latRange * paddingFactor);
+                
+                // Create envelope (bounding box) from padded viewport bounds
                 var envelope = new NetTopologySuite.Geometries.Envelope(
-                    minLon.Value, maxLon.Value, minLat.Value, maxLat.Value);
+                    paddedMinLon, paddedMaxLon, paddedMinLat, paddedMaxLat);
                 
                 // Create geometry factory with SRID 4326 (WGS84 - standard lat/lon)
                 var geometryFactory = NetTopologySuite.NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
@@ -63,8 +74,8 @@ public class ParcelsController : ControllerBase
                 // Filter features that intersect with viewport
                 query = query.Where(p => p.Geometry.Intersects(envelopeGeom));
 
-                _logger.LogDebug("Viewport culling applied: [{MinLon}, {MinLat}] to [{MaxLon}, {MaxLat}], Zoom: {Zoom}",
-                    minLon, minLat, maxLon, maxLat, zoom ?? -1);
+                _logger.LogDebug("Viewport culling applied with {PaddingFactor}x padding: [{MinLon}, {MinLat}] to [{MaxLon}, {MaxLat}] -> [{PaddedMinLon}, {PaddedMinLat}] to [{PaddedMaxLon}, {PaddedMaxLat}], Zoom: {Zoom}",
+                    paddingFactor, minLon, minLat, maxLon, maxLat, paddedMinLon, paddedMinLat, paddedMaxLon, paddedMaxLat, zoom ?? -1);
             }
 
             var parcels = await query

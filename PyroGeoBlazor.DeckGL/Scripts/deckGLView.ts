@@ -6,7 +6,7 @@ import { PathStyleExtension } from '@deck.gl/extensions';
  * Debug logging control
  * Set to false to disable verbose logging in production
  */
-const DEBUG_LOGGING = true;
+const DEBUG_LOGGING = false;
 
 /**
  * View state for controlling the deck.gl camera
@@ -166,46 +166,66 @@ private lastZoomByLayer: Map<string, number> = new Map();
 // Track last viewport center (lat/lon) for layers with viewport culling
 private lastViewportByLayer: Map<string, { longitude: number; latitude: number }> = new Map();
 
+// Cache bounds for layers with viewport culling (stores the full extent ever seen)
+private layerBoundsCache: Map<string, { minLng: number, minLat: number, maxLng: number, maxLat: number }> = new Map();
+
 /**
  * Check if a layer needs to be updated by comparing old and new configurations
  * Returns true if the layer must be recreated, false if it can be reused
  */
 private layerNeedsUpdate(oldConfig: LayerConfig | undefined, newConfig: LayerConfig): boolean {
-    console.log(`🔍 Checking if layer ${newConfig.id} needs update...`);
-    console.log(`  - Has old config: ${!!oldConfig}`);
-    console.log(`  - MinZoom: ${newConfig.minZoom ?? 'none'}`);
-    console.log(`  - EnableViewportCulling: ${newConfig.enableViewportCulling ?? false}`);
+console.log(`🔍 Checking if layer ${newConfig.id} needs update...`);
+console.log(`  - Has old config: ${!!oldConfig}`);
+console.log(`  - Visible: ${newConfig.props.visible ?? true}`);
+console.log(`  - MinZoom: ${newConfig.minZoom ?? 'none'}`);
+console.log(`  - EnableViewportCulling: ${newConfig.enableViewportCulling ?? false}`);
     
-    if (!oldConfig) {
-        console.log(`  ✅ First time creating layer - needs update`);
+// Check if layer is visible (default to true if not specified)
+const isVisible = newConfig.props.visible ?? true;
+const wasVisible = oldConfig?.props.visible ?? true;
+    
+// If visibility changed, we need to update
+if (isVisible !== wasVisible) {
+    console.log(`  ✅ Visibility changed for ${newConfig.id}: ${wasVisible} → ${isVisible}`);
+    return true;
+}
+    
+// If layer is not visible, don't trigger updates (skip data fetching)
+if (!isVisible) {
+    console.log(`  ⏭️ Layer ${newConfig.id} is not visible - skipping update check`);
+    return false;
+}
+    
+if (!oldConfig) {
+    console.log(`  ✅ First time creating layer - needs update`);
+    return true;
+}
+    
+// Check if zoom crossed MinZoom threshold
+if (newConfig.minZoom) {
+    const currentZoom = this.getCurrentZoom();
+    const lastZoom = this.lastZoomByLayer.get(newConfig.id) ?? currentZoom;
+        
+    console.log(`  - MinZoom check: current=${currentZoom.toFixed(2)}, last=${lastZoom.toFixed(2)}, threshold=${newConfig.minZoom}`);
+        
+    // Check if we crossed the threshold in either direction
+    const wasBelowMin = lastZoom < newConfig.minZoom;
+    const isNowBelowMin = currentZoom < newConfig.minZoom;
+        
+    console.log(`  - Was below min: ${wasBelowMin}, Is now below min: ${isNowBelowMin}`);
+        
+    if (wasBelowMin !== isNowBelowMin) {
+        console.log(`  ✅ Zoom crossed MinZoom threshold for ${newConfig.id}: ${lastZoom.toFixed(1)} → ${currentZoom.toFixed(1)} (minZoom: ${newConfig.minZoom})`);
+        this.lastZoomByLayer.set(newConfig.id, currentZoom);
         return true;
     }
+        
+    // Update last zoom even if threshold not crossed
+    this.lastZoomByLayer.set(newConfig.id, currentZoom);
+}
     
-    // Check if zoom crossed MinZoom threshold
-    if (newConfig.minZoom) {
-        const currentZoom = this.getCurrentZoom();
-        const lastZoom = this.lastZoomByLayer.get(newConfig.id) ?? currentZoom;
-        
-        console.log(`  - MinZoom check: current=${currentZoom.toFixed(2)}, last=${lastZoom.toFixed(2)}, threshold=${newConfig.minZoom}`);
-        
-        // Check if we crossed the threshold in either direction
-        const wasBelowMin = lastZoom < newConfig.minZoom;
-        const isNowBelowMin = currentZoom < newConfig.minZoom;
-        
-        console.log(`  - Was below min: ${wasBelowMin}, Is now below min: ${isNowBelowMin}`);
-        
-        if (wasBelowMin !== isNowBelowMin) {
-            console.log(`  ✅ Zoom crossed MinZoom threshold for ${newConfig.id}: ${lastZoom.toFixed(1)} → ${currentZoom.toFixed(1)} (minZoom: ${newConfig.minZoom})`);
-            this.lastZoomByLayer.set(newConfig.id, currentZoom);
-            return true;
-        }
-        
-        // Update last zoom even if threshold not crossed
-        this.lastZoomByLayer.set(newConfig.id, currentZoom);
-    }
-    
-    // Check if viewport changed for layers with viewport culling enabled
-    if (newConfig.enableViewportCulling) {
+// Check if viewport changed for layers with viewport culling enabled
+if (newConfig.enableViewportCulling) {
         const currentViewState = (this as any)._currentViewState;
         const currentZoom = this.getCurrentZoom();
         const lastZoom = this.lastZoomByLayer.get(newConfig.id) ?? currentZoom;
@@ -644,9 +664,13 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         // Import the layer class dynamically based on type
         const { createLayerFromConfig } = await import('./layerFactory');
         
+        // Check if layer is visible (default to true if not specified)
+        const isVisible = config.props.visible ?? true;
+        
         // If dataUrl is provided, fetch the data (JS owns data fetching)
         let data = config.data;
-        if (config.dataUrl) {
+        if (config.dataUrl && isVisible) {
+            // Only fetch data if layer is visible
             // Check MinZoom: don't fetch if below minimum zoom level
             const currentZoom = this.getCurrentZoom();
             if (config.minZoom && currentZoom < config.minZoom) {
@@ -663,6 +687,9 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                 
                 data = await this.fetchData(dataUrl, config.id);
             }
+        } else if (config.dataUrl && !isVisible) {
+            console.log(`⏭️ Skipping data fetch for ${config.id}: layer is not visible`);
+            data = null;
         }
 
         // Auto-generate IDs for GeoJSON features if they don't have one
@@ -902,6 +929,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     /**
      * Fetch data from an API endpoint
      * Caches data to avoid redundant requests
+     * Also caches/updates layer bounds for viewport-culled layers
      */
     private async fetchData(url: string, cacheKey: string): Promise<any> {
         // Check cache first
@@ -920,6 +948,9 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             
             const data = await response.json();
             this.dataCache.set(cacheKey, data);
+            
+            // Update bounds cache for this layer
+            this.updateLayerBoundsCache(cacheKey, data);
             
             console.log(`Fetched and cached data for ${cacheKey}`);
             return data;
@@ -943,6 +974,58 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     public removeCacheItem(key: string): void {
         this.dataCache.delete(key);
         console.log(`Removed cache item: ${key}`);
+    }
+
+    /**
+     * Update the bounds cache for a layer based on newly loaded data
+     * Expands existing bounds if new data extends beyond current bounds
+     */
+    private updateLayerBoundsCache(layerId: string, data: any): void {
+        if (!data) return;
+
+        let features: any[] = [];
+        if (data.type === 'FeatureCollection' && data.features) {
+            features = data.features;
+        } else if (Array.isArray(data)) {
+            features = data;
+        }
+
+        if (features.length === 0) return;
+
+        // Calculate bounds of new data
+        let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
+        for (const feature of features) {
+            const bounds = this.calculateFeatureBounds(feature);
+            if (bounds) {
+                minLng = Math.min(minLng, bounds.minLng);
+                minLat = Math.min(minLat, bounds.minLat);
+                maxLng = Math.max(maxLng, bounds.maxLng);
+                maxLat = Math.max(maxLat, bounds.maxLat);
+            }
+        }
+
+        if (minLng === Infinity) return;
+
+        console.log(`📐 [updateLayerBoundsCache] Calculated bounds from ${features.length} features for ${layerId}:`, 
+            { minLng, minLat, maxLng, maxLat });
+
+        // Get existing cached bounds
+        const existingBounds = this.layerBoundsCache.get(layerId);
+        
+        if (existingBounds) {
+            console.log(`📐 [updateLayerBoundsCache] Existing cached bounds for ${layerId}:`, existingBounds);
+            // Expand existing bounds
+            minLng = Math.min(minLng, existingBounds.minLng);
+            minLat = Math.min(minLat, existingBounds.minLat);
+            maxLng = Math.max(maxLng, existingBounds.maxLng);
+            maxLat = Math.max(maxLat, existingBounds.maxLat);
+            console.log(`📐 [updateLayerBoundsCache] Expanded bounds for ${layerId}:`, { minLng, minLat, maxLng, maxLat });
+        } else {
+            console.log(`📐 [updateLayerBoundsCache] Created initial bounds cache for ${layerId}:`, { minLng, minLat, maxLng, maxLat });
+        }
+
+        // Store updated bounds
+        this.layerBoundsCache.set(layerId, { minLng, minLat, maxLng, maxLat });
     }
 
     /**
@@ -1050,18 +1133,13 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         const latDelta = 180 / Math.pow(2, zoom);  // Degrees latitude visible
         const lonDelta = 360 / Math.pow(2, zoom);  // Degrees longitude visible
         
-        // Add 50% padding to ensure edge features are included
-        // This also provides a buffer for smooth panning
-        const paddingFactor = 1.5;
-        const paddedLatDelta = latDelta * paddingFactor;
-        const paddedLonDelta = lonDelta * paddingFactor;
+        // No padding added here - the server-side controller will add padding for data fetching
+        const minLon = longitude - lonDelta;
+        const maxLon = longitude + lonDelta;
+        const minLat = latitude - latDelta;
+        const maxLat = latitude + latDelta;
         
-        const minLon = longitude - paddedLonDelta;
-        const maxLon = longitude + paddedLonDelta;
-        const minLat = latitude - paddedLatDelta;
-        const maxLat = latitude + paddedLatDelta;
-        
-        console.log(`📐 Calculated bounds (with ${paddingFactor}x padding): minLon=${minLon.toFixed(4)}, minLat=${minLat.toFixed(4)}, maxLon=${maxLon.toFixed(4)}, maxLat=${maxLat.toFixed(4)}`);
+        console.log(`📐 Calculated viewport bounds (no padding): minLon=${minLon.toFixed(4)}, minLat=${minLat.toFixed(4)}, maxLon=${maxLon.toFixed(4)}, maxLat=${maxLat.toFixed(4)}`);
         console.log(`   (viewport delta: lat=${latDelta.toFixed(4)}, lon=${lonDelta.toFixed(4)})`);
 
         
@@ -2126,7 +2204,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     /**
      * Zoom to a specific feature's bounds
      */
-    public zoomToFeature(layerId: string, featureId: string, padding: number = 50): void {
+    public zoomToFeature(layerId: string, featureId: string, padding: number = 0): void {
         console.log(`🔍 Zooming to feature: ${featureId} in layer: ${layerId}`);
         
         // Find the feature in the layer
@@ -2177,11 +2255,14 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
 
     /**
      * Zoom to all features in a layer
+     * For viewport-culled layers, uses cached bounds if no features currently loaded
      */
-    public zoomToLayer(layerId: string, padding: number = 50): void {
+    public zoomToLayer(layerId: string, padding: number = 0): void {
+        console.log(`🔍 [zoomToLayer] Called for layer: ${layerId}, padding: ${padding}`);
+        
         const layer = this.currentLayers.find(l => l.id === layerId);
         if (!layer) {
-            console.warn(`Layer ${layerId} not found`);
+            console.warn(`❌ [zoomToLayer] Layer ${layerId} not found`);
             return;
         }
 
@@ -2194,12 +2275,22 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             features = layerData;
         }
 
+        console.log(`🔍 [zoomToLayer] Found ${features.length} features in current layer data`);
+
+        // If no features in current viewport, check if we have cached bounds
         if (features.length === 0) {
-            console.warn(`No features found in layer ${layerId}`);
+            const cachedBounds = this.layerBoundsCache.get(layerId);
+            if (cachedBounds) {
+                console.log(`✅ [zoomToLayer] Using cached bounds for ${layerId}:`, cachedBounds);
+                this.zoomToBounds(cachedBounds, padding);
+                return;
+            }
+            
+            console.warn(`❌ [zoomToLayer] No features found in layer ${layerId} and no cached bounds available`);
             return;
         }
 
-        // Calculate combined bounds
+        // Calculate combined bounds from current features
         let minLng = Infinity, minLat = Infinity, maxLng = -Infinity, maxLat = -Infinity;
 
         for (const feature of features) {
@@ -2213,14 +2304,18 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         }
 
         if (minLng !== Infinity) {
+            console.log(`✅ [zoomToLayer] Calculated bounds from ${features.length} current features:`, 
+                { minLng, minLat, maxLng, maxLat });
             this.zoomToBounds({ minLng, minLat, maxLng, maxLat }, padding);
+        } else {
+            console.warn(`❌ [zoomToLayer] Could not calculate bounds from features`);
         }
     }
 
     /**
      * Zoom to the bounds of specific selected features
      */
-    public zoomToSelectedFeatures(selectedFeatures: any[], padding: number = 50): void {
+    public zoomToSelectedFeatures(selectedFeatures: any[], padding: number = 0): void {
         console.log(`🔍 Zooming to ${selectedFeatures.length} selected features`);
 
         if (!selectedFeatures || selectedFeatures.length === 0) {
@@ -2338,6 +2433,8 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      * Zoom to specific bounds
      */
     private zoomToBounds(bounds: { minLng: number, minLat: number, maxLng: number, maxLat: number }, padding: number): void {
+        console.log(`🎯 [zoomToBounds] Called with bounds:`, bounds, `padding: ${padding}`);
+        
         if (!this.deck) return;
 
         const { minLng, minLat, maxLng, maxLat } = bounds;
@@ -2358,20 +2455,50 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         const lngDiff = maxLng - minLng;
         const latDiff = maxLat - minLat;
 
-        // Add padding factor (padding is in pixels, convert to fraction)
-        const paddingFraction = padding / Math.min(viewportWidth, viewportHeight);
-        const adjustedLngDiff = lngDiff / (1 - paddingFraction * 2);
-        const adjustedLatDiff = latDiff / (1 - paddingFraction * 2);
+        console.log(`🔍 Bounds calculation:`, {
+            bounds: { minLng, minLat, maxLng, maxLat },
+            lngDiff,
+            latDiff,
+            padding,
+            viewportWidth,
+            viewportHeight
+        });
 
-        // Calculate zoom to fit longitude
-        const lngZoom = Math.log2(360 / adjustedLngDiff);
+        // Apply padding only if specified
+        let adjustedLngDiff = lngDiff;
+        let adjustedLatDiff = latDiff;
         
-        // Calculate zoom to fit latitude (accounting for Web Mercator distortion)
-        const latZoom = Math.log2(180 / adjustedLatDiff);
+        if (padding > 0) {
+            const paddingFraction = padding / Math.min(viewportWidth, viewportHeight);
+            adjustedLngDiff = lngDiff / (1 - paddingFraction * 1.0);
+            adjustedLatDiff = latDiff / (1 - paddingFraction * 1.0);
+            console.log(`🔍 Applied padding:`, { paddingFraction, adjustedLngDiff, adjustedLatDiff });
+        } else {
+            console.log(`🔍 No padding applied (padding = 0)`);
+        }
+
+        // Calculate zoom to fit the bounds in the viewport
+        // Web Mercator: at zoom level z, the world is 256 * 2^z pixels wide
+        // Longitude spans 360 degrees, so degrees per pixel at zoom z = 360 / (256 * 2^z)
+        // We need: adjustedLngDiff / (360 / (256 * 2^z)) <= viewportWidth
+        // Solving for z: 2^z >= (adjustedLngDiff * 256) / (360 * viewportWidth) * 2
+        // Therefore: z = log2((adjustedLngDiff * 256 * viewportWidth) / 360)
+        
+        const lngZoom = Math.log2((viewportWidth * 360) / (adjustedLngDiff * 256));
+        
+        // For latitude, account for Web Mercator distortion
+        // At the center latitude, the scale factor is 1/cos(lat)
+        const centerLat = (minLat + maxLat) / 2;
+        const latScale = 1 / Math.cos(centerLat * Math.PI / 180);
+        const latZoom = Math.log2((viewportHeight * 180) / (adjustedLatDiff * 256 * latScale));
+
+        console.log(`🔍 Calculated zoom levels:`, { lngZoom, latZoom, centerLat, latScale });
 
         // Use the smaller zoom to ensure everything fits
-        let zoom = Math.min(lngZoom, latZoom) - 0.5; // Subtract 0.5 for extra padding
+        let zoom = Math.min(lngZoom, latZoom);
         zoom = Math.max(0, Math.min(20, zoom)); // Clamp between 0 and 20
+
+        console.log(`🔍 Final zoom (clamped):`, zoom);
 
         // Get current zoom to determine if we're zooming in or out
         const currentViewState = (this.deck as any).viewState || (this.deck as any).props?.initialViewState || {};

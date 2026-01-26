@@ -686,8 +686,8 @@ public partial class DeckGLView
     /// </summary>
     /// <param name="layerId">The layer containing the feature</param>
     /// <param name="featureId">The unique ID of the feature</param>
-    /// <param name="padding">Padding around the feature in pixels (default: 50)</param>
-    public async Task ZoomToFeature(string layerId, string featureId, int padding = 50)
+    /// <param name="padding">Padding around the feature in pixels (default: 0)</param>
+    public async Task ZoomToFeature(string layerId, string featureId, int padding = 0)
     {
         if (_deckGLViewRef != null)
         {
@@ -706,8 +706,8 @@ public partial class DeckGLView
     /// Zoom to all features in a layer
     /// </summary>
     /// <param name="layerId">The layer ID</param>
-    /// <param name="padding">Padding around the bounds in pixels (default: 50)</param>
-    public async Task ZoomToLayer(string layerId, int padding = 50)
+    /// <param name="padding">Padding around the bounds in pixels (default: 0)</param>
+    public async Task ZoomToLayer(string layerId, int padding = 0)
     {
         if (_deckGLViewRef != null)
         {
@@ -726,8 +726,8 @@ public partial class DeckGLView
     /// Zoom and pan to the bounds of a specific set of selected features
     /// </summary>
     /// <param name="features">Array of selected features to zoom to</param>
-    /// <param name="padding">Padding around the bounds in pixels (default: 50)</param>
-    public async Task ZoomToSelectedFeatures(SelectedFeature[] features, int padding = 50)
+    /// <param name="padding">Padding around the bounds in pixels (default: 0)</param>
+    public async Task ZoomToSelectedFeatures(SelectedFeature[] features, int padding = 0)
     {
         if (_deckGLViewRef != null && features != null && features.Length > 0)
         {

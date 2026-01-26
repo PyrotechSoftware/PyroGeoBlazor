@@ -10,23 +10,43 @@
 {
     <MudDropContainer T="LayerConfig" Items="LayersReverse" ItemsSelector="@((item, dropzone) => true )" Class="d-flex flex-column" ItemDropped="@(OnDropHandler)" Style="height:100%; box-sizing:border-box;">
         <ChildContent>
-            <MudTreeView T="LayerConfig" Dense Class="d-flex-column mud-height-full">
+            <MudTreeView T="LayerConfig" Dense Class="d-flex-column mud-height-full" SelectionMode="SelectionMode.ToggleSelection" ReadOnly="false" Hover @bind-SelectedValue="_selectedLayer">
                 <MudDropZone T="LayerConfig" Identifier="contents" Class="flex-grow-1" AllowReorder />
             </MudTreeView>
         </ChildContent>
         <ItemRenderer>
             <MudTreeViewItem T="LayerConfig" Expanded ExpandButtonIcon="@(context.Type == "TileLayer" ? "" : Icons.Material.Outlined.KeyboardArrowRight)">
                 <BodyContent Context="item">
-                <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
-                    <MudCheckBox T="bool" 
-                                 Value="@context.Visible"
-                                 ValueChanged="@(async (bool newValue) => await OnVisibilityToggled(context.Id, newValue))"
-                                 Color="Color.Primary"
-                                 Disabled="@IsLocked" />
-                    <MudText Typo="Typo.body2" Style="flex: 1;">
-                        @context.Id
-                    </MudText>
-                    </MudStack>
+                    <MudMenu PositionAtCursor FullWidth ActivationEvent="@MouseEvent.RightClick">
+                        <ActivatorContent>
+                            <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
+                                <MudCheckBox T="bool"
+                                             Value="@context.Visible"
+                                             ValueChanged="@(async (bool newValue) => await OnVisibilityToggled(context.Id, newValue))"
+                                             Color="Color.Primary"
+                                             Disabled="@IsLocked" />
+                                <MudText Typo="Typo.body2" Style="flex: 1;">
+                                    @context.Id
+                                </MudText>
+                            </MudStack>
+                        </ActivatorContent>
+                        <ChildContent>
+                            <MudMenuItem OnClick="@(async () => { await OnLayerZoomTo(context); })" 
+                                         Icon="@Icons.Material.Filled.ZoomIn">
+                                Zoom to Layer
+                            </MudMenuItem>
+                            <MudMenuItem OnClick="@(() => { OnDataDesign(context); })"
+                                         Icon="@Icons.Material.Filled.Edit"
+                                         Disabled="true">
+                                Data Design
+                            </MudMenuItem>
+                            <MudMenuItem OnClick="@(() => { OnToggleLabel(context); })"
+                                         Icon="@Icons.Material.Filled.Label"
+                                         Disabled="true">
+                                Label
+                            </MudMenuItem>
+                        </ChildContent>
+                    </MudMenu>
                 </BodyContent>
                 <ChildContent>
                     @if (context.Type != "TileLayer")
@@ -56,8 +76,9 @@ else
 }
 
 @code {
-private List<LayerConfig> Layers => DeckGLView?.Layers.ToList() ?? [];
-private List<LayerConfig> LayersReverse => Layers.AsEnumerable().Reverse().ToList();
+    private List<LayerConfig> Layers => DeckGLView?.Layers.ToList() ?? [];
+    private List<LayerConfig> LayersReverse => Layers.AsEnumerable().Reverse().ToList();
+    private LayerConfig? _selectedLayer;
 
 /// <summary>
 /// Reference to the DeckGLView component. The LayerContentsControl will read layers
@@ -185,5 +206,25 @@ public DeckGLView? DeckGLView { get; set; }
             await DeckGLView.SetLayerFeatureStyle(layer.Id, featureStyle);
             StateHasChanged();
         }
+    }
+
+    private async Task OnLayerZoomTo(LayerConfig layer)
+    {
+        if (DeckGLView is not null)
+        {
+            await DeckGLView.ZoomToLayer(layer.Id);
+        }
+    }
+
+    private void OnDataDesign(LayerConfig layer)
+    {
+        // TODO: Implement Data Design functionality
+        Console.WriteLine($"Data Design clicked for layer: {layer.Id}");
+    }
+
+    private void OnToggleLabel(LayerConfig layer)
+    {
+        // TODO: Implement Label toggle functionality
+        Console.WriteLine($"Label toggle clicked for layer: {layer.Id}");
     }
 }

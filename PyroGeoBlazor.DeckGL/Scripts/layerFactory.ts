@@ -168,6 +168,13 @@ export function createLayerFromConfig(config: LayerConfig, data: any): Layer | n
                 // When binary=false: Parses as GeoJSON (slower, but enables picking/selection)
                 binary: useBinaryMode,
                 
+                // Fix deprecation warning: use mvt.shape instead of gis
+                loadOptions: {
+                    mvt: {
+                        shape: 'geojson-table'
+                    }
+                },
+                
                 // Update triggers for MVT styling
                 updateTriggers: {
                     getFillColor: [props.getFillColor, props.fillColor],

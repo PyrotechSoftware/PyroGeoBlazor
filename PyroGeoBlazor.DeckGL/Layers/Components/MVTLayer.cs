@@ -76,6 +76,16 @@ public class MVTLayer : DeckGLLayer
     [Parameter]
     public int TileMaxZoom { get; set; } = 14;
 
+    /// <summary>
+    /// Debounce timeout in milliseconds for tile loading indicators.
+    /// After the last tile completes loading, the loading indicator will wait this long before disappearing.
+    /// This prevents flickering when tiles load in quick succession.
+    /// Larger layers with more tiles may need a longer timeout (e.g., 2000-3000ms).
+    /// Defaults to 1000ms (1 second).
+    /// </summary>
+    [Parameter]
+    public int TileLoadingDebounceMs { get; set; } = 1000;
+
     protected override LayerConfig CreateLayerConfig()
     {
         MVTLayerConfig config;
@@ -119,6 +129,7 @@ public class MVTLayer : DeckGLLayer
         config.LineWidthMinPixels = (int)LineWidthMinPixels;
         config.Stroked = Stroked;
         config.Filled = Filled;
+        config.TileLoadingDebounceMs = TileLoadingDebounceMs;
 
         return config;
     }

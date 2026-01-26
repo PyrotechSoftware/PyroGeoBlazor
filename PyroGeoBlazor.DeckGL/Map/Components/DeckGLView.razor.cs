@@ -18,6 +18,7 @@ public partial class DeckGLView
     private List<DeckGLLayer> _childLayers = [];
     private List<LayerConfig> _layers = [];
     private ViewState? _currentViewState;
+    private bool _isLoading;
 
     /// <summary>
     /// Event raised when the selection changes (features selected or deselected).
@@ -101,6 +102,11 @@ public partial class DeckGLView
     /// Current view state of the map. Updated when the camera moves.
     /// </summary>
     public ViewState? CurrentViewState => _currentViewState;
+
+    /// <summary>
+    /// Indicates whether layers are currently being updated or data is being fetched.
+    /// </summary>
+    public bool IsLoading => _isLoading;
 
     /// <summary>
     /// Whether to display the status bar showing view state information.
@@ -279,6 +285,32 @@ public partial class DeckGLView
     }
 
     /// <summary>
+    /// Refresh all layers at current view state (clears cache and reloads data)
+    /// </summary>
+    public async Task RefreshLayers()
+    {
+        if (_deckGLViewRef != null)
+        {
+            try
+            {
+                await _deckGLViewRef.InvokeVoidAsync("refreshLayers");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error refreshing layers: {ex.Message}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Handle refresh button click from MapStatusBar
+    /// </summary>
+    private async Task HandleRefreshClicked()
+    {
+        await RefreshLayers();
+    }
+
+    /// <summary>
     /// Called from JavaScript when view state changes
     /// </summary>
     [JSInvokable]
@@ -291,6 +323,16 @@ public partial class DeckGLView
         {
             await OnViewStateChanged.InvokeAsync(viewState);
         }
+    }
+
+    /// <summary>
+    /// Called from JavaScript when loading state changes (data fetching starts/stops)
+    /// </summary>
+    [JSInvokable]
+    public void OnLoadingStateChanged(bool isLoading)
+    {
+        _isLoading = isLoading;
+        StateHasChanged();
     }
 
     /// <summary>

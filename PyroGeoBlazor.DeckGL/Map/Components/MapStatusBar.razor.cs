@@ -6,6 +6,8 @@ using PyroGeoBlazor.DeckGL.Models;
 /// <summary>
 /// Displays a status bar showing the current map view state information.
 /// Shows longitude, latitude, zoom, pitch, and bearing in a compact format.
+/// Also displays a loading indicator when layers are being updated or data is being fetched.
+/// When not loading, displays a refresh button to reload all layers.
 /// </summary>
 public partial class MapStatusBar : ComponentBase
 {
@@ -26,4 +28,17 @@ public partial class MapStatusBar : ComponentBase
     /// </summary>
     [Parameter]
     public int Height { get; set; } = 35;
+
+    /// <summary>
+    /// Indicates whether layers are currently being updated or data is being fetched.
+    /// When true, displays a loading indicator on the right side of the status bar.
+    /// </summary>
+    [Parameter]
+    public bool IsLoading { get; set; }
+
+    /// <summary>
+    /// Callback invoked when the refresh button is clicked.
+    /// </summary>
+    [Parameter]
+    public EventCallback OnRefreshClicked { get; set; }
 }

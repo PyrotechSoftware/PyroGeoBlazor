@@ -17,7 +17,6 @@ public partial class LayerContentsControl
 {
     private List<LayerConfig> Layers => DeckGLView?.Layers.ToList() ?? [];
     private List<LayerConfig> LayersReverse => Layers.AsEnumerable().Reverse().ToList();
-    private LayerConfig? _selectedLayer;
 
     /// <summary>
     /// Reference to the DeckGLView component. The LayerContentsControl will read layers

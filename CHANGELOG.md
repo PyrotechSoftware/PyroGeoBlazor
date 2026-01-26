@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Clicking a layer header now selects all features in that layer
   - Uses multi-selection system with visual feedback (background highlight and checkmark icons)
   - Provides quick way to batch-select features for editing
+- Loading indicator in `MapStatusBar`
+  - Small indeterminate circular progress spinner appears on the far right when data is being fetched
+  - Automatically tracks all data fetch operations across all layers
+  - Provides visual feedback for layer updates, viewport changes, and data loading
+  - JavaScript `fetchData()` method now tracks active fetches and notifies .NET of loading state changes
 
 ### Changed
 - **BREAKING**: Changed default padding from 50 pixels to 0 pixels for zoom methods (`ZoomToLayer`, `ZoomToFeature`, `ZoomToSelectedFeatures`)

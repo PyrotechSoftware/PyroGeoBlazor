@@ -4,6 +4,14 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+      <PackageReadmeFile>README.md</PackageReadmeFile>
+      <PackageIcon>Nuget2.png</PackageIcon>
+      <Company>Pyrotech Software</Company>
+      <Authors>Bartthefish</Authors>
+      <Copyright>Copyright 2026 Pyrotech Software</Copyright>
+      <PackageTags>Pyrotech, Blazor, GIS, Deck.GL, WebGL</PackageTags>
+      <Description>A Blazor utility component library for GIS projects, specifically wrapping deck.gl</Description>
+      <PackageLicenseExpression>MIT</PackageLicenseExpression>
   </PropertyGroup>
 
   <ItemGroup>
@@ -28,6 +36,12 @@
     <Content Remove="vite.config.ts" />
     <Content Remove="vitest.config.ts" />
     <Content Remove="vite-build.mjs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Nuget2.png" Link="Nuget2.png">
+      <PackagePath></PackagePath>
+      <Pack>true</Pack>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\PyroGeoBlazor\PyroGeoBlazor.csproj" />

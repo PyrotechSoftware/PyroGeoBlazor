@@ -8,11 +8,16 @@ import type { LayerConfig } from './deckGLView';
  * This allows Blazor to specify layer types and properties without knowing deck.gl internals
  */
 export function createLayerFromConfig(config: LayerConfig, data: any): Layer | null {
-    const { id, type, props } = config;
+const { id, type, props } = config;
 
-    console.log(`Creating layer: ${id} (${type})`);
+console.log(`Creating layer: ${id} (${type})`);
+console.log(`🏭 Props received:`, {
+    propsKeys: Object.keys(props).slice(0, 10), // First 10 keys
+    hasOnTileLoad: 'onTileLoad' in props,
+    onTileLoadType: typeof props.onTileLoad
+});
 
-    switch (type.toLowerCase()) {
+switch (type.toLowerCase()) {
         case 'geojson':
         case 'geojsonlayer':
             return new GeoJsonLayer({
@@ -137,6 +142,8 @@ export function createLayerFromConfig(config: LayerConfig, data: any): Layer | n
             console.log(`🔧 Creating MVTLayer: ${id}`);
             console.log(`  pickable: ${isPickable}`);
             console.log(`  binary mode: ${useBinaryMode} (${useBinaryMode ? 'fast, no properties' : 'slower, has properties'})`);
+            console.log(`  onTileLoad callback exists: ${typeof props.onTileLoad === 'function'}`);
+            console.log(`  onTileError callback exists: ${typeof props.onTileError === 'function'}`);
             
             return new MVTLayer({
                 id,

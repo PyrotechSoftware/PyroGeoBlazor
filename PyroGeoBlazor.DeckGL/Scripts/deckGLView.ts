@@ -92,9 +92,9 @@ export interface UniqueValueRenderer {
 function hexToRgba(hex: string, opacity: number = 1.0): [number, number, number, number] {
     // Remove # if present
     hex = hex.replace(/^#/, '');
-    
+
     let r: number, g: number, b: number, a: number = 255;
-    
+
     if (hex.length === 3) {
         // #RGB format
         r = parseInt(hex[0] + hex[0], 16);
@@ -116,10 +116,10 @@ function hexToRgba(hex: string, opacity: number = 1.0): [number, number, number,
         console.warn(`Invalid hex color format: ${hex}`);
         return [255, 255, 255, 255];
     }
-    
+
     // Apply opacity (0-1) to alpha (0-255)
     a = Math.round(opacity * 255);
-    
+
     return [r, g, b, a];
 }
 
@@ -134,7 +134,7 @@ export class DeckGLView {
     private dotNetHelper: any = null;
     private currentLayers: Layer[] = [];
     private dataCache: Map<string, any> = new Map();
-    
+
     // Editable layer state
     private editableLayer: EditableGeoJsonLayer | null = null;
     private drawingMode: any = ViewMode;
@@ -168,238 +168,247 @@ export class DeckGLView {
     // Bounds cache for layers with viewport culling
     private layerBoundsCache: Map<string, { minLng: number, minLat: number, maxLng: number, maxLat: number }> = new Map();
 
-/**
- * Checks if a layer configuration needs to be updated.
- * Returns true if the layer must be recreated, false if it can be reused.
- */
-private layerNeedsUpdate(oldConfig: LayerConfig | undefined, newConfig: LayerConfig): boolean {
-console.log(`🔍 Checking if layer ${newConfig.id} needs update...`);
-console.log(`  - Has old config: ${!!oldConfig}`);
-console.log(`  - Visible: ${newConfig.props.visible ?? true}`);
-console.log(`  - MinZoom: ${newConfig.minZoom ?? 'none'}`);
-console.log(`  - EnableViewportCulling: ${newConfig.enableViewportCulling ?? false}`);
-    
-// Check if layer is visible (default to true if not specified)
-const isVisible = newConfig.props.visible ?? true;
-const wasVisible = oldConfig?.props.visible ?? true;
-    
-// If visibility changed, we need to update
-if (isVisible !== wasVisible) {
-    console.log(`  ✅ Visibility changed for ${newConfig.id}: ${wasVisible} → ${isVisible}`);
-    return true;
-}
-    
-// If layer is not visible, don't trigger updates (skip data fetching)
-if (!isVisible) {
-    console.log(`  ⏭️ Layer ${newConfig.id} is not visible - skipping update check`);
-    return false;
-}
-    
-if (!oldConfig) {
-    console.log(`  ✅ First time creating layer - needs update`);
-    return true;
-}
-    
-// Check if zoom crossed MinZoom threshold
-if (newConfig.minZoom) {
-    const currentZoom = this.getCurrentZoom();
-    const lastZoom = this.lastZoomByLayer.get(newConfig.id) ?? currentZoom;
-        
-    console.log(`  - MinZoom check: current=${currentZoom.toFixed(2)}, last=${lastZoom.toFixed(2)}, threshold=${newConfig.minZoom}`);
-        
-    // Check if we crossed the threshold in either direction
-    const wasBelowMin = lastZoom < newConfig.minZoom;
-    const isNowBelowMin = currentZoom < newConfig.minZoom;
-        
-    console.log(`  - Was below min: ${wasBelowMin}, Is now below min: ${isNowBelowMin}`);
-        
-    if (wasBelowMin !== isNowBelowMin) {
-        console.log(`  ✅ Zoom crossed MinZoom threshold for ${newConfig.id}: ${lastZoom.toFixed(1)} → ${currentZoom.toFixed(1)} (minZoom: ${newConfig.minZoom})`);
-        this.lastZoomByLayer.set(newConfig.id, currentZoom);
-        return true;
-    }
-        
-    // Update last zoom even if threshold not crossed
-    this.lastZoomByLayer.set(newConfig.id, currentZoom);
-}
-    
-// Check if viewport changed for layers with viewport culling enabled
-if (newConfig.enableViewportCulling) {
-        const currentViewState = (this as any)._currentViewState;
-        const currentZoom = this.getCurrentZoom();
-        const lastZoom = this.lastZoomByLayer.get(newConfig.id) ?? currentZoom;
-        const zoomDiff = Math.abs(currentZoom - lastZoom);
-        
-        // Get current and last position
-        const currentLon = currentViewState?.longitude ?? 0;
-        const currentLat = currentViewState?.latitude ?? 0;
-        const lastViewport = this.lastViewportByLayer.get(newConfig.id);
-        
-        console.log(`  - Viewport culling check: zoom=${currentZoom.toFixed(2)}, lastZoom=${lastZoom.toFixed(2)}, diff=${zoomDiff.toFixed(3)}`);
-        console.log(`  - Position: [${currentLon.toFixed(4)}, ${currentLat.toFixed(4)}]`);
-        
-        if (lastViewport) {
-            const lonDiff = Math.abs(currentLon - lastViewport.longitude);
-            const latDiff = Math.abs(currentLat - lastViewport.latitude);
-            console.log(`  - Last position: [${lastViewport.longitude.toFixed(4)}, ${lastViewport.latitude.toFixed(4)}]`);
-            console.log(`  - Position diff: lon=${lonDiff.toFixed(4)}, lat=${latDiff.toFixed(4)}`);
-            
-            // Calculate significant movement threshold based on zoom level
-            // At zoom 10, moving 0.1 degrees (~11km) should trigger refresh
-            // At zoom 17, moving 0.001 degrees (~110m) should trigger refresh
-            const movementThreshold = 1 / Math.pow(2, currentZoom - 8);
-            console.log(`  - Movement threshold for zoom ${currentZoom.toFixed(1)}: ${movementThreshold.toFixed(6)}`);
-            
-            // Update if zoom changed OR position moved significantly
-            if (zoomDiff > 0.01 || lonDiff > movementThreshold || latDiff > movementThreshold) {
-                console.log(`  ✅ Viewport changed for ${newConfig.id} (zoom diff: ${zoomDiff.toFixed(3)}, lon diff: ${lonDiff.toFixed(4)}, lat diff: ${latDiff.toFixed(4)})`);
+    // Loading state tracking
+    private activeFetches: Set<string> = new Set();
+    private pendingTiles: Map<string, Set<string>> = new Map(); // Map of layerId -> Set of pending tile keys
+    private tileLoadingLayers: Set<string> = new Set(); // Layers currently loading tiles
+    private tileDebounceTimers: Map<string, NodeJS.Timeout> = new Map(); // Debounce timers per layer
+    private isLoading: boolean = false;
+
+    /**
+     * Checks if a layer configuration needs to be updated.
+     * Returns true if the layer must be recreated, false if it can be reused.
+     */
+    private layerNeedsUpdate(oldConfig: LayerConfig | undefined, newConfig: LayerConfig): boolean {
+        if (DEBUG_LOGGING) {
+            console.log(`🔍 Checking if layer ${newConfig.id} needs update...`);
+            console.log(`  - Has old config: ${!!oldConfig}`);
+            console.log(`  - Visible: ${newConfig.props.visible ?? true}`);
+            console.log(`  - MinZoom: ${newConfig.minZoom ?? 'none'}`);
+            console.log(`  - EnableViewportCulling: ${newConfig.enableViewportCulling ?? false}`);
+        }
+
+        // Check if layer is visible (default to true if not specified)
+        const isVisible = newConfig.props.visible ?? true;
+        const wasVisible = oldConfig?.props.visible ?? true;
+
+        // If visibility changed, we need to update
+        if (isVisible !== wasVisible) {
+            console.log(`  ✅ Visibility changed for ${newConfig.id}: ${wasVisible} → ${isVisible}`);
+            return true;
+        }
+
+        // If layer is not visible, don't trigger updates (skip data fetching)
+        if (!isVisible) {
+            console.log(`  ⏭️ Layer ${newConfig.id} is not visible - skipping update check`);
+            return false;
+        }
+
+        if (!oldConfig) {
+            console.log(`  ✅ First time creating layer - needs update`);
+            return true;
+        }
+
+        // Check if zoom crossed MinZoom threshold
+        if (newConfig.minZoom) {
+            const currentZoom = this.getCurrentZoom();
+            const lastZoom = this.lastZoomByLayer.get(newConfig.id) ?? currentZoom;
+
+            console.log(`  - MinZoom check: current=${currentZoom.toFixed(2)}, last=${lastZoom.toFixed(2)}, threshold=${newConfig.minZoom}`);
+
+            // Check if we crossed the threshold in either direction
+            const wasBelowMin = lastZoom < newConfig.minZoom;
+            const isNowBelowMin = currentZoom < newConfig.minZoom;
+
+            console.log(`  - Was below min: ${wasBelowMin}, Is now below min: ${isNowBelowMin}`);
+
+            if (wasBelowMin !== isNowBelowMin) {
+                console.log(`  ✅ Zoom crossed MinZoom threshold for ${newConfig.id}: ${lastZoom.toFixed(1)} → ${currentZoom.toFixed(1)} (minZoom: ${newConfig.minZoom})`);
+                this.lastZoomByLayer.set(newConfig.id, currentZoom);
+                return true;
+            }
+
+            // Update last zoom even if threshold not crossed
+            this.lastZoomByLayer.set(newConfig.id, currentZoom);
+        }
+
+        // Check if viewport changed for layers with viewport culling enabled
+        if (newConfig.enableViewportCulling) {
+            const currentViewState = (this as any)._currentViewState;
+            const currentZoom = this.getCurrentZoom();
+            const lastZoom = this.lastZoomByLayer.get(newConfig.id) ?? currentZoom;
+            const zoomDiff = Math.abs(currentZoom - lastZoom);
+
+            // Get current and last position
+            const currentLon = currentViewState?.longitude ?? 0;
+            const currentLat = currentViewState?.latitude ?? 0;
+            const lastViewport = this.lastViewportByLayer.get(newConfig.id);
+
+            console.log(`  - Viewport culling check: zoom=${currentZoom.toFixed(2)}, lastZoom=${lastZoom.toFixed(2)}, diff=${zoomDiff.toFixed(3)}`);
+            console.log(`  - Position: [${currentLon.toFixed(4)}, ${currentLat.toFixed(4)}]`);
+
+            if (lastViewport) {
+                const lonDiff = Math.abs(currentLon - lastViewport.longitude);
+                const latDiff = Math.abs(currentLat - lastViewport.latitude);
+                console.log(`  - Last position: [${lastViewport.longitude.toFixed(4)}, ${lastViewport.latitude.toFixed(4)}]`);
+                console.log(`  - Position diff: lon=${lonDiff.toFixed(4)}, lat=${latDiff.toFixed(4)}`);
+
+                // Calculate significant movement threshold based on zoom level
+                // At zoom 10, moving 0.1 degrees (~11km) should trigger refresh
+                // At zoom 17, moving 0.001 degrees (~110m) should trigger refresh
+                const movementThreshold = 1 / Math.pow(2, currentZoom - 8);
+                console.log(`  - Movement threshold for zoom ${currentZoom.toFixed(1)}: ${movementThreshold.toFixed(6)}`);
+
+                // Update if zoom changed OR position moved significantly
+                if (zoomDiff > 0.01 || lonDiff > movementThreshold || latDiff > movementThreshold) {
+                    console.log(`  ✅ Viewport changed for ${newConfig.id} (zoom diff: ${zoomDiff.toFixed(3)}, lon diff: ${lonDiff.toFixed(4)}, lat diff: ${latDiff.toFixed(4)})`);
+                    this.lastZoomByLayer.set(newConfig.id, currentZoom);
+                    this.lastViewportByLayer.set(newConfig.id, { longitude: currentLon, latitude: currentLat });
+                    return true;
+                }
+            } else {
+                // First time - store current position
+                console.log(`  ✅ First viewport check for ${newConfig.id} - will update`);
                 this.lastZoomByLayer.set(newConfig.id, currentZoom);
                 this.lastViewportByLayer.set(newConfig.id, { longitude: currentLon, latitude: currentLat });
                 return true;
             }
-        } else {
-            // First time - store current position
-            console.log(`  ✅ First viewport check for ${newConfig.id} - will update`);
-            this.lastZoomByLayer.set(newConfig.id, currentZoom);
-            this.lastViewportByLayer.set(newConfig.id, { longitude: currentLon, latitude: currentLat });
+        }
+
+        // Check if data source changed
+        if (oldConfig.dataUrl !== newConfig.dataUrl) {
+            console.log(`  ✅ DataUrl changed for ${newConfig.id}`);
             return true;
         }
-    }
-    
-    // Check if data source changed
-    if (oldConfig.dataUrl !== newConfig.dataUrl) {
-        console.log(`  ✅ DataUrl changed for ${newConfig.id}`);
-        return true;
-    }
-    
-    if (oldConfig.data !== newConfig.data) {
-        console.log(`  ✅ Data changed for ${newConfig.id}`);
-        return true;
-    }
-    
-    // Check if critical props changed
-    const oldPropsStr = JSON.stringify(oldConfig.props);
-    const newPropsStr = JSON.stringify(newConfig.props);
-    if (oldPropsStr !== newPropsStr) {
-        console.log(`  ✅ Props changed for ${newConfig.id}`);
-        return true;
-    }
-    
-    // Check if styles changed
-    if (JSON.stringify(oldConfig.featureStyle) !== JSON.stringify(newConfig.featureStyle)) {
-        console.log(`  ✅ FeatureStyle changed for ${newConfig.id}`);
-        return true;
-    }
-    
-    if (JSON.stringify(oldConfig.selectionStyle) !== JSON.stringify(newConfig.selectionStyle)) {
-        console.log(`  ✅ SelectionStyle changed for ${newConfig.id}`);
-        return true;
-    }
-    
-    if (JSON.stringify(oldConfig.hoverStyle) !== JSON.stringify(newConfig.hoverStyle)) {
-        console.log(`  ✅ HoverStyle changed for ${newConfig.id}`);
-        return true;
-    }
-    
-    console.log(`  ❌ No changes detected - layer can be reused`);
-    return false;
-}
 
-constructor(config: DeckGLViewConfig, dotNetHelper?: any) {
-    this.containerId = config.containerId;
-    this.dotNetHelper = dotNetHelper;
-
-    // Get the container element
-    const containerElement = document.getElementById(config.containerId);
-    if (!containerElement) {
-        console.error(`Container element with id "${config.containerId}" not found`);
-        throw new Error(`Container element with id "${config.containerId}" not found`);
-    }
-
-    console.log(`Creating DeckGLView for container: ${config.containerId}`, {
-        containerElement,
-        initialViewState: config.initialViewState
-    });
-
-    // Wait for container to have valid dimensions (flexbox layout needs time to calculate)
-    this.initializeWhenReady(containerElement, config);
-}
-
-/**
- * Initialize deck.gl once the container has valid dimensions
- */
-private initializeWhenReady(containerElement: HTMLElement, config: DeckGLViewConfig): void {
-    let retryCount = 0;
-    const maxRetries = 20; // Max 1 second (20 * 50ms)
-    
-    const checkDimensions = () => {
-        const rect = containerElement.getBoundingClientRect();
-        console.log(`Container dimensions (attempt ${retryCount + 1}): ${rect.width}x${rect.height}`);
-
-        // Wait until container has valid dimensions (width > 0 and height > 0)
-        if (rect.width > 0 && rect.height > 0) {
-            this.initializeDeck(containerElement, rect, config);
-        } else if (retryCount < maxRetries) {
-            // Retry after a brief delay
-            retryCount++;
-            console.log(`Container not yet sized, retrying in 50ms... (${retryCount}/${maxRetries})`);
-            setTimeout(checkDimensions, 50);
-        } else {
-            console.error(`❌ Failed to initialize deck.gl: Container dimensions are still 0x0 after ${maxRetries} attempts`);
-            console.error('Container element:', containerElement);
-            console.error('Container parent:', containerElement.parentElement);
-            console.error('Container computed style:', window.getComputedStyle(containerElement));
+        if (oldConfig.data !== newConfig.data) {
+            console.log(`  ✅ Data changed for ${newConfig.id}`);
+            return true;
         }
-    };
 
-    // Start checking
-    checkDimensions();
-}
+        // Check if critical props changed
+        const oldPropsStr = JSON.stringify(oldConfig.props);
+        const newPropsStr = JSON.stringify(newConfig.props);
+        if (oldPropsStr !== newPropsStr) {
+            console.log(`  ✅ Props changed for ${newConfig.id}`);
+            return true;
+        }
 
-/**
- * Initialize the deck.gl instance with valid dimensions
- */
-private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: DeckGLViewConfig): void {
-    console.log(`Initializing deck.gl with dimensions: ${rect.width}x${rect.height}`);
+        // Check if styles changed
+        if (JSON.stringify(oldConfig.featureStyle) !== JSON.stringify(newConfig.featureStyle)) {
+            console.log(`  ✅ FeatureStyle changed for ${newConfig.id}`);
+            return true;
+        }
 
-    // CRITICAL: deck.gl doesn't auto-create canvas with container mode
-    // We must create the canvas ourselves and pass it directly
-    const canvas = this.createCanvas(containerElement, rect);
+        if (JSON.stringify(oldConfig.selectionStyle) !== JSON.stringify(newConfig.selectionStyle)) {
+            console.log(`  ✅ SelectionStyle changed for ${newConfig.id}`);
+            return true;
+        }
 
-    // Pass the canvas element to deck.gl
-    const deckProps: DeckProps = {
-        canvas: canvas,  // Pass canvas instead of container
-        width: rect.width,
-        height: rect.height,
-        initialViewState: {
-            ...config.initialViewState,
-            minZoom: config.initialViewState.minZoom ?? 0,
-            maxZoom: config.initialViewState.maxZoom ?? 20
-        },
-        controller: {
-            dragPan: true,
-            dragRotate: true,
-            scrollZoom: true,
-            touchZoom: true,
-            touchRotate: true,
-            keyboard: true,
-            doubleClickZoom: true
-        },
-        layers: [],  // Start with empty layers
-            
-        // onLoad fires when deck.gl completes initialization
-        onLoad: () => {
-            console.log('✅ Deck.gl onLoad fired');
-                
-            // Don't set viewState here - that makes it controlled and locks the camera
-            // The initialViewState passed at construction should work now that canvas is created properly
-                
-            // Just notify Blazor of the initial state
-            // The viewState will be sent via onViewStateChange callback
-                
-            setTimeout(() => this.logDeckState(), 50);
-        },
-            
+        if (JSON.stringify(oldConfig.hoverStyle) !== JSON.stringify(newConfig.hoverStyle)) {
+            console.log(`  ✅ HoverStyle changed for ${newConfig.id}`);
+            return true;
+        }
+
+        if (DEBUG_LOGGING) console.log(`  ❌ No changes detected - layer can be reused`);
+        return false;
+    }
+
+    constructor(config: DeckGLViewConfig, dotNetHelper?: any) {
+        this.containerId = config.containerId;
+        this.dotNetHelper = dotNetHelper;
+
+        // Get the container element
+        const containerElement = document.getElementById(config.containerId);
+        if (!containerElement) {
+            console.error(`Container element with id "${config.containerId}" not found`);
+            throw new Error(`Container element with id "${config.containerId}" not found`);
+        }
+
+        console.log(`Creating DeckGLView for container: ${config.containerId}`, {
+            containerElement,
+            initialViewState: config.initialViewState
+        });
+
+        // Wait for container to have valid dimensions (flexbox layout needs time to calculate)
+        this.initializeWhenReady(containerElement, config);
+    }
+
+    /**
+     * Initialize deck.gl once the container has valid dimensions
+     */
+    private initializeWhenReady(containerElement: HTMLElement, config: DeckGLViewConfig): void {
+        let retryCount = 0;
+        const maxRetries = 20; // Max 1 second (20 * 50ms)
+
+        const checkDimensions = () => {
+            const rect = containerElement.getBoundingClientRect();
+            console.log(`Container dimensions (attempt ${retryCount + 1}): ${rect.width}x${rect.height}`);
+
+            // Wait until container has valid dimensions (width > 0 and height > 0)
+            if (rect.width > 0 && rect.height > 0) {
+                this.initializeDeck(containerElement, rect, config);
+            } else if (retryCount < maxRetries) {
+                // Retry after a brief delay
+                retryCount++;
+                console.log(`Container not yet sized, retrying in 50ms... (${retryCount}/${maxRetries})`);
+                setTimeout(checkDimensions, 50);
+            } else {
+                console.error(`❌ Failed to initialize deck.gl: Container dimensions are still 0x0 after ${maxRetries} attempts`);
+                console.error('Container element:', containerElement);
+                console.error('Container parent:', containerElement.parentElement);
+                console.error('Container computed style:', window.getComputedStyle(containerElement));
+            }
+        };
+
+        // Start checking
+        checkDimensions();
+    }
+
+    /**
+     * Initialize the deck.gl instance with valid dimensions
+     */
+    private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: DeckGLViewConfig): void {
+        console.log(`Initializing deck.gl with dimensions: ${rect.width}x${rect.height}`);
+
+        // CRITICAL: deck.gl doesn't auto-create canvas with container mode
+        // We must create the canvas ourselves and pass it directly
+        const canvas = this.createCanvas(containerElement, rect);
+
+        // Pass the canvas element to deck.gl
+        const deckProps: DeckProps = {
+            canvas: canvas,  // Pass canvas instead of container
+            width: rect.width,
+            height: rect.height,
+            initialViewState: {
+                ...config.initialViewState,
+                minZoom: config.initialViewState.minZoom ?? 0,
+                maxZoom: config.initialViewState.maxZoom ?? 20
+            },
+            controller: {
+                dragPan: true,
+                dragRotate: true,
+                scrollZoom: true,
+                touchZoom: true,
+                touchRotate: true,
+                keyboard: true,
+                doubleClickZoom: true
+            },
+            layers: [],  // Start with empty layers
+
+            // onLoad fires when deck.gl completes initialization
+            onLoad: () => {
+                console.log('✅ Deck.gl onLoad fired');
+
+                // Don't set viewState here - that makes it controlled and locks the camera
+                // The initialViewState passed at construction should work now that canvas is created properly
+
+                // Just notify Blazor of the initial state
+                // The viewState will be sent via onViewStateChange callback
+
+                setTimeout(() => this.logDeckState(), 50);
+            },
+
             // Callbacks that notify Blazor
             onViewStateChange: ({ viewState }) => {
                 if (config.onViewStateChange) {
@@ -416,7 +425,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     this.handleSingleFeatureSelection(info);
                     return;
                 }
-                
+
                 // Debug logging for MVT layers
                 if (info.layer?.constructor.name === 'GeoJsonLayer' && info.layer.id.includes('mvt')) {
                     console.log('MVT feature clicked:', {
@@ -425,7 +434,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                         properties: info.object?.properties
                     });
                 }
-                
+
                 // Normal click handling when not drawing
                 if (config.onLayerClick) {
                     config.onLayerClick(info);
@@ -444,19 +453,19 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                 // Track hovered feature for hover styling
                 const newHoveredId = info.object ? this.getFeatureId(info.object, info.layer?.id) : null;
                 const newHoveredLayerId = info.layer?.id || null;
-                
+
                 // Check if hover state changed
                 if (newHoveredId !== this.hoveredFeatureId || newHoveredLayerId !== this.hoveredLayerId) {
                     this.hoveredFeatureId = newHoveredId;
                     this.hoveredLayerId = newHoveredLayerId;
-                    
+
                     // Refresh layers to apply hover style
                     const hoveredConfig = newHoveredLayerId ? this.layerConfigs.get(newHoveredLayerId) : null;
                     if (hoveredConfig?.hoverStyle) {
                         this.refreshLayersWithHover();
                     }
                 }
-                
+
                 if (config.onLayerHover) {
                     config.onLayerHover(info);
                 }
@@ -471,17 +480,17 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
 
             getTooltip: config.getTooltip ?? ((info: any) => {
                 if (!info.object) return null;
-                
+
                 // Get layer-specific tooltip config
                 const layerId = info.layer?.id;
                 const layerConfig = layerId ? this.layerConfigs.get(layerId) : null;
                 const tooltipConfig = layerConfig?.tooltipConfig;
-                
+
                 // Use layer-specific tooltip config if available
                 if (tooltipConfig) {
                     return this.formatTooltip(info.object, tooltipConfig);
                 }
-                
+
                 // Default tooltip
                 return {
                     html: `<div>${JSON.stringify(info.object)}</div>`,
@@ -493,7 +502,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     }
                 };
             }),
-            
+
             // Custom cursor control
             getCursor: () => {
                 if (this.currentMapMode === 'SelectFeature') {
@@ -507,9 +516,9 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         };
 
         this.deck = new Deck(deckProps);
-        
+
         console.log(`DeckGLView created, checking initialization...`);
-        
+
         // Check deck state after a brief moment
         setTimeout(() => this.logDeckState(), 100);
 
@@ -531,7 +540,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
 
         const canvas = document.querySelector(`#${this.containerId} canvas`);
         const gl = (canvas as HTMLCanvasElement)?.getContext('webgl2') || (canvas as HTMLCanvasElement)?.getContext('webgl');
-        
+
         console.log('🔍 Deck.gl state:', {
             deckExists: !!this.deck,
             canvasExists: !!canvas,
@@ -553,14 +562,14 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         canvas.style.position = 'absolute';
         canvas.style.top = '0';
         canvas.style.left = '0';
-        
+
         // Set explicit pixel dimensions for WebGL
         canvas.width = rect.width;
         canvas.height = rect.height;
-        
+
         container.appendChild(canvas);
         console.log(`Canvas created and appended: ${rect.width}x${rect.height}`);
-        
+
         return canvas;
     }
 
@@ -589,7 +598,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     public async updateLayers(layerConfigs: LayerConfig[], currentViewState?: ViewState): Promise<void> {
         const startTime = performance.now();
         console.log(`🔄 Updating ${layerConfigs.length} layers...`);
-        
+
         // Store the current view state if provided (for accurate zoom detection)
         if (currentViewState) {
             (this as any)._currentViewState = currentViewState;
@@ -597,11 +606,13 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         } else {
             console.log(`📊 Current zoom level: ${this.getCurrentZoom().toFixed(2)}`);
         }
-        
-        // Debug: Log each layer's config
-        layerConfigs.forEach(config => {
-            console.log(`📋 Layer ${config.id}: minZoom=${config.minZoom ?? 'none'}, enableViewportCulling=${config.enableViewportCulling ?? false}, dataUrl=${config.dataUrl ?? 'none'}`);
-        });
+
+        if (DEBUG_LOGGING) {
+            // Debug: Log each layer's config
+            layerConfigs.forEach(config => {
+                console.log(`📋 Layer ${config.id}: minZoom=${config.minZoom ?? 'none'}, enableViewportCulling=${config.enableViewportCulling ?? false}, dataUrl=${config.dataUrl ?? 'none'}`);
+            });
+        }
 
         const layers: Layer[] = [];
         let recreatedCount = 0;
@@ -611,7 +622,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             try {
                 const oldConfig = this.layerConfigs.get(config.id);
                 const existingLayer = this.currentLayers.find(l => l.id === config.id);
-                
+
                 // Check if we can reuse the existing layer
                 if (existingLayer && oldConfig && !this.layerNeedsUpdate(oldConfig, config)) {
                     console.log(`  ♻️  Reusing layer: ${config.id}`);
@@ -623,7 +634,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                         console.log(`  🗑️  Clearing cache for ${config.id} (viewport/zoom changed)`);
                         this.dataCache.delete(config.id);
                     }
-                    
+
                     // Create new layer only if needed
                     console.log(`  🔨 Creating layer: ${config.id}`);
                     const layer = await this.createLayer(config);
@@ -632,7 +643,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                         recreatedCount++;
                     }
                 }
-                
+
                 // Always update the config map with a deep copy to prevent mutation issues
                 this.layerConfigs.set(config.id, JSON.parse(JSON.stringify(config)));
             } catch (error) {
@@ -649,7 +660,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             }
             this.deck.setProps({ layers: allLayers });
         }
-        
+
         const endTime = performance.now();
         const duration = (endTime - startTime).toFixed(2);
         console.log(`✅ Layer update complete in ${duration}ms (♻️ ${reusedCount} reused, 🔨 ${recreatedCount} recreated)`);
@@ -662,10 +673,10 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     private async createLayer(config: LayerConfig): Promise<Layer | null> {
         // Import the layer class dynamically based on type
         const { createLayerFromConfig } = await import('./layerFactory');
-        
+
         // Check if layer is visible (default to true if not specified)
         const isVisible = config.props.visible ?? true;
-        
+
         // If dataUrl is provided, fetch the data (JS owns data fetching)
         let data = config.data;
         if (config.dataUrl && isVisible) {
@@ -683,7 +694,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     dataUrl = this.buildViewportUrl(config.dataUrl);
                     console.log(`🌍 Viewport culling enabled for ${config.id}: ${dataUrl}`);
                 }
-                
+
                 data = await this.fetchData(dataUrl, config.id);
             }
         } else if (config.dataUrl && !isVisible) {
@@ -698,6 +709,37 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
 
         // Apply base feature style if provided
         const enhancedConfig = this.applyFeatureStyle(config);
+
+        // Add tile loading callbacks for MVT/Tile layers
+        if (config.type === 'MVTLayer' || config.type === 'mvt' || 
+            config.type === 'TileLayer' || config.type === 'tile') {
+            
+            const debounceMs = config.tileLoadingDebounceMs ?? 1000;
+            
+            enhancedConfig.props.onTileLoad = (tile: any) => {
+                const tileKey = `${tile.index?.x ?? 'x'}-${tile.index?.y ?? 'y'}-${tile.index?.z ?? 'z'}`;
+                console.log(`🔵 Tile loaded: ${config.id} [${tileKey}]`);
+                
+                // Mark layer as loading when first tile loads
+                if (!this.tileLoadingLayers.has(config.id)) {
+                    this.setLayerTileLoading(config.id);
+                }
+                
+                this.onTileLoadComplete(config.id, tileKey, debounceMs);
+            };
+            
+            enhancedConfig.props.onTileError = (error: any, tile: any) => {
+                const tileKey = `${tile.index?.x ?? 'x'}-${tile.index?.y ?? 'y'}-${tile.index?.z ?? 'z'}`;
+                console.log(`🔴 Tile error: ${config.id} [${tileKey}]`, error);
+                
+                // Mark layer as loading when first tile loads  
+                if (!this.tileLoadingLayers.has(config.id)) {
+                    this.setLayerTileLoading(config.id);
+                }
+                
+                this.onTileLoadComplete(config.id, tileKey, debounceMs);
+            };
+        }
 
         // Create the layer using the factory
         return createLayerFromConfig(enhancedConfig, data);
@@ -716,7 +758,9 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                 if (!feature.id && !feature.properties?.id) {
                     // Generate a unique ID based on layer and counter
                     const generatedId = `${layerId}_feature_${idCounter++}`;
-                    console.log(`Auto-generated ID for feature: ${generatedId}`);
+                    if (DEBUG_LOGGING) {
+                        console.log(`Auto-generated ID for feature: ${generatedId}`);
+                    }
                     // Set both at root level and in properties for compatibility
                     return {
                         ...feature,
@@ -747,7 +791,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             console.log(`  Input config.props.lineColor:`, config.props.lineColor);
             console.log(`  Input config.props.getLineColor:`, config.props.getLineColor);
         }
-        
+
         if (!config.featureStyle && !config.uniqueValueRenderer) {
             if (DEBUG_LOGGING) console.log(`  ❌ No featureStyle or uniqueValueRenderer - returning config unchanged`);
             return config;
@@ -760,14 +804,14 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         if (config.uniqueValueRenderer) {
             if (DEBUG_LOGGING) console.log(`  ✅ Applying unique value renderer...`);
             this.applyUniqueValueRenderer(config, enhancedProps);
-            
+
             if (DEBUG_LOGGING) {
                 console.log(`  After unique value renderer:`);
                 console.log(`    enhancedProps.getFillColor:`, typeof enhancedProps.getFillColor);
                 console.log(`    enhancedProps.getLineColor:`, typeof enhancedProps.getLineColor);
                 console.log(`🎨 [applyFeatureStyle] END (unique value renderer)`);
             }
-            
+
             return {
                 ...config,
                 props: enhancedProps
@@ -783,36 +827,36 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             const fillOpacity = style.fillOpacity ?? 1.0;
             const rgbaColor = hexToRgba(style.fillColor, fillOpacity);
             if (DEBUG_LOGGING) console.log(`    Set fillColor: ${style.fillColor} (opacity: ${fillOpacity}) -> RGBA:`, rgbaColor);
-            
+
             enhancedProps.fillColor = rgbaColor;
             enhancedProps.getFillColor = () => rgbaColor;
             if (DEBUG_LOGGING) console.log(`    Set fillColor static property and getFillColor accessor to return RGBA:`, rgbaColor);
-            
+
             enhancedProps.filled = fillOpacity > 0;
             if (DEBUG_LOGGING) console.log(`    Set filled based on fillOpacity (${fillOpacity}):`, enhancedProps.filled);
         }
-        
+
         if (style.lineColor) {
             const lineOpacity = style.opacity ?? 1.0;
             const rgbaColor = hexToRgba(style.lineColor, lineOpacity);
             if (DEBUG_LOGGING) console.log(`    Set lineColor: ${style.lineColor} (opacity: ${lineOpacity}) -> RGBA:`, rgbaColor);
-            
+
             enhancedProps.lineColor = rgbaColor;
             enhancedProps.getLineColor = () => rgbaColor;
             if (DEBUG_LOGGING) console.log(`    Set lineColor static property and getLineColor accessor to return RGBA:`, rgbaColor);
-            
+
             enhancedProps.stroked = true;
             if (DEBUG_LOGGING) console.log(`    Set stroked: true (has lineColor)`);
         }
-        
+
         if (style.lineWidth !== undefined) {
             enhancedProps.lineWidth = style.lineWidth;
             if (DEBUG_LOGGING) console.log(`    Set lineWidth:`, style.lineWidth);
-            
+
             enhancedProps.getLineWidth = () => style.lineWidth;
             if (DEBUG_LOGGING) console.log(`    Set getLineWidth accessor to return:`, style.lineWidth);
         }
-        
+
         if (style.radiusScale !== undefined) {
             enhancedProps.radiusScale = style.radiusScale;
             if (DEBUG_LOGGING) console.log(`    Set radiusScale:`, style.radiusScale);
@@ -859,18 +903,18 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         enhancedProps.getFillColor = (feature: any) => {
             // Get the attribute value from the feature
             let value = feature.properties?.[attribute];
-            
+
             // Convert to string for comparison (unless it's null/undefined)
             const valueKey = value === null || value === undefined ? 'null' : String(value);
-            
+
             // Look up the style for this value
             const style = valueStyles[valueKey] ?? defaultStyle;
-            
+
             if (style?.fillColor) {
                 const fillOpacity = style.fillOpacity ?? 1.0;
                 return hexToRgba(style.fillColor, fillOpacity);
             }
-            
+
             // Fallback to default gray
             return [160, 160, 180, 200];
         };
@@ -880,12 +924,12 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             let value = feature.properties?.[attribute];
             const valueKey = value === null || value === undefined ? 'null' : String(value);
             const style = valueStyles[valueKey] ?? defaultStyle;
-            
+
             if (style?.lineColor) {
                 const lineOpacity = style.opacity ?? 1.0;
                 return hexToRgba(style.lineColor, lineOpacity);
             }
-            
+
             return [80, 80, 80, 255];
         };
 
@@ -894,23 +938,23 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             let value = feature.properties?.[attribute];
             const valueKey = value === null || value === undefined ? 'null' : String(value);
             const style = valueStyles[valueKey] ?? defaultStyle;
-            
+
             return style?.lineWidth ?? 1;
         };
 
         // Create getRadius accessor function (for point layers)
         if (config.type === 'ScatterplotLayer' || config.type === 'scatterplot') {
             const originalGetRadius = enhancedProps.getRadius;
-            
+
             enhancedProps.getRadius = (feature: any) => {
                 let value = feature.properties?.[attribute];
                 const valueKey = value === null || value === undefined ? 'null' : String(value);
                 const style = valueStyles[valueKey] ?? defaultStyle;
-                
+
                 const baseRadius = typeof originalGetRadius === 'function'
                     ? originalGetRadius(feature)
                     : (feature.radius || 100);
-                
+
                 return baseRadius * (style?.radiusScale ?? 1.0);
             };
         }
@@ -937,25 +981,128 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         }
 
         console.log(`Fetching data from ${url}`);
-        
+
+        // Track this fetch
+        this.activeFetches.add(cacheKey);
+        this.updateLoadingState();
+
         try {
             const response = await fetch(url);
             if (!response.ok) {
                 throw new Error(`HTTP error! status: ${response.status}`);
             }
-            
+
             const data = await response.json();
             this.dataCache.set(cacheKey, data);
-            
+
             // Update bounds cache for this layer
             this.updateLayerBoundsCache(cacheKey, data);
-            
+
             console.log(`Fetched and cached data for ${cacheKey}`);
             return data;
         } catch (error) {
             console.error(`Error fetching data from ${url}:`, error);
             throw error;
+        } finally {
+            // Remove from active fetches
+            this.activeFetches.delete(cacheKey);
+            this.updateLoadingState();
         }
+    }
+
+    /**
+     * Update loading state and notify .NET if state changed
+     */
+    private updateLoadingState(): void {
+        const newLoadingState = this.activeFetches.size > 0 || this.tileLoadingLayers.size > 0;
+
+        if (newLoadingState !== this.isLoading) {
+            this.isLoading = newLoadingState;
+            console.log(`📊 Loading state changed: ${this.isLoading} (fetches: ${this.activeFetches.size}, tile layers: ${this.tileLoadingLayers.size})`);
+
+            // Notify .NET of loading state change
+            if (this.dotNetHelper) {
+                this.dotNetHelper.invokeMethodAsync('OnLoadingStateChanged', this.isLoading);
+            }
+        }
+    }
+
+    /**
+     * Mark a layer as loading tiles (called when layer is created/updated)
+     */
+    private setLayerTileLoading(layerId: string): void {
+        this.tileLoadingLayers.add(layerId);
+        console.log(`🔄 Layer ${layerId} marked as tile-loading`);
+        this.updateLoadingState();
+    }
+
+    /**
+     * Clear tile loading state for a layer after debounce period
+     */
+    private clearLayerTileLoadingDebounced(layerId: string, debounceMs: number = 1000): void {
+        // Clear any existing timer
+        const existingTimer = this.tileDebounceTimers.get(layerId);
+        if (existingTimer) {
+            clearTimeout(existingTimer);
+        }
+
+        // Set new timer - if no tiles complete in the debounce period, consider loading done
+        const timer = setTimeout(() => {
+            this.tileLoadingLayers.delete(layerId);
+            this.tileDebounceTimers.delete(layerId);
+            console.log(`✅ Layer ${layerId} tile loading complete (debounced ${debounceMs}ms)`);
+            this.updateLoadingState();
+        }, debounceMs);
+
+        this.tileDebounceTimers.set(layerId, timer);
+    }
+
+    /**
+     * Track tile loading for a layer
+     */
+    private onTileLoadStart(layerId: string, tileKey: string): void {
+        if (!this.pendingTiles.has(layerId)) {
+            this.pendingTiles.set(layerId, new Set());
+        }
+        this.pendingTiles.get(layerId)!.add(tileKey);
+        this.updateLoadingState();
+    }
+
+    /**
+     * Track tile load completion
+     */
+    private onTileLoadComplete(layerId: string, tileKey: string, debounceMs?: number): void {
+        console.log(`✓ Tile loaded for ${layerId}: ${tileKey}`);
+        
+        const tiles = this.pendingTiles.get(layerId);
+        if (tiles) {
+            tiles.delete(tileKey);
+            if (tiles.size === 0) {
+                this.pendingTiles.delete(layerId);
+            }
+        }
+        
+        // Debounce the "done loading" state - wait for more tiles
+        this.clearLayerTileLoadingDebounced(layerId, debounceMs);
+    }
+
+    /**
+     * Refresh all layers at current view state (clears cache and reloads)
+     */
+    public async refreshLayers(): Promise<void> {
+        console.log('🔄 Refreshing all layers...');
+
+        // Clear data cache to force reload
+        this.dataCache.clear();
+        console.log('  ✅ Data cache cleared');
+
+        // Clear pending tiles
+        this.pendingTiles.clear();
+
+        // Re-apply layers which will trigger data fetching
+        await this.applyLayerChanges();
+
+        console.log('  ✅ Layers refreshed');
     }
 
     /**
@@ -1005,13 +1152,13 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         if (minLng === Infinity) return;
 
         if (DEBUG_LOGGING) {
-            console.log(`📐 [updateLayerBoundsCache] Calculated bounds from ${features.length} features for ${layerId}:`, 
+            console.log(`📐 [updateLayerBoundsCache] Calculated bounds from ${features.length} features for ${layerId}:`,
                 { minLng, minLat, maxLng, maxLat });
         }
 
         // Get existing cached bounds
         const existingBounds = this.layerBoundsCache.get(layerId);
-        
+
         if (existingBounds) {
             if (DEBUG_LOGGING) {
                 console.log(`📐 [updateLayerBoundsCache] Existing cached bounds for ${layerId}:`, existingBounds);
@@ -1044,12 +1191,12 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             console.log(`📍 Got zoom from stored C# viewState: ${currentViewState.zoom}`);
             return currentViewState.zoom;
         }
-        
+
         if (!this.deck) {
             console.warn('⚠️ getCurrentZoom: deck is null');
             return 0;
         }
-        
+
         // Try multiple methods to get the zoom level
         try {
             // Method 1: Try viewState property
@@ -1058,7 +1205,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                 console.log(`📍 Got zoom from deck.viewState: ${viewState.zoom}`);
                 return viewState.zoom;
             }
-            
+
             // Method 2: Try viewManager
             const viewManager = (this.deck as any).viewManager;
             if (viewManager?.getViewState) {
@@ -1068,21 +1215,21 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     return vs.zoom;
                 }
             }
-            
+
             // Method 3: Try getViewports
             const viewports = this.deck.getViewports();
             if (viewports?.[0]?.zoom != null) {
                 console.log(`📍 Got zoom from getViewports: ${viewports[0].zoom}`);
                 return viewports[0].zoom;
             }
-            
+
             // Method 4: Try _lastViewState (fallback)
             const lastViewState = (this.deck as any)._lastViewState;
             if (lastViewState?.zoom != null) {
                 console.log(`📍 Got zoom from _lastViewState: ${lastViewState.zoom}`);
                 return lastViewState.zoom;
             }
-            
+
             console.warn('⚠️ Could not get zoom from any deck.gl property');
             return 0;
         } catch (error) {
@@ -1098,12 +1245,12 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     private buildViewportUrl(baseUrl: string): string {
         // ALWAYS use the stored viewState from C# first (most accurate and up-to-date)
         let viewState: any = (this as any)._currentViewState;
-        
+
         // Only fall back to deck.gl if no C# viewState available
         if (!viewState && this.deck) {
             // Try viewState property
             viewState = (this.deck as any).viewState;
-            
+
             // Try viewManager
             if (!viewState) {
                 const viewManager = (this.deck as any).viewManager;
@@ -1111,7 +1258,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     viewState = viewManager.getViewState();
                 }
             }
-            
+
             // Try getViewports
             if (!viewState) {
                 const viewports = this.deck.getViewports();
@@ -1120,35 +1267,35 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                 }
             }
         }
-        
+
         if (!viewState) {
             console.warn('⚠️ Could not get viewState for buildViewportUrl');
             return baseUrl;
         }
-        
+
         const { longitude, latitude, zoom } = viewState;
-        
+
         console.log(`🗺️ Building viewport URL - Center: [${longitude?.toFixed(4)}, ${latitude?.toFixed(4)}], Zoom: ${zoom?.toFixed(2)}`);
-        
+
         if (longitude == null || latitude == null || zoom == null) {
             console.warn('⚠️ ViewState missing required properties:', viewState);
             return baseUrl;
         }
-        
+
         // Calculate approximate viewport bounds based on zoom level
         const latDelta = 180 / Math.pow(2, zoom);  // Degrees latitude visible
         const lonDelta = 360 / Math.pow(2, zoom);  // Degrees longitude visible
-        
+
         // No padding added here - the server-side controller will add padding for data fetching
         const minLon = longitude - lonDelta;
         const maxLon = longitude + lonDelta;
         const minLat = latitude - latDelta;
         const maxLat = latitude + latDelta;
-        
+
         console.log(`📐 Calculated viewport bounds (no padding): minLon=${minLon.toFixed(4)}, minLat=${minLat.toFixed(4)}, maxLon=${maxLon.toFixed(4)}, maxLat=${maxLat.toFixed(4)}`);
         console.log(`   (viewport delta: lat=${latDelta.toFixed(4)}, lon=${lonDelta.toFixed(4)})`);
 
-        
+
         // Add query parameters to URL
         const separator = baseUrl.includes('?') ? '&' : '?';
         return `${baseUrl}${separator}minLon=${minLon}&minLat=${minLat}&maxLon=${maxLon}&maxLat=${maxLat}&zoom=${zoom}`;
@@ -1160,7 +1307,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     public setGlobalSelectionStyle(style: FeatureStyleConfig): void {
         this.globalSelectionStyle = { ...this.globalSelectionStyle, ...style };
         console.log('Global selection style updated:', this.globalSelectionStyle);
-        
+
         // Refresh layers to apply new style
         if (this.selectedFeatureIds.size > 0) {
             this.refreshLayersWithSelection();
@@ -1183,14 +1330,14 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
 
         // Update the stored config
         config.featureStyle = { ...config.featureStyle, ...style };
-        
+
         // Clear uniqueValueRenderer since we're now using a simple feature style
         // (user is explicitly overriding attribute-based styling)
         config.uniqueValueRenderer = undefined;
-        
+
         // Add a version timestamp to force deck.gl to recognize this as a new layer
         config.props._styleVersion = Date.now();
-        
+
         this.layerConfigs.set(layerId, config);
 
         console.log(`  After update - config.featureStyle:`, config.featureStyle);
@@ -1271,7 +1418,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      */
     private async recreateLayer(layerId: string): Promise<void> {
         console.log(`🔄 [recreateLayer] START - Layer: ${layerId}`);
-        
+
         const config = this.layerConfigs.get(layerId);
         if (!config) {
             console.log(`  ❌ Config not found`);
@@ -1296,7 +1443,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         const enhancedConfig = this.applyFeatureStyle(config);
         console.log(`  Enhanced config.props.fillColor:`, enhancedConfig.props.fillColor);
         console.log(`  Enhanced config.props.getFillColor:`, enhancedConfig.props.getFillColor);
-        
+
         this.layerConfigs.set(layerId, enhancedConfig);
         console.log(`  Saved enhanced config to layerConfigs map`);
 
@@ -1309,14 +1456,14 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             console.log(`  Creating layer without selection`);
             newLayer = await this.createLayer(enhancedConfig);
         }
-        
+
         if (newLayer) {
             console.log(`  ✅ New layer created successfully`);
             console.log(`  New layer fillColor:`, (newLayer.props as any).fillColor);
             console.log(`  New layer getFillColor:`, (newLayer.props as any).getFillColor);
-            
+
             this.currentLayers[layerIndex] = newLayer;
-            
+
             // Update deck with the modified layers array
             if (this.deck) {
                 const allLayers = [...this.currentLayers];
@@ -1329,7 +1476,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         } else {
             console.log(`  ❌ Failed to create new layer`);
         }
-        
+
         console.log(`🔄 [recreateLayer] END`);
     }
 
@@ -1358,24 +1505,24 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      */
     private async refreshLayersWithSelection(): Promise<void> {
         if (!this.deck) return;
-        
+
         // Recreate layers with selection styling
         const layerConfigsArray = Array.from(this.layerConfigs.values());
-        
+
         const styledLayers: Layer[] = [];
-        
+
         for (const config of layerConfigsArray) {
             const layer = await this.createLayerWithSelection(config);
             if (layer) {
                 styledLayers.push(layer);
             }
         }
-        
+
         const allLayers = [...styledLayers];
         if (this.editableLayer) {
             allLayers.push(this.editableLayer as any);
         }
-        
+
         this.deck.setProps({ layers: allLayers });
     }
 
@@ -1384,24 +1531,24 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      */
     private async refreshLayersWithHover(): Promise<void> {
         if (!this.deck) return;
-        
+
         // Recreate layers with hover styling
         const layerConfigsArray = Array.from(this.layerConfigs.values());
-        
+
         const styledLayers: Layer[] = [];
-        
+
         for (const config of layerConfigsArray) {
             const layer = await this.createLayerWithHoverAndSelection(config);
             if (layer) {
                 styledLayers.push(layer);
             }
         }
-        
+
         const allLayers = [...styledLayers];
         if (this.editableLayer) {
             allLayers.push(this.editableLayer as any);
         }
-        
+
         this.deck.setProps({ layers: allLayers });
     }
 
@@ -1410,26 +1557,50 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      */
     private async createLayerWithSelection(config: LayerConfig): Promise<Layer | null> {
         const { createLayerFromConfig } = await import('./layerFactory');
-        
+
         // Fetch data if needed
         let data = config.data;
         if (config.dataUrl) {
             data = await this.fetchData(config.dataUrl, config.id);
         }
-        
+
         const selectedIds = this.selectedFeatureIds;
-        
+
         // Determine which selection style to use: layer-specific or global
         const selectionStyle = config.selectionStyle || this.globalSelectionStyle;
-        
+
         // Apply base feature style first
         const baseConfig = this.applyFeatureStyle(config);
-        
+
         // Enhance the config with selection-aware accessor functions
+        // Callbacks must be in props to be spread by layerFactory's ...props
         const enhancedConfig = {
             ...baseConfig,
             props: {
                 ...baseConfig.props,
+                // Add tile loading callbacks - these will be spread into MVTLayer
+                onTileLoad: (tile: any) => {
+                    const tileKey = `${tile.index?.x ?? 'x'}-${tile.index?.y ?? 'y'}-${tile.index?.z ?? 'z'}`;
+                    console.log(`🔵 Tile loaded: ${config.id} [${tileKey}]`);
+                    
+                    // Mark layer as loading when first tile loads
+                    if (!this.tileLoadingLayers.has(config.id)) {
+                        this.setLayerTileLoading(config.id);
+                    }
+                    
+                    this.onTileLoadComplete(config.id, tileKey);
+                },
+                onTileError: (error: any, tile: any) => {
+                    const tileKey = `${tile.index?.x ?? 'x'}-${tile.index?.y ?? 'y'}-${tile.index?.z ?? 'z'}`;
+                    console.log(`🔴 Tile error: ${config.id} [${tileKey}]`, error);
+                    
+                    // Mark layer as loading when first tile loads
+                    if (!this.tileLoadingLayers.has(config.id)) {
+                        this.setLayerTileLoading(config.id);
+                    }
+                    
+                    this.onTileLoadComplete(config.id, tileKey);
+                },
                 updateTriggers: {
                     ...baseConfig.props.updateTriggers,
                     getFillColor: Array.from(selectedIds).join(','),
@@ -1445,20 +1616,20 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         const originalGetLineColor = (enhancedConfig.props as any).getLineColor || (enhancedConfig.props as any).lineColor;
         const originalGetLineWidth = (enhancedConfig.props as any).getLineWidth || (enhancedConfig.props as any).lineWidth;
         const originalGetRadius = (enhancedConfig.props as any).getRadius;
-        
+
         // Add selection-aware accessors
-        if (config.type === 'GeoJsonLayer' || config.type === 'geojson' || 
+        if (config.type === 'GeoJsonLayer' || config.type === 'geojson' ||
             config.type === 'MVTLayer' || config.type === 'mvt') {
-            
+
             console.log(`Adding selection accessors for layer ${config.id} (${config.type}), ${selectedIds.size} features selected`);
-            
+
             // Track which features we've logged to avoid spam
             const loggedFeatures = new Set<string>();
-            
+
             (enhancedConfig.props as any).getFillColor = (d: any) => {
                 const featureId = this.getFeatureId(d, config.id);
                 const isSelected = featureId && selectedIds.has(featureId);
-                
+
                 if (isSelected) {
                     // Only log the first time we style each selected feature
                     if (DEBUG_LOGGING && !loggedFeatures.has(featureId!)) {
@@ -1471,11 +1642,11 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     }
                     return [255, 255, 0, 150]; // Default yellow
                 }
-                return typeof originalGetFillColor === 'function' 
-                    ? originalGetFillColor(d) 
+                return typeof originalGetFillColor === 'function'
+                    ? originalGetFillColor(d)
                     : (originalGetFillColor || [160, 160, 180, 200]);
             };
-            
+
             (enhancedConfig.props as any).getLineColor = (d: any) => {
                 const featureId = this.getFeatureId(d, config.id);
                 if (featureId && selectedIds.has(featureId)) {
@@ -1489,7 +1660,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     ? originalGetLineColor(d)
                     : (originalGetLineColor || [80, 80, 80, 255]);
             };
-            
+
             (enhancedConfig.props as any).getLineWidth = (d: any) => {
                 const featureId = this.getFeatureId(d, config.id);
                 if (featureId && selectedIds.has(featureId)) {
@@ -1500,7 +1671,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     : (originalGetLineWidth || 1);
             };
         }
-        
+
         if (config.type === 'ScatterplotLayer' || config.type === 'scatterplot') {
             (enhancedConfig.props as any).getFillColor = (d: any) => {
                 const featureId = this.getFeatureId(d, config.id);
@@ -1515,7 +1686,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     ? originalGetFillColor(d)
                     : (originalGetFillColor || [255, 140, 0, 200]);
             };
-            
+
             (enhancedConfig.props as any).getLineColor = (d: any) => {
                 const featureId = this.getFeatureId(d, config.id);
                 if (featureId && selectedIds.has(featureId)) {
@@ -1529,7 +1700,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     ? originalGetLineColor(d)
                     : (originalGetLineColor || [0, 0, 0, 255]);
             };
-            
+
             (enhancedConfig.props as any).getRadius = (d: any) => {
                 const featureId = this.getFeatureId(d, config.id);
                 const baseRadius = typeof originalGetRadius === 'function'
@@ -1541,7 +1712,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                 return baseRadius;
             };
         }
-        
+
         return createLayerFromConfig(enhancedConfig, data);
     }
 
@@ -1550,40 +1721,80 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      */
     private async createLayerWithHoverAndSelection(config: LayerConfig): Promise<Layer | null> {
         const { createLayerFromConfig } = await import('./layerFactory');
-        
+
         // Fetch data if needed
         let data = config.data;
         if (config.dataUrl) {
             data = await this.fetchData(config.dataUrl, config.id);
         }
-        
+
         const selectedIds = this.selectedFeatureIds;
         const hoveredId = this.hoveredFeatureId;
         const hoveredLayerId = this.hoveredLayerId;
-        
+
         // Apply base feature style first
         const baseConfig = this.applyFeatureStyle(config);
-        
-        // If there are no selections and no hover for this layer, just return the base config
-        // This preserves the static colors set by applyFeatureStyle
+
+        // Check if there are selections or hover states
         const hasSelections = selectedIds.size > 0;
         const hasHover = hoveredId && hoveredLayerId === config.id;
-        
-        if (!hasSelections && !hasHover) {
-            return createLayerFromConfig(baseConfig, data);
-        }
-        
-        // Determine which styles to use
-        const selectionStyle = config.selectionStyle || this.globalSelectionStyle;
-        const hoverStyle = config.hoverStyle;
-        
-        // Enhance the config with hover and selection-aware accessor functions
-        const enhancedConfig = {
+
+        // Always add tile callbacks for MVT layers (for loading indicator)
+        // Callbacks must be in props to be spread by layerFactory's ...props
+        const configWithTileCallbacks = {
             ...baseConfig,
             props: {
                 ...baseConfig.props,
+                // Add tile loading callbacks - these will be spread into MVTLayer
+                onTileLoad: (tile: any) => {
+                    const tileKey = `${tile.index?.x ?? 'x'}-${tile.index?.y ?? 'y'}-${tile.index?.z ?? 'z'}`;
+                    console.log(`🔵 Tile loaded: ${config.id} [${tileKey}]`);
+                    
+                    // Mark layer as loading when first tile loads
+                    if (!this.tileLoadingLayers.has(config.id)) {
+                        this.setLayerTileLoading(config.id);
+                    }
+                    
+                    this.onTileLoadComplete(config.id, tileKey);
+                },
+                onTileError: (error: any, tile: any) => {
+                    const tileKey = `${tile.index?.x ?? 'x'}-${tile.index?.y ?? 'y'}-${tile.index?.z ?? 'z'}`;
+                    console.log(`🔴 Tile error: ${config.id} [${tileKey}]`, error);
+                    
+                    // Mark layer as loading when first tile loads
+                    if (!this.tileLoadingLayers.has(config.id)) {
+                        this.setLayerTileLoading(config.id);
+                    }
+                    
+                    this.onTileLoadComplete(config.id, tileKey);
+                }
+            }
+        };
+
+        console.log(`📦 Config before createLayerFromConfig:`, {
+            id: config.id,
+            type: config.type,
+            hasOnTileLoad: typeof configWithTileCallbacks.props.onTileLoad === 'function',
+            hasOnTileError: typeof configWithTileCallbacks.props.onTileError === 'function'
+        });
+
+        // If there are no selections and no hover for this layer, return with just tile callbacks
+        if (!hasSelections && !hasHover) {
+            return createLayerFromConfig(configWithTileCallbacks, data);
+        }
+
+
+        // Determine which styles to use
+        const selectionStyle = config.selectionStyle || this.globalSelectionStyle;
+        const hoverStyle = config.hoverStyle;
+
+        // Enhance the config with hover and selection-aware accessor functions
+        const enhancedConfig = {
+            ...configWithTileCallbacks,
+            props: {
+                ...configWithTileCallbacks.props,
                 updateTriggers: {
-                    ...baseConfig.props.updateTriggers,
+                    ...configWithTileCallbacks.props.updateTriggers,
                     getFillColor: `${Array.from(selectedIds).join(',')}_${hoveredId}_${hoveredLayerId}`,
                     getLineColor: `${Array.from(selectedIds).join(',')}_${hoveredId}_${hoveredLayerId}`,
                     getLineWidth: `${Array.from(selectedIds).join(',')}_${hoveredId}_${hoveredLayerId}`,
@@ -1591,20 +1802,20 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                 }
             }
         };
-        
+
         // Store original accessors or static colors
         const originalGetFillColor = (enhancedConfig.props as any).getFillColor || (enhancedConfig.props as any).fillColor;
         const originalGetLineColor = (enhancedConfig.props as any).getLineColor || (enhancedConfig.props as any).lineColor;
         const originalGetLineWidth = (enhancedConfig.props as any).getLineWidth || (enhancedConfig.props as any).lineWidth;
         const originalGetRadius = (enhancedConfig.props as any).getRadius;
-        
+
         // Add hover and selection-aware accessors
-        if (config.type === 'GeoJsonLayer' || config.type === 'geojson' || 
+        if (config.type === 'GeoJsonLayer' || config.type === 'geojson' ||
             config.type === 'MVTLayer' || config.type === 'mvt') {
-            
+
             (enhancedConfig.props as any).getFillColor = (d: any) => {
                 const featureId = this.getFeatureId(d, config.id);
-                
+
                 // Priority: Selected > Hovered > Base
                 if (featureId && selectedIds.has(featureId)) {
                     if (selectionStyle.fillColor) {
@@ -1616,15 +1827,15 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     const fillOpacity = hoverStyle.fillOpacity ?? 0.8;
                     return hexToRgba(hoverStyle.fillColor, fillOpacity);
                 }
-                
-                return typeof originalGetFillColor === 'function' 
-                    ? originalGetFillColor(d) 
+
+                return typeof originalGetFillColor === 'function'
+                    ? originalGetFillColor(d)
                     : (originalGetFillColor || [160, 160, 180, 200]);
             };
-            
+
             (enhancedConfig.props as any).getLineColor = (d: any) => {
                 const featureId = this.getFeatureId(d, config.id);
-                
+
                 if (featureId && selectedIds.has(featureId)) {
                     if (selectionStyle.lineColor) {
                         const lineOpacity = selectionStyle.opacity ?? 1.0;
@@ -1635,31 +1846,31 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     const lineOpacity = hoverStyle.opacity ?? 1.0;
                     return hexToRgba(hoverStyle.lineColor, lineOpacity);
                 }
-                
+
                 return typeof originalGetLineColor === 'function'
                     ? originalGetLineColor(d)
                     : (originalGetLineColor || [80, 80, 80, 255]);
             };
-            
+
             (enhancedConfig.props as any).getLineWidth = (d: any) => {
                 const featureId = this.getFeatureId(d, config.id);
-                
+
                 if (featureId && selectedIds.has(featureId)) {
                     return selectionStyle.lineWidth || 3;
                 } else if (featureId && featureId === hoveredId && config.id === hoveredLayerId && hoverStyle?.lineWidth) {
                     return hoverStyle.lineWidth;
                 }
-                
+
                 return typeof originalGetLineWidth === 'function'
                     ? originalGetLineWidth(d)
                     : (originalGetLineWidth || 1);
             };
         }
-        
+
         if (config.type === 'ScatterplotLayer' || config.type === 'scatterplot') {
             (enhancedConfig.props as any).getFillColor = (d: any) => {
                 const featureId = this.getFeatureId(d, config.id);
-                
+
                 if (featureId && selectedIds.has(featureId)) {
                     if (selectionStyle.fillColor) {
                         const fillOpacity = selectionStyle.fillOpacity ?? 0.6;
@@ -1670,15 +1881,15 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     const fillOpacity = hoverStyle.fillOpacity ?? 0.8;
                     return hexToRgba(hoverStyle.fillColor, fillOpacity);
                 }
-                
+
                 return typeof originalGetFillColor === 'function'
                     ? originalGetFillColor(d)
                     : (originalGetFillColor || [255, 140, 0, 200]);
             };
-            
+
             (enhancedConfig.props as any).getLineColor = (d: any) => {
                 const featureId = this.getFeatureId(d, config.id);
-                
+
                 if (featureId && selectedIds.has(featureId)) {
                     if (selectionStyle.lineColor) {
                         const lineOpacity = selectionStyle.opacity ?? 1.0;
@@ -1689,28 +1900,28 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     const lineOpacity = hoverStyle.opacity ?? 1.0;
                     return hexToRgba(hoverStyle.lineColor, lineOpacity);
                 }
-                
+
                 return typeof originalGetLineColor === 'function'
                     ? originalGetLineColor(d)
                     : (originalGetLineColor || [0, 0, 0, 255]);
             };
-            
+
             (enhancedConfig.props as any).getRadius = (d: any) => {
                 const featureId = this.getFeatureId(d, config.id);
                 const baseRadius = typeof originalGetRadius === 'function'
                     ? originalGetRadius(d)
                     : (d.radius || 100);
-                
+
                 if (featureId && selectedIds.has(featureId)) {
                     return baseRadius * (selectionStyle.radiusScale || 1.5);
                 } else if (featureId && featureId === hoveredId && config.id === hoveredLayerId && hoverStyle?.radiusScale) {
                     return baseRadius * hoverStyle.radiusScale;
                 }
-                
+
                 return baseRadius;
             };
         }
-        
+
         return createLayerFromConfig(enhancedConfig, data);
     }
 
@@ -1720,7 +1931,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      */
     private getFeatureId(feature: any, layerId?: string, logDetails: boolean = false): string | null {
         if (!feature) return null;
-        
+
         // Check if this layer has a configured unique ID property
         if (layerId) {
             const layerConfig = this.layerConfigs.get(layerId);
@@ -1730,10 +1941,10 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                 // 1. feature.properties[idProperty] (standard GeoJSON)
                 // 2. feature[idProperty] (properties at root level)
                 // 3. feature.__source.object.properties[idProperty] (MVT with __source.object)
-                const uniqueId = feature.properties?.[idProperty] 
+                const uniqueId = feature.properties?.[idProperty]
                     ?? feature[idProperty]
                     ?? feature.__source?.object?.properties?.[idProperty];
-                
+
                 if (logDetails) {
                     console.log(`Looking for ID in feature.properties.${idProperty}, feature.${idProperty}, or feature.__source.object.properties.${idProperty}:`, uniqueId);
                     console.log(`  Feature properties:`, feature.properties);
@@ -1742,7 +1953,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     console.log(`  Feature __source.object.properties:`, feature.__source?.object?.properties);
                     console.log(`  Feature keys:`, Object.keys(feature));
                 }
-                
+
                 if (uniqueId !== undefined && uniqueId !== null) {
                     const idString = String(uniqueId);
                     if (logDetails) {
@@ -1754,7 +1965,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                 }
             }
         }
-        
+
         // Fall back to common ID fields (check all possible locations)
         if (feature.id) return String(feature.id);
         if (feature.properties?.id) return String(feature.properties.id);
@@ -1763,7 +1974,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         if (feature.__source?.object?.properties?.ID) return String(feature.__source.object.properties.ID);
         if (feature.properties?.name) return String(feature.properties.name);
         if (feature.__source?.object?.properties?.name) return String(feature.__source.object.properties.name);
-        
+
         // For MVT features, try additional ID fields (check all locations)
         if (feature.properties?.CustomIdentifier) return String(feature.properties.CustomIdentifier);
         if (feature.CustomIdentifier) return String(feature.CustomIdentifier);
@@ -1783,7 +1994,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         if (feature.properties?.FID) return String(feature.properties.FID);
         if (feature.FID) return String(feature.FID);
         if (feature.__source?.object?.properties?.FID) return String(feature.__source.object.properties.FID);
-        
+
         // For GeoJSON features, create a hash from coordinates
         if (feature.geometry?.coordinates) {
             const coords = JSON.stringify(feature.geometry.coordinates);
@@ -1793,13 +2004,13 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             }
             return coordId;
         }
-        
+
         // For point data
         if (feature.position || feature.coordinates) {
             const coords = feature.position || feature.coordinates;
             return `${coords[0]}_${coords[1]}`;
         }
-        
+
         return null;
     }
 
@@ -1810,10 +2021,10 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         if (enabled) {
             this.drawingMode = new DrawPolygonMode();
             console.log('🎨 Drawing mode enabled - Click to add vertices, double-click to complete');
-            
+
             // Clear any previous drawn features
             this.drawnFeatures = [];
-            
+
             // Disable double-click zoom to allow double-click to complete polygon
             if (this.deck) {
                 this.deck.setProps({
@@ -1828,7 +2039,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     }
                 });
             }
-            
+
             // Set crosshair cursor on both canvas and container
             const canvas = document.querySelector(`#${this.containerId} canvas`) as HTMLCanvasElement;
             const container = document.getElementById(this.containerId);
@@ -1838,10 +2049,10 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             if (container) {
                 container.style.cursor = 'crosshair';
             }
-            
+
             // Create the temporary editable layer
             this.updateEditableLayer();
-            
+
             // Force deck.gl to update the cursor
             if (this.deck) {
                 this.deck.redraw('cursor update');
@@ -1849,7 +2060,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         } else {
             this.drawingMode = new ViewMode();
             console.log('✅ Drawing mode disabled');
-            
+
             // Re-enable double-click zoom
             if (this.deck) {
                 this.deck.setProps({
@@ -1864,7 +2075,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     }
                 });
             }
-            
+
             // Reset cursor to default (grab/hand) on both canvas and container
             const canvas = document.querySelector(`#${this.containerId} canvas`) as HTMLCanvasElement;
             const container = document.getElementById(this.containerId);
@@ -1874,17 +2085,17 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             if (container) {
                 container.style.cursor = '';
             }
-            
+
             // Destroy the temporary editable layer
             this.destroyEditableLayer();
-            
+
             // Force deck.gl to update the cursor
             if (this.deck) {
                 this.deck.redraw('cursor update');
             }
         }
     }
-    
+
     private updateEditableLayer(): void {
         // Create editable layer with current mode
         this.editableLayer = new EditableGeoJsonLayer({
@@ -1895,34 +2106,34 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             },
             mode: this.drawingMode,
             selectedFeatureIndexes: [],
-            
+
             // Styling for the temporary selection polygon - dark grey with dashed line
             getFillColor: [64, 64, 64, 26],  // Dark grey with ~10% opacity (26/255 ≈ 0.1)
             getLineColor: [64, 64, 64, 255],  // Dark grey, fully opaque
             getLineWidth: 0.5,  // Very thin line
             lineWidthUnits: 'pixels',
-            
+
             // Enable dashed lines using PathStyleExtension
             extensions: [new PathStyleExtension({ dash: true })],
             getDashArray: [10, 5],  // 10px dash, 5px gap
-            
+
             // Set cursor for the editable layer
             getCursor: () => 'crosshair',
-            
+
             onEdit: async ({ updatedData, editType, editContext }: any) => {
                 console.log('📝 Edit event:', editType, editContext);
-                
+
                 // Handle feature completion
                 if (editType === 'addFeature') {
                     const newFeature = updatedData.features[updatedData.features.length - 1];
-                    
+
                     console.log('🎯 Polygon completed, performing selection...');
-                    
+
                     // Perform selection with the completed polygon
                     if (newFeature.geometry.type === 'Polygon') {
                         const polygon = newFeature.geometry.coordinates[0];
                         console.log('🔵 About to call performSelection with polygon:', polygon.length, 'points');
-                        
+
                         try {
                             await this.performSelection(polygon);
                             console.log('🟢 performSelection completed successfully');
@@ -1932,23 +2143,23 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     } else {
                         console.warn('⚠️ Feature is not a Polygon:', newFeature.geometry.type);
                     }
-                    
+
                     // Clear the drawn feature and reset for next polygon
                     // Keep drawing mode active - user must explicitly exit
                     this.drawnFeatures = [];
                     this.updateEditableLayer();
-                    
+
                     console.log('✨ Polygon cleared, ready for next selection');
                 }
             }
         } as any); // Cast to any to allow potential extended properties
-        
+
         this.refreshLayers();
-        
+
         // Force cursor update after layer is created
         this.updateCursor();
     }
-    
+
     /**
      * Destroy the temporary editable layer
      */
@@ -1958,14 +2169,14 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         this.refreshLayers();
         console.log('✨ Temporary selection layer destroyed');
     }
-    
+
     /**
      * Update cursor to crosshair when in drawing mode
      */
     private updateCursor(): void {
         const canvas = document.querySelector(`#${this.containerId} canvas`) as HTMLCanvasElement;
         const container = document.getElementById(this.containerId);
-        
+
         if (this.editableLayer && this.drawingMode.constructor.name !== 'ViewMode') {
             // Drawing mode is active - set crosshair
             if (canvas) {
@@ -1994,7 +2205,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         }
 
         let html = '';
-        
+
         // Extract properties (check both object directly and object.properties)
         const getProperty = (obj: any, key: string): any => {
             return obj[key] ?? obj.properties?.[key] ?? 'N/A';
@@ -2048,7 +2259,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         this.layerConfigs.set(layerId, layerConfig);
 
         console.log(`Tooltip config updated for layer ${layerId}:`, config);
-        
+
         // Tooltips are evaluated dynamically, no need to recreate layers
     }
 
@@ -2060,7 +2271,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     public moveLayerToIndex(layerId: string, targetIndex: number): string[] {
         // Find the layer in the current layers array
         const layerIndex = this.currentLayers.findIndex(layer => layer.id === layerId);
-        
+
         if (layerIndex === -1) {
             console.warn(`Layer ${layerId} not found`);
             return this.currentLayers.map(l => l.id);
@@ -2080,7 +2291,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
 
         // Remove the layer from its current position
         const [layer] = this.currentLayers.splice(layerIndex, 1);
-        
+
         // Insert it at the target index
         this.currentLayers.splice(targetIndex, 0, layer);
 
@@ -2088,7 +2299,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
 
         // Refresh the layers to update the rendering
         this.refreshLayers();
-        
+
         // Return the updated layer order
         return this.currentLayers.map(l => l.id);
     }
@@ -2099,7 +2310,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      */
     public moveLayerUp(layerId: string): string[] {
         const layerIndex = this.currentLayers.findIndex(layer => layer.id === layerId);
-        
+
         if (layerIndex === -1) {
             console.warn(`Layer ${layerId} not found`);
             return this.currentLayers.map(l => l.id);
@@ -2119,7 +2330,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      */
     public moveLayerDown(layerId: string): string[] {
         const layerIndex = this.currentLayers.findIndex(layer => layer.id === layerId);
-        
+
         if (layerIndex === -1) {
             console.warn(`Layer ${layerId} not found`);
             return this.currentLayers.map(l => l.id);
@@ -2139,7 +2350,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      */
     public moveLayerToTop(layerId: string): string[] {
         const layerIndex = this.currentLayers.findIndex(layer => layer.id === layerId);
-        
+
         if (layerIndex === -1) {
             console.warn(`Layer ${layerId} not found`);
             return this.currentLayers.map(l => l.id);
@@ -2154,7 +2365,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      */
     public moveLayerToBottom(layerId: string): string[] {
         const layerIndex = this.currentLayers.findIndex(layer => layer.id === layerId);
-        
+
         if (layerIndex === -1) {
             console.warn(`Layer ${layerId} not found`);
             return this.currentLayers.map(l => l.id);
@@ -2168,26 +2379,26 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      */
     public flashFeature(layerId: string, featureId: string, durationMs: number = 2000): void {
         console.log(`⚡ Flashing feature: ${featureId} in layer: ${layerId} for ${durationMs}ms`);
-        
+
         if (!this.selectedFeatureIds.has(featureId)) {
             console.log(`Feature ${featureId} is not currently selected, adding temporarily...`);
         }
-        
+
         // Add feature to a temporary flash set
         const flashKey = `${layerId}_${featureId}`;
         const flashSet = new Set<string>([flashKey]);
-        
+
         // Store original selection
         const originalSelection = new Set(this.selectedFeatureIds);
-        
+
         // Create flash animation by toggling highlight
         let flashCount = 0;
         const flashInterval = 200; // Flash every 200ms
         const totalFlashes = Math.floor(durationMs / flashInterval);
-        
+
         const interval = setInterval(() => {
             flashCount++;
-            
+
             if (flashCount % 2 === 0) {
                 // Even count: add to selection (highlight)
                 this.selectedFeatureIds.add(featureId);
@@ -2195,9 +2406,9 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                 // Odd count: remove from selection (dim)
                 this.selectedFeatureIds.delete(featureId);
             }
-            
+
             this.refreshLayersWithSelection();
-            
+
             if (flashCount >= totalFlashes) {
                 clearInterval(interval);
                 // Restore original selection
@@ -2213,7 +2424,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      */
     public zoomToFeature(layerId: string, featureId: string, padding: number = 0): void {
         console.log(`🔍 Zooming to feature: ${featureId} in layer: ${layerId}`);
-        
+
         // Find the feature in the layer
         const layer = this.currentLayers.find(l => l.id === layerId);
         if (!layer) {
@@ -2268,7 +2479,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         if (DEBUG_LOGGING) {
             console.log(`🔍 [zoomToLayer] Called for layer: ${layerId}, padding: ${padding}`);
         }
-        
+
         const layer = this.currentLayers.find(l => l.id === layerId);
         if (!layer) {
             console.warn(`❌ [zoomToLayer] Layer ${layerId} not found`);
@@ -2298,7 +2509,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                 this.zoomToBounds(cachedBounds, padding);
                 return;
             }
-            
+
             console.warn(`❌ [zoomToLayer] No features found in layer ${layerId} and no cached bounds available`);
             return;
         }
@@ -2318,7 +2529,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
 
         if (minLng !== Infinity) {
             if (DEBUG_LOGGING) {
-                console.log(`✅ [zoomToLayer] Calculated bounds from ${features.length} current features:`, 
+                console.log(`✅ [zoomToLayer] Calculated bounds from ${features.length} current features:`,
                     { minLng, minLat, maxLng, maxLat });
             }
             this.zoomToBounds({ minLng, minLat, maxLng, maxLat }, padding);
@@ -2344,7 +2555,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         for (const selectedFeature of selectedFeatures) {
             const feature = selectedFeature.feature;
             const bounds = this.calculateFeatureBoundsFromJson(feature);
-            
+
             if (bounds) {
                 minLng = Math.min(minLng, bounds.minLng);
                 minLat = Math.min(minLat, bounds.minLat);
@@ -2354,7 +2565,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         }
 
         if (minLng !== Infinity) {
-            console.log(`✅ Calculated bounds for ${selectedFeatures.length} features:`, 
+            console.log(`✅ Calculated bounds for ${selectedFeatures.length} features:`,
                 { minLng, minLat, maxLng, maxLat });
             this.zoomToBounds({ minLng, minLat, maxLng, maxLat }, padding);
         } else {
@@ -2451,7 +2662,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         if (DEBUG_LOGGING) {
             console.log(`🎯 [zoomToBounds] Called with bounds:`, bounds, `padding: ${padding}`);
         }
-        
+
         if (!this.deck) return;
 
         const { minLng, minLat, maxLng, maxLat } = bounds;
@@ -2486,7 +2697,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         // Apply padding only if specified
         let adjustedLngDiff = lngDiff;
         let adjustedLatDiff = latDiff;
-        
+
         if (padding > 0) {
             const paddingFraction = padding / Math.min(viewportWidth, viewportHeight);
             adjustedLngDiff = lngDiff / (1 - paddingFraction * 1.0);
@@ -2506,9 +2717,9 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         // We need: adjustedLngDiff / (360 / (256 * 2^z)) <= viewportWidth
         // Solving for z: 2^z >= (adjustedLngDiff * 256) / (360 * viewportWidth) * 2
         // Therefore: z = log2((adjustedLngDiff * 256 * viewportWidth) / 360)
-        
+
         const lngZoom = Math.log2((viewportWidth * 360) / (adjustedLngDiff * 256));
-        
+
         // For latitude, account for Web Mercator distortion
         // At the center latitude, the scale factor is 1/cos(lat)
         const centerLat = (minLat + maxLat) / 2;
@@ -2532,8 +2743,8 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         const currentZoom = currentViewState.zoom || 0;
 
         if (DEBUG_LOGGING) {
-            console.log(`Zooming to bounds:`, { 
-                center: { longitude, latitude }, 
+            console.log(`Zooming to bounds:`, {
+                center: { longitude, latitude },
                 calculatedZoom: zoom,
                 currentZoom: currentZoom,
                 bounds: { minLng, minLat, maxLng, maxLat },
@@ -2578,12 +2789,12 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     public unselectFeature(featureId: string): void {
         console.log(`🗑️ Attempting to unselect feature: ${featureId}`);
         console.log(`Currently selected IDs:`, Array.from(this.selectedFeatureIds));
-        
+
         if (this.selectedFeatureIds.has(featureId)) {
             this.selectedFeatureIds.delete(featureId);
             this.selectedFeaturesData.delete(featureId); // Also remove from data map
             console.log(`✅ Unselected feature: ${featureId}`);
-            
+
             // Notify .NET of updated selection - use stored data
             if (this.dotNetHelper) {
                 const selectedFeatures = this.getSelectedFeaturesFromData();
@@ -2593,7 +2804,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     featureCount: selectedFeatures.length
                 });
             }
-            
+
             this.refreshLayersWithSelection();
         } else {
             console.warn(`❌ Feature ${featureId} was not in selection`);
@@ -2605,10 +2816,10 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      */
     public clearLayerSelection(layerId: string): void {
         console.log(`🧹 Clearing selection for layer: ${layerId}`);
-        
+
         // Find all selected feature IDs that belong to this layer using stored data
         const featuresToRemove: string[] = [];
-        
+
         for (const [featureId, data] of this.selectedFeaturesData.entries()) {
             if (data.layerId === layerId) {
                 featuresToRemove.push(featureId);
@@ -2641,14 +2852,14 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      */
     private getSelectedFeaturesFromData(): any[] {
         const selectedFeatures: any[] = [];
-        
+
         for (const [featureId, data] of this.selectedFeaturesData.entries()) {
             selectedFeatures.push({
                 layerId: data.layerId,
                 feature: this.sanitizeFeature(data.feature)
             });
         }
-        
+
         return selectedFeatures;
     }
 
@@ -2681,26 +2892,26 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
 
         return selectedFeatures;
     }
-    
+
     private async performSelection(polygon: [number, number][]): Promise<void> {
         console.log('🟡 performSelection START - polygon has', polygon.length, 'points');
         console.log('🟡 dotNetHelper exists:', !!this.dotNetHelper);
-        
+
         const selectedFeatures = this.selectFeaturesInPolygon(polygon);
-        
+
         console.log(`✅ Selection complete: ${selectedFeatures.length} features selected (before deduplication)`);
-        
+
         // CRITICAL: Deduplicate BEFORE extracting IDs and applying styles
         // This prevents styling the same feature ID multiple times across MVT tiles
         const uniqueFeatures = this.deduplicateFeatures(selectedFeatures);
-        
+
         console.log(`✅ After deduplication: ${uniqueFeatures.length} unique features`);
-        
+
         // Extract unique feature IDs and store full feature data
         const uniqueFeatureIds = uniqueFeatures
             .map(sf => this.getFeatureId(sf.feature, sf.layerId))
             .filter(id => id !== null) as string[];
-        
+
         // Store full feature data for each selected feature
         uniqueFeatures.forEach(sf => {
             const featureId = this.getFeatureId(sf.feature, sf.layerId);
@@ -2711,35 +2922,35 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                 });
             }
         });
-        
+
         console.log(`📊 Applying selection styling to ${uniqueFeatureIds.length} unique feature IDs`);
-        
+
         // Apply selection styling to deduplicated features only
         this.setSelectedFeatures(uniqueFeatureIds);
-        
+
         if (this.dotNetHelper) {
             const sanitizeStart = performance.now();
-            
+
             // Sanitize features to remove circular references before sending to .NET
             const sanitizedFeatures = uniqueFeatures.map(sf => ({
                 layerId: sf.layerId,
                 feature: this.sanitizeFeature(sf.feature)
             }));
-            
+
             const sanitizeTime = performance.now() - sanitizeStart;
-            
+
             const result = {
                 polygon,
                 features: sanitizedFeatures,
                 featureCount: uniqueFeatures.length
             };
-            
+
             // Check payload size
             const payloadSize = JSON.stringify(result).length;
             console.log(`📦 Payload size: ${(payloadSize / 1024).toFixed(2)} KB`);
             console.log(`⏱️ Sanitization took: ${sanitizeTime.toFixed(2)}ms`);
             console.log(`📤 Calling .NET OnFeaturesSelected with ${result.featureCount} features`);
-            
+
             const invokeStart = performance.now();
             try {
                 await this.dotNetHelper.invokeMethodAsync('OnFeaturesSelected', result);
@@ -2754,7 +2965,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             }
         }
     }
-    
+
     /**
      * Deduplicate features by their unique ID
      * MVT features can span multiple tiles, resulting in duplicate selections
@@ -2762,18 +2973,18 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     private deduplicateFeatures(features: any[]): any[] {
         const seenIds = new Set<string>();
         const uniqueFeatures: any[] = [];
-        
+
         for (let i = 0; i < features.length; i++) {
             const feature = features[i];
             // Log details for the first feature only
             const featureId = this.getFeatureId(feature.feature, feature.layerId, i === 0);
-            
+
             if (!featureId) {
                 // If no ID, keep the feature (can't deduplicate without ID)
                 uniqueFeatures.push(feature);
                 continue;
             }
-            
+
             // Only add if we haven't seen this ID before
             if (!seenIds.has(featureId)) {
                 seenIds.add(featureId);
@@ -2782,10 +2993,10 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                 console.log(`  Skipping duplicate feature with ID: ${featureId}`);
             }
         }
-        
+
         return uniqueFeatures;
     }
-    
+
     /**
      * Sanitize a feature object to remove circular references and non-serializable properties
      * Only keeps essential GeoJSON properties. Omits geometry coordinates for complex shapes
@@ -2793,7 +3004,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      */
     private sanitizeFeature(feature: any): any {
         if (!feature) return null;
-        
+
         // Debug: Log what properties we're receiving
         if (DEBUG_LOGGING) {
             console.log(`  Sanitizing feature:`, {
@@ -2802,12 +3013,12 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                 sampleProps: feature.properties ? Object.keys(feature.properties).slice(0, 5) : []
             });
         }
-        
+
         // Check if geometry is complex (polygon with many points)
         // Complex geometries can be thousands of coordinates for parcels/buildings
         const hasComplexGeometry = feature.geometry?.coordinates?.[0]?.length > 100 ||
-                                    feature.geometry?.coordinates?.length > 100;
-        
+            feature.geometry?.coordinates?.length > 100;
+
         return {
             type: feature.type || 'Feature',
             id: feature.id,
@@ -2821,99 +3032,99 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             properties: feature.properties ? { ...feature.properties } : {}
         };
     }
-    
+
     /**
      * Select features that fall within the given polygon
      * Uses point-in-polygon algorithm for point geometries
      */
     private selectFeaturesInPolygon(polygon: [number, number][]): any[] {
         const selectedFeatures: any[] = [];
-        
+
         if (!this.deck) return selectedFeatures;
-        
+
         // For MVT and tile-based layers, we need to use deck.gl's picking system
         // to get features from all rendered tiles
         const bbox = this.getBoundingBox(polygon);
-        
+
         // Iterate through all current layers to find features
         for (const layer of this.currentLayers) {
             const layerId = layer.id;
             const layerType = layer.constructor.name;
-            
+
             // CRITICAL: Skip non-pickable layers
             const isPickable = (layer.props as any).pickable !== false;
             if (!isPickable) {
                 console.log(`⏭️ Skipping non-pickable layer: ${layerId}`);
                 continue;
             }
-            
+
             const layerData = (layer.props as any).data;
-            
+
             console.log(`Checking layer ${layerId} (${layerType}) for selection`);
-            
+
             // For MVT layers, check if this layer has the MVT-specific properties
             // After minification, constructor names change, so check for layer characteristics
-            const isMVTLayer = layerType.includes('MVT') || 
-                               layerId.includes('mvt') || 
-                               (typeof (layer as any).getSubLayers === 'function' && 
-                                typeof layerData === 'string' && 
-                                (layerData.includes('.pbf') || layerData.includes('mvt')));
-            
+            const isMVTLayer = layerType.includes('MVT') ||
+                layerId.includes('mvt') ||
+                (typeof (layer as any).getSubLayers === 'function' &&
+                    typeof layerData === 'string' &&
+                    (layerData.includes('.pbf') || layerData.includes('mvt')));
+
             if (isMVTLayer) {
                 console.log(`Detected MVT layer: ${layerId}`);
                 this.selectMVTFeaturesInPolygon(layer, polygon, bbox, selectedFeatures);
                 continue;
             }
-            
+
             if (!layerData) {
                 console.log(`No layer data for ${layerId}`);
                 continue;
             }
-            
+
             this.processLayerData(layerData, layer.id, polygon, selectedFeatures);
         }
-        
+
         console.log(`Selected ${selectedFeatures.length} features within polygon`);
         return selectedFeatures;
     }
-    
+
     /**
      * Get bounding box for a polygon
      */
     private getBoundingBox(polygon: [number, number][]): { minX: number, minY: number, maxX: number, maxY: number } {
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-        
+
         for (const [x, y] of polygon) {
             minX = Math.min(minX, x);
             minY = Math.min(minY, y);
             maxX = Math.max(maxX, x);
             maxY = Math.max(maxY, y);
         }
-        
+
         return { minX, minY, maxX, maxY };
     }
-    
+
     /**
      * Select MVT features within polygon using deck.gl's picking system
      * Uses pickObjects which properly returns features with properties (unlike manual sublayer access)
      */
     private selectMVTFeaturesInPolygon(layer: any, polygon: [number, number][], bbox: any, selectedFeatures: any[]): void {
         if (!this.deck) return;
-        
+
         console.log(`MVT layer ${layer.id}: using pickObjects for proper feature properties...`);
-        
+
         // Use deck.gl's pickObjects to sample points within the polygon
         // This ensures we get features with properties properly parsed
         const samplingDensity = 20; // Sample every 20 pixels
         const pickedObjects: any[] = [];
-        
+
         // Convert polygon to screen coordinates and sample within the bounding box
         const viewport = this.deck.getViewports()[0];
         if (!viewport) {
             console.log(`  ❌ No viewport found`);
             return;
         }
-        
+
         // Project polygon points to screen space to get bounding box
         const screenPoints = polygon.map(([lng, lat]) => viewport.project([lng, lat]));
         const screenBBox = {
@@ -2922,39 +3133,39 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             minY: Math.min(...screenPoints.map(p => p[1])),
             maxY: Math.max(...screenPoints.map(p => p[1]))
         };
-        
+
         console.log(`  Sampling area: ${Math.round(screenBBox.maxX - screenBBox.minX)}x${Math.round(screenBBox.maxY - screenBBox.minY)} pixels`);
-        
+
         // Sample points within the screen bounding box
         const pickedFeatures = new Set<string>();
         let sampleCount = 0;
-        
+
         for (let x = screenBBox.minX; x <= screenBBox.maxX; x += samplingDensity) {
             for (let y = screenBBox.minY; y <= screenBBox.maxY; y += samplingDensity) {
                 sampleCount++;
-                
+
                 // Use pickObject to get feature at this point
                 const picked = this.deck.pickObject({
                     x,
                     y,
                     layerIds: [layer.id]
                 });
-                
+
                 if (picked && picked.object && picked.layer && picked.layer.id === layer.id) {
                     const feature = picked.object;
                     const featureId = this.getFeatureId(feature, layer.id);
-                    
+
                     // Deduplicate by feature ID
                     if (featureId && !pickedFeatures.has(featureId)) {
                         // Get world coordinates of the picked point to verify it's in polygon
                         const worldCoords = viewport.unproject([x, y]);
                         if (this.pointInPolygon([worldCoords[0], worldCoords[1]], polygon)) {
                             pickedFeatures.add(featureId);
-                            
+
                             if (DEBUG_LOGGING) {
                                 console.log(`    Picked feature ${featureId} with ${feature.properties ? Object.keys(feature.properties).length : 0} properties`);
                             }
-                            
+
                             selectedFeatures.push({
                                 layerId: layer.id,
                                 feature: feature
@@ -2964,34 +3175,34 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                 }
             }
         }
-        
+
         console.log(`  Sampled ${sampleCount} points, found ${pickedFeatures.size} unique features`);
     }
-    
+
     /**
      * Check if an MVT feature (with tile-local coordinates) falls within a polygon (world coordinates)
      */
     private isFeatureInPolygonMVT(feature: any, polygon: [number, number][], tileBBox: any): boolean {
         if (!feature.geometry) return false;
-        
+
         const geom = feature.geometry;
-        
+
         // For polygon features, we need to check:
         // 1. If the centroid is inside the selection polygon
         // 2. If any point of the selection polygon is inside the feature polygon (reverse check)
         // 3. If any edges intersect
         if (geom.type === 'Polygon' && geom.coordinates[0]) {
             // Convert feature polygon coordinates to world space
-            const worldPolygon: [number, number][] = geom.coordinates[0].map((coord: [number, number]) => 
+            const worldPolygon: [number, number][] = geom.coordinates[0].map((coord: [number, number]) =>
                 this.tileToWorld(coord, tileBBox)
             );
-            
+
             // Check 1: Is the feature's centroid inside the selection polygon?
             const centroid = this.calculateCentroid(worldPolygon);
             if (this.pointInPolygon(centroid, polygon)) {
                 return true;
             }
-            
+
             // Check 2: Is any point of the selection polygon inside the feature?
             // This handles cases where the selection is drawn inside a large feature
             for (const point of polygon) {
@@ -2999,42 +3210,42 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     return true;
                 }
             }
-            
+
             // Check 3: Do any edges intersect?
             // This handles cases where polygons overlap but no vertices are inside
             if (this.polygonsIntersect(polygon, worldPolygon)) {
                 return true;
             }
-            
+
             return false;
         }
         else if (geom.type === 'MultiPolygon' && geom.coordinates[0]?.[0]) {
             // For MultiPolygon, check the first polygon (simplified approach)
-            const worldPolygon: [number, number][] = geom.coordinates[0][0].map((coord: [number, number]) => 
+            const worldPolygon: [number, number][] = geom.coordinates[0][0].map((coord: [number, number]) =>
                 this.tileToWorld(coord, tileBBox)
             );
-            
+
             const centroid = this.calculateCentroid(worldPolygon);
             if (this.pointInPolygon(centroid, polygon)) {
                 return true;
             }
-            
+
             for (const point of polygon) {
                 if (this.pointInPolygon(point, worldPolygon)) {
                     return true;
                 }
             }
-            
+
             if (this.polygonsIntersect(polygon, worldPolygon)) {
                 return true;
             }
-            
+
             return false;
         }
-        
+
         // For other geometry types (Point, LineString, etc.), use single point check
         let tileLocalCoords: [number, number] | null = null;
-        
+
         if (geom.type === 'Point') {
             tileLocalCoords = geom.coordinates as [number, number];
         }
@@ -3044,13 +3255,13 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         else if (geom.type === 'MultiLineString' && geom.coordinates[0]?.[0]) {
             tileLocalCoords = geom.coordinates[0][0] as [number, number];
         }
-        
+
         if (!tileLocalCoords) return false;
-        
+
         const worldCoords = this.tileToWorld(tileLocalCoords, tileBBox);
         return this.pointInPolygon(worldCoords, polygon);
     }
-    
+
     /**
      * Convert tile-local coordinates to world lon/lat coordinates
      * Note: deck.gl's MVT layer provides coordinates already normalized to 0-1 range,
@@ -3064,17 +3275,17 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      */
     private tileToWorld(tileCoords: [number, number], tileBBox: any): [number, number] {
         const [normalizedX, normalizedY] = tileCoords;
-        
+
         // Flip Y coordinate: MVT tiles have origin at top-left, but lat increases upward
         const flippedY = 1.0 - normalizedY;
-        
+
         // Coordinates are already normalized (0-1), so directly interpolate to world space
         const lon = tileBBox.west + normalizedX * (tileBBox.east - tileBBox.west);
         const lat = tileBBox.south + flippedY * (tileBBox.north - tileBBox.south);
-        
+
         return [lon, lat];
     }
-    
+
     /**
      * Process layer data to find features within polygon
      */
@@ -3107,58 +3318,58 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             console.log('Binary data format detected - selection may be limited');
         }
     }
-    
+
     /**
      * Check if a feature or object falls within the polygon
      */
     private isFeatureInPolygon(feature: any, polygon: [number, number][]): boolean {
         // Extract coordinates based on feature type
         let coordinates: [number, number] | null = null;
-        
+
         // GeoJSON feature (including MVT features rendered as GeoJSON)
         if (feature.geometry) {
             // For Polygon features, do a proper polygon-in-polygon check
             if (feature.geometry.type === 'Polygon' && feature.geometry.coordinates[0]) {
                 const featurePolygon = feature.geometry.coordinates[0] as [number, number][];
-                
+
                 // Check 1: Is the feature's centroid inside the selection polygon?
                 const centroid = this.calculateCentroid(featurePolygon);
                 if (this.pointInPolygon(centroid, polygon)) {
                     return true;
                 }
-                
+
                 // Check 2: Is any point of the selection polygon inside the feature?
                 for (const point of polygon) {
                     if (this.pointInPolygon(point, featurePolygon)) {
                         return true;
                     }
                 }
-                
+
                 // Check 3: Do any edges intersect?
                 if (this.polygonsIntersect(polygon, featurePolygon)) {
                     return true;
                 }
-                
+
                 return false;
             }
             else if (feature.geometry.type === 'MultiPolygon' && feature.geometry.coordinates[0]?.[0]) {
                 const featurePolygon = feature.geometry.coordinates[0][0] as [number, number][];
-                
+
                 const centroid = this.calculateCentroid(featurePolygon);
                 if (this.pointInPolygon(centroid, polygon)) {
                     return true;
                 }
-                
+
                 for (const point of polygon) {
                     if (this.pointInPolygon(point, featurePolygon)) {
                         return true;
                     }
                 }
-                
+
                 if (this.polygonsIntersect(polygon, featurePolygon)) {
                     return true;
                 }
-                
+
                 return false;
             }
             else if (feature.geometry.type === 'Point') {
@@ -3181,15 +3392,15 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         else if (Array.isArray(feature) && feature.length >= 2) {
             coordinates = [feature[0], feature[1]];
         }
-        
+
         if (!coordinates) {
             console.warn('Could not extract coordinates from feature:', feature);
             return false;
         }
-        
+
         return this.pointInPolygon(coordinates, polygon);
     }
-    
+
     /**
      * Check if two polygons intersect by testing if any of their edges cross
      */
@@ -3198,71 +3409,71 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         for (let i = 0; i < polygon1.length; i++) {
             const p1 = polygon1[i];
             const p2 = polygon1[(i + 1) % polygon1.length];
-            
+
             for (let j = 0; j < polygon2.length; j++) {
                 const p3 = polygon2[j];
                 const p4 = polygon2[(j + 1) % polygon2.length];
-                
+
                 if (this.lineSegmentsIntersect(p1, p2, p3, p4)) {
                     return true;
                 }
             }
         }
-        
+
         return false;
     }
-    
+
     /**
      * Check if two line segments intersect
      * Uses the orientation method to detect intersection
      */
     private lineSegmentsIntersect(
-        p1: [number, number], 
-        p2: [number, number], 
-        p3: [number, number], 
+        p1: [number, number],
+        p2: [number, number],
+        p3: [number, number],
         p4: [number, number]
     ): boolean {
         const [x1, y1] = p1;
         const [x2, y2] = p2;
         const [x3, y3] = p3;
         const [x4, y4] = p4;
-        
+
         // Calculate the direction of the cross products
         const d1 = this.crossProduct(x3 - x1, y3 - y1, x2 - x1, y2 - y1);
         const d2 = this.crossProduct(x4 - x1, y4 - y1, x2 - x1, y2 - y1);
         const d3 = this.crossProduct(x1 - x3, y1 - y3, x4 - x3, y4 - y3);
         const d4 = this.crossProduct(x2 - x3, y2 - y3, x4 - x3, y4 - y3);
-        
+
         // If the cross products have opposite signs, the segments intersect
         if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
             ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0))) {
             return true;
         }
-        
+
         // Check for collinear cases (edges overlap)
         if (d1 === 0 && this.pointOnSegment(p1, p2, p3)) return true;
         if (d2 === 0 && this.pointOnSegment(p1, p2, p4)) return true;
         if (d3 === 0 && this.pointOnSegment(p3, p4, p1)) return true;
         if (d4 === 0 && this.pointOnSegment(p3, p4, p2)) return true;
-        
+
         return false;
     }
-    
+
     /**
      * Calculate 2D cross product (z-component)
      */
     private crossProduct(ux: number, uy: number, vx: number, vy: number): number {
         return ux * vy - uy * vx;
     }
-    
+
     /**
      * Check if point q lies on line segment pr (assuming q is collinear with pr)
      */
     private pointOnSegment(p: [number, number], r: [number, number], q: [number, number]): boolean {
         return q[0] <= Math.max(p[0], r[0]) && q[0] >= Math.min(p[0], r[0]) &&
-               q[1] <= Math.max(p[1], r[1]) && q[1] >= Math.min(p[1], r[1]);
+            q[1] <= Math.max(p[1], r[1]) && q[1] >= Math.min(p[1], r[1]);
     }
-    
+
     /**
      * Point-in-polygon algorithm using ray casting
      * Returns true if point [lng, lat] is inside the polygon
@@ -3270,51 +3481,51 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     private pointInPolygon(point: [number, number], polygon: [number, number][]): boolean {
         const [x, y] = point;
         let inside = false;
-        
+
         for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
             const [xi, yi] = polygon[i];
             const [xj, yj] = polygon[j];
-            
+
             const intersect = ((yi > y) !== (yj > y))
                 && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
-            
+
             if (intersect) inside = !inside;
         }
-        
+
         return inside;
     }
-    
+
     /**
      * Calculate centroid of a polygon
      */
     private calculateCentroid(coordinates: [number, number][]): [number, number] {
         let totalX = 0;
         let totalY = 0;
-        
+
         for (const [x, y] of coordinates) {
             totalX += x;
             totalY += y;
         }
-        
+
         return [totalX / coordinates.length, totalY / coordinates.length];
     }
-    
+
     private refreshLayers(): void {
         if (!this.deck) return;
-        
+
         // Use selection-aware refresh if there are selected features
         if (this.selectedFeatureIds.size > 0) {
             this.refreshLayersWithSelection();
             return;
         }
-        
+
         const allLayers = [...this.currentLayers];
         if (this.editableLayer) {
             allLayers.push(this.editableLayer as any);
         }
-        
+
         this.deck.setProps({ layers: allLayers });
-        
+
         // Ensure cursor is correct after layer refresh
         setTimeout(() => this.updateCursor(), 50);
     }
@@ -3325,10 +3536,10 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      */
     public setMapMode(mode: string): void {
         console.log(`Setting map mode to: ${mode}`);
-        
+
         const previousMode = this.currentMapMode;
         this.currentMapMode = mode;
-        
+
         // Handle mode transitions
         if (mode === 'SelectByPolygon') {
             // Enable polygon drawing mode
@@ -3337,12 +3548,12 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             // Disable polygon drawing mode if we're leaving it
             this.setDrawingMode(false);
         }
-        
+
         // Clear selection when changing modes
         if (mode !== previousMode) {
             this.clearSelection();
         }
-        
+
         // Update cursor
         this.updateCursor();
     }
@@ -3352,30 +3563,30 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      */
     private async handleSingleFeatureSelection(info: any): Promise<void> {
         if (!info.object || !info.layer) return;
-        
+
         const layerId = info.layer.id;
         const feature = info.object;
-        
+
         // Get feature ID
         const featureId = this.getFeatureId(feature, layerId);
-        
+
         console.log(`🖱️ Feature clicked in SelectFeature mode:`, {
             layerId,
             featureId,
             feature
         });
-        
+
         // Check if this is the currently selected feature
         const isAlreadySelected = featureId && this.selectedFeatureIds.has(featureId);
-        
+
         // Clear previous selection
         this.selectedFeatureIds.clear();
-        
+
         if (!isAlreadySelected && featureId) {
             // Select the new feature
             this.selectedFeatureIds.add(featureId);
             console.log(`✅ Feature selected: ${featureId}`);
-            
+
             // Notify .NET with a FeatureSelectionResult containing the single feature
             if (this.dotNetHelper) {
                 const sanitizedFeature = this.sanitizeFeature(feature);
@@ -3387,9 +3598,9 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     }],
                     featureCount: 1
                 };
-                
+
                 console.log(`📤 Calling .NET OnFeaturesSelected with 1 feature`);
-                
+
                 try {
                     await this.dotNetHelper.invokeMethodAsync('OnFeaturesSelected', result);
                     console.log(`✅ .NET OnFeaturesSelected callback succeeded`);
@@ -3399,7 +3610,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
             }
         } else {
             console.log(`❌ Feature deselected`);
-            
+
             // Notify .NET with an empty selection result
             if (this.dotNetHelper) {
                 const result = {
@@ -3407,7 +3618,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                     features: [],
                     featureCount: 0
                 };
-                
+
                 try {
                     await this.dotNetHelper.invokeMethodAsync('OnFeaturesSelected', result);
                 } catch (error) {
@@ -3415,7 +3626,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
                 }
             }
         }
-        
+
         // Refresh layers to show selection
         this.refreshLayersWithSelection();
     }

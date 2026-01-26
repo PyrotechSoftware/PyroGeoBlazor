@@ -15,7 +15,9 @@
         }
         @if (ShowStatusBar)
         {
-            <MapStatusBar CurrentViewState="CurrentViewState" />
+            <MapStatusBar CurrentViewState="CurrentViewState" 
+                         IsLoading="IsLoading" 
+                         OnRefreshClicked="HandleRefreshClicked" />
         }
     </div>
 </CascadingValue>

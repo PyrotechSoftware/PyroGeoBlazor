@@ -165,6 +165,16 @@ public abstract class LayerConfig
     /// </summary>
     [JsonPropertyName("enableViewportCulling")]
     public bool EnableViewportCulling { get; set; } = false;
+
+    /// <summary>
+    /// Debounce timeout in milliseconds for tile loading indicators (for MVT/Tile layers).
+    /// After the last tile completes loading, the loading indicator will wait this long before disappearing.
+    /// This prevents flickering when tiles load in quick succession.
+    /// Larger layers with more tiles may need a longer timeout (e.g., 2000ms).
+    /// Defaults to 1000ms (1 second).
+    /// </summary>
+    [JsonPropertyName("tileLoadingDebounceMs")]
+    public int TileLoadingDebounceMs { get; set; } = 1000;
 }
 
 /// <summary>

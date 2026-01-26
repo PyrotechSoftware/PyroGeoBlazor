@@ -55,7 +55,6 @@
                                       LineColor="@(new[] { 80, 80, 80, 255 })"
                                       UniqueIdProperty="id"
                                       DisplayProperty="id"
-                                      Visible="true"
                                       IsEditable="true"
                                       TooltipConfig="@TooltipConfig.ForProperties("valuePerSqm")"
                                       EditableFields="@([
@@ -131,7 +130,7 @@
                                   Workspace="PlannerSpatial"
                                   LayerName="vwParcelsLayer"
                                   Pickable="true"
-                                  Visible="false"
+                                  Visible="true"
                                   UniqueIdProperty="GeoPropertyID"
                                   FeatureStyle="@(new()
                                   {
@@ -149,26 +148,27 @@
                                       LineColor = "#FF8C00",
                                       Opacity = 1.0
                                   })"
+                                  TileLoadingDebounceMs="3000"
                                   TooltipConfig="@TooltipConfig.ForProperties("CustomIdentifier", "GeoPropertyID")"
                                   DisplayProperty="CustomIdentifier"
                                   EditableFields="@([
-                                                                                          new AttributeFieldConfig
-                                                                                          {
-                                                                                              FieldName = "CustomIdentifier",
-                                                                                              DisplayName = "Custom Identifier",
-                                                                                              DataType = AttributeDataType.String,
-                                                                                              IsReadOnly = true,
-                                                                                              Order = 2
-                                                                                          },
-                                                                                          new AttributeFieldConfig
-                                                                                          {
-                                                                                              FieldName = "GeoPropertyID",
-                                                                                              DisplayName = "GeoProperty ID",
-                                                                                              DataType = AttributeDataType.Integer,
-                                                                                              IsReadOnly = true,
-                                                                                              Order = 1
-                                                                                          }
-                                                                                      ])"
+                                                        new AttributeFieldConfig
+                                                        {
+                                                            FieldName = "CustomIdentifier",
+                                                            DisplayName = "Custom Identifier",
+                                                            DataType = AttributeDataType.String,
+                                                            IsReadOnly = true,
+                                                            Order = 2
+                                                        },
+                                                        new AttributeFieldConfig
+                                                        {
+                                                            FieldName = "GeoPropertyID",
+                                                            DisplayName = "GeoProperty ID",
+                                                            DataType = AttributeDataType.Integer,
+                                                            IsReadOnly = true,
+                                                            Order = 1
+                                                        }
+                                                    ])"
                                   ExcludedProperties="@(["id", "InspectionProjectID", "InspectionStateCode", "layerName", "LocationLatitude", "LocationLongitude", "LPI", "Source", "Unit"])" />
                     </LayersContent>
                 </DeckGLView>
@@ -202,17 +202,17 @@
 
     private ViewState initialViewState = new()
     {
-        Longitude = -123.13,  // Vancouver coordinates
-        Latitude = 49.28,
-        Zoom = 11,
+        Longitude = 32.71773,  // Vancouver coordinates
+        Latitude = -25.95087,
+        Zoom = 10.83,
         Pitch = 0,
         Bearing = 0
     };
 
     private ViewState viewState = new()
     {
-        Longitude = -123.13,
-        Latitude = 49.28,
+        Longitude = 32.71,
+        Latitude = -25.95,
         Zoom = 11
     };
 
@@ -223,14 +223,7 @@
 
     private async Task OnDeckInitialized()
     {
-        Console.WriteLine("🎉 Deck.gl initialized! Adding layers...");
-
-        // Update layers in the DeckGLView
-        if (deckGLView != null)
-        {
-            await deckGLView.UpdateLayers();
-            await deckGLView.ZoomToLayer("Townships", 0);
-        }
+        Console.WriteLine("🎉 Deck.gl initialized!");
 
         StateHasChanged();
     }

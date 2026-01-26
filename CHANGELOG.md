@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Cached bounds expand cumulatively as you explore different areas
   - "Zoom to Layer" now works even when you've panned away from viewport-culled layers
 - Comprehensive logging for bounds calculation and zoom operations (temporary, for debugging)
+- Layer click to select all features in `FeatureSelectionControl`
+  - Clicking a layer header now selects all features in that layer
+  - Uses multi-selection system with visual feedback (background highlight and checkmark icons)
+  - Provides quick way to batch-select features for editing
 
 ### Changed
 - **BREAKING**: Changed default padding from 50 pixels to 0 pixels for zoom methods (`ZoomToLayer`, `ZoomToFeature`, `ZoomToSelectedFeatures`)
@@ -33,16 +37,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Invisible layers no longer fetch data when zooming or panning
   - Added visibility checks in `layerNeedsUpdate` and `createLayer` methods
   - Saves bandwidth and reduces unnecessary server load
+- `FeatureSelectionControl` UI improvements
+  - Removed collapsible/expandable layer structure (all features now always visible)
+  - Features render as flat list with left indentation for better visibility
+  - Layer headers are now clickable for selecting all features
+- Multi-selection in `FeatureSelectionControl` now restricted to single layer
+  - Attempting to Ctrl+click a feature from a different layer clears previous selection and starts new selection in the new layer
+  - Prevents mixing features with different schemas in batch editing operations
+  - Provides clear console feedback when this occurs
 
 ### Fixed
 - Fixed MVTLoader deprecation warning by using `loadOptions.mvt.shape` instead of deprecated `options.gis`
 - Fixed bug where invisible layers would still fetch data on viewport changes
 - Fixed excessive padding when zooming to layer bounds
 - Set Parcels layer to `Visible="false"` by default in demo for testing
+- Fixed multi-select attribute editing issues in `FeatureAttributesControl`
+  - Fields missing from some features are now displayed (treated as null values)
+  - All unique fields across all selected features are now shown in the attribute table
+  - Fields with different values now show "(Different values)" text initially
+  - Click on "(Different values)" field to enter edit mode and change value for all selected features
+- Fixed unselect feature issues in `FeatureSelectionControl`
+  - Single feature unselect now correctly removes only that feature (not all features in layer)
+  - Layer clear selection now properly clears only features from that layer
+  - MVT layer clear selection now correctly updates map visual highlighting
+  - JavaScript now stores full feature data with layer associations to support MVT layers
+  - C# state reconciliation ensures UI and map stay in sync after unselect operations
+- Fixed CSS024 validation warning in `FeatureSelectionControl`
+  - Moved inline conditional style logic to helper method `GetFeatureStyle()`
+  - Ensures valid CSS is always generated (no empty strings or trailing semicolons)
 
 ### Updated
 - ParcelsController, TownshipsController, and TownshipExtensionsController to handle viewport padding server-side
 - `buildViewportUrl` in TypeScript to send exact viewport bounds without client-side padding multiplication
+- `FeatureSelectionControl` test selectors to find feature items specifically (with `padding-left: 32px`) instead of any clickable element
+- TypeScript selection tracking in `deckGLView.ts` to store full feature data with layer associations
+  - Added `selectedFeaturesData` Map to track features with their layer IDs
+  - Modified `unselectFeature()` and `clearLayerSelection()` to use stored data
+  - Created `getSelectedFeaturesFromData()` method for universal layer type support
 
 ## [1.0.2] - 2026-01-20
 

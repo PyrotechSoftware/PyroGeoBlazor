@@ -142,6 +142,7 @@ export class DeckGLView {
 
     // Selection state
     private selectedFeatureIds: Set<string> = new Set();
+    private selectedFeaturesData: Map<string, { layerId: string, feature: any }> = new Map(); // Track full feature data with layer
     private globalSelectionStyle: FeatureStyleConfig = {
         fillColor: '#4169E1',
         fillOpacity: 0.6,
@@ -1347,6 +1348,7 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      */
     public clearSelection(): void {
         this.selectedFeatureIds.clear();
+        this.selectedFeaturesData.clear();
         console.log('Selection cleared');
         this.refreshLayersWithSelection();
     }
@@ -2579,11 +2581,12 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         
         if (this.selectedFeatureIds.has(featureId)) {
             this.selectedFeatureIds.delete(featureId);
+            this.selectedFeaturesData.delete(featureId); // Also remove from data map
             console.log(`✅ Unselected feature: ${featureId}`);
             
-            // Notify .NET of updated selection
+            // Notify .NET of updated selection - use stored data
             if (this.dotNetHelper) {
-                const selectedFeatures = this.getSelectedFeaturesFromIds();
+                const selectedFeatures = this.getSelectedFeaturesFromData();
                 this.dotNetHelper.invokeMethodAsync('OnFeaturesSelected', {
                     polygon: [],
                     features: selectedFeatures,
@@ -2601,40 +2604,28 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
      * Clear selection for all features in a specific layer
      */
     public clearLayerSelection(layerId: string): void {
-        // Find all selected feature IDs that belong to this layer
+        console.log(`🧹 Clearing selection for layer: ${layerId}`);
+        
+        // Find all selected feature IDs that belong to this layer using stored data
         const featuresToRemove: string[] = [];
         
-        // We need to check each selected feature to see if it belongs to this layer
-        // This requires searching through the layer's data
-        const layer = this.currentLayers.find(l => l.id === layerId);
-        if (layer) {
-            const layerData = (layer.props as any).data;
-            let features: any[] = [];
-
-            if (layerData?.type === 'FeatureCollection' && layerData.features) {
-                features = layerData.features;
-            } else if (Array.isArray(layerData)) {
-                features = layerData;
-            }
-
-            for (const feature of features) {
-                const featureId = this.getFeatureId(feature, layerId);
-                if (featureId && this.selectedFeatureIds.has(featureId)) {
-                    featuresToRemove.push(featureId);
-                }
+        for (const [featureId, data] of this.selectedFeaturesData.entries()) {
+            if (data.layerId === layerId) {
+                featuresToRemove.push(featureId);
             }
         }
 
         // Remove all features from this layer
         for (const featureId of featuresToRemove) {
             this.selectedFeatureIds.delete(featureId);
+            this.selectedFeaturesData.delete(featureId);
         }
 
-        console.log(`Cleared selection for ${featuresToRemove.length} features in layer ${layerId}`);
+        console.log(`✅ Cleared selection for ${featuresToRemove.length} features in layer ${layerId}`);
 
-        // Notify .NET of updated selection
+        // Notify .NET of updated selection - use stored data
         if (this.dotNetHelper) {
-            const selectedFeatures = this.getSelectedFeaturesFromIds();
+            const selectedFeatures = this.getSelectedFeaturesFromData();
             this.dotNetHelper.invokeMethodAsync('OnFeaturesSelected', {
                 polygon: [],
                 features: selectedFeatures,
@@ -2646,7 +2637,23 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
     }
 
     /**
-     * Get selected features with their layer and feature data
+     * Get selected features from stored data (works for all layer types including MVT)
+     */
+    private getSelectedFeaturesFromData(): any[] {
+        const selectedFeatures: any[] = [];
+        
+        for (const [featureId, data] of this.selectedFeaturesData.entries()) {
+            selectedFeatures.push({
+                layerId: data.layerId,
+                feature: this.sanitizeFeature(data.feature)
+            });
+        }
+        
+        return selectedFeatures;
+    }
+
+    /**
+     * Get selected features with their layer and feature data (legacy method, falls back to stored data)
      */
     private getSelectedFeaturesFromIds(): any[] {
         const selectedFeatures: any[] = [];
@@ -2689,10 +2696,21 @@ private initializeDeck(containerElement: HTMLElement, rect: DOMRect, config: Dec
         
         console.log(`✅ After deduplication: ${uniqueFeatures.length} unique features`);
         
-        // Extract unique feature IDs only once
+        // Extract unique feature IDs and store full feature data
         const uniqueFeatureIds = uniqueFeatures
             .map(sf => this.getFeatureId(sf.feature, sf.layerId))
             .filter(id => id !== null) as string[];
+        
+        // Store full feature data for each selected feature
+        uniqueFeatures.forEach(sf => {
+            const featureId = this.getFeatureId(sf.feature, sf.layerId);
+            if (featureId) {
+                this.selectedFeaturesData.set(featureId, {
+                    layerId: sf.layerId,
+                    feature: sf.feature
+                });
+            }
+        });
         
         console.log(`📊 Applying selection styling to ${uniqueFeatureIds.length} unique feature IDs`);
         

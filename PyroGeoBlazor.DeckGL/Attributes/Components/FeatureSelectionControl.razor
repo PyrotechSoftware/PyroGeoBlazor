@@ -17,80 +17,84 @@
             <MudList T="string" Dense>
                 @foreach (var layerGroup in GetGroupedFeatures())
                 {
-                    <MudListItem T="string" Expanded>
-                        <ChildContent>
-                            <div @oncontextmenu="@(e => OpenLayerContextMenu(e, layerGroup.LayerId))"
+                    @* Layer header - clickable to select all features *@
+                    <MudListItem T="string" @onclick="@(() => OnLayerClick(layerGroup.LayerId))">
+                        <div @oncontextmenu="@(e => OpenLayerContextMenu(e, layerGroup.LayerId))"
+                             @oncontextmenu:preventDefault="true"
+                             style="cursor: pointer; padding: 8px 0;">
+                            <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                <MudText Typo="Typo.subtitle2">
+                                    <strong>@layerGroup.LayerId</strong> (@layerGroup.Features.Count)
+                                </MudText>
+                            </MudStack>
+                        </div>
+                        
+                        <MudPopover Open="@(currentLayerContextMenu == layerGroup.LayerId)" 
+                                    Fixed="true" 
+                                    AnchorOrigin="Origin.TopLeft"
+                                    TransformOrigin="Origin.TopLeft"
+                                    Style="@GetPopoverStyle()">
+                            <MudList Dense="true" Style="min-width: 150px;">
+                                <MudListItem OnClick="@(async () => { await OnLayerZoomTo(layerGroup.LayerId); CloseContextMenu(); })" 
+                                             Icon="@Icons.Material.Filled.ZoomIn">
+                                    Zoom to Layer
+                                </MudListItem>
+                                <MudListItem OnClick="@(async () => { await OnLayerClearSelection(layerGroup.LayerId); CloseContextMenu(); })" 
+                                             Icon="@Icons.Material.Filled.Clear">
+                                    Clear Selection
+                                </MudListItem>
+                            </MudList>
+                        </MudPopover>
+                    </MudListItem>
+                    
+                    @* Feature items - always visible (no nested list) *@
+                    @foreach (var feature in layerGroup.Features)
+                    {
+                        <MudListItem T="string" Style="padding-left: 32px;">
+                            <div @oncontextmenu="@(e => OpenFeatureContextMenu(e, feature, layerGroup.LayerId))"
                                  @oncontextmenu:preventDefault="true"
-                                 style="cursor: context-menu;">
+                                 @onclick="@(e => OnFeatureClickInternal(feature, e))"
+                                 style="@GetFeatureStyle(feature, layerGroup.LayerId)">
                                 <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
-                                    <MudText Typo="Typo.subtitle2">
-                                        <strong>@layerGroup.LayerId</strong> (@layerGroup.Features.Count)
+                                    <MudText Typo="Typo.body2" Style="flex: 1;">
+                                        @GetFeatureDisplayName(feature, layerGroup.LayerId)
                                     </MudText>
+                                    @if (IsFeatureMultiSelected(feature, layerGroup.LayerId))
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" Color="Color.Primary" />
+                                    }
                                 </MudStack>
                             </div>
                             
-                            <MudPopover Open="@(currentLayerContextMenu == layerGroup.LayerId)" 
-                                        Fixed="true" 
+                            <MudPopover Open="@IsFeatureContextMenuOpen(feature, layerGroup.LayerId)" 
+                                        Fixed="true"
                                         AnchorOrigin="Origin.TopLeft"
                                         TransformOrigin="Origin.TopLeft"
                                         Style="@GetPopoverStyle()">
                                 <MudList Dense="true" Style="min-width: 150px;">
-                                    <MudListItem OnClick="@(async () => { await OnLayerZoomTo(layerGroup.LayerId); CloseContextMenu(); })" 
-                                                 Icon="@Icons.Material.Filled.ZoomIn">
-                                        Zoom to Layer
+                                    <MudListItem OnClick="@(async () => { await OnFeatureFlash(feature, layerGroup.LayerId); CloseContextMenu(); })" 
+                                                 Icon="@Icons.Material.Filled.FlashOn">
+                                        Flash
                                     </MudListItem>
-                                    <MudListItem OnClick="@(async () => { await OnLayerClearSelection(layerGroup.LayerId); CloseContextMenu(); })" 
-                                                 Icon="@Icons.Material.Filled.Clear">
-                                        Clear Selection
+                                    <MudListItem OnClick="@(async () => { await OnFeatureZoomTo(feature, layerGroup.LayerId); CloseContextMenu(); })" 
+                                                 Icon="@Icons.Material.Filled.ZoomIn">
+                                        Zoom to
+                                    </MudListItem>
+                                    <MudListItem OnClick="@(async () => { await OnFeatureUnselect(feature, layerGroup.LayerId); CloseContextMenu(); })" 
+                                                 Icon="@Icons.Material.Filled.RemoveCircleOutline">
+                                        Unselect
                                     </MudListItem>
                                 </MudList>
                             </MudPopover>
-                        </ChildContent>
-                        <NestedList>
-                            @foreach (var feature in layerGroup.Features)
-                            {
-                                <MudListItem T="string">
-                                    <div @oncontextmenu="@(e => OpenFeatureContextMenu(e, feature, layerGroup.LayerId))"
-                                         @oncontextmenu:preventDefault="true"
-                                         @onclick="@(() => OnFeatureClickInternal(feature))"
-                                         style="cursor: pointer;">
-                                        <MudStack Row AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
-                                            <MudText Typo="Typo.body2" Style="flex: 1;">
-                                                @GetFeatureDisplayName(feature, layerGroup.LayerId)
-                                            </MudText>
-                                        </MudStack>
-                                    </div>
-                                    
-                                    <MudPopover Open="@IsFeatureContextMenuOpen(feature, layerGroup.LayerId)" 
-                                                Fixed="true"
-                                                AnchorOrigin="Origin.TopLeft"
-                                                TransformOrigin="Origin.TopLeft"
-                                                Style="@GetPopoverStyle()">
-                                        <MudList Dense="true" Style="min-width: 150px;">
-                                            <MudListItem OnClick="@(async () => { await OnFeatureFlash(feature, layerGroup.LayerId); CloseContextMenu(); })" 
-                                                         Icon="@Icons.Material.Filled.FlashOn">
-                                                Flash
-                                            </MudListItem>
-                                            <MudListItem OnClick="@(async () => { await OnFeatureZoomTo(feature, layerGroup.LayerId); CloseContextMenu(); })" 
-                                                         Icon="@Icons.Material.Filled.ZoomIn">
-                                                Zoom to
-                                            </MudListItem>
-                                            <MudListItem OnClick="@(async () => { await OnFeatureUnselect(feature, layerGroup.LayerId); CloseContextMenu(); })" 
-                                                         Icon="@Icons.Material.Filled.RemoveCircleOutline">
-                                                Unselect
-                                            </MudListItem>
-                                        </MudList>
-                                    </MudPopover>
-                                </MudListItem>
-                            }
-                        </NestedList>
-                    </MudListItem>
+                        </MudListItem>
+                    }
                 }
             </MudList>
         </div>
         
         <div style="flex: 1 1 50%; overflow-y: auto; overflow-x: hidden; min-height: 0; border-top: 1px solid var(--mud-palette-divider);">
             <FeatureAttributesControl SelectedFeature="@clickedFeature" 
+                                     SelectedFeatures="@_multiSelectedFeatureList"
                                      ExcludedProperties="@GetEffectiveExcludedProperties()"
                                      IsLocked="@IsClickedFeatureLocked()"
                                      EditableFieldsConfig="@GetEditableFieldsConfig()"

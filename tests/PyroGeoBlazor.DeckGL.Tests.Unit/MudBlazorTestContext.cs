@@ -23,6 +23,7 @@ public abstract class MudBlazorTestContext : BunitContext, IAsyncDisposable
         JSInterop.SetupVoid("mudPopover.connect", _ => true);
         JSInterop.SetupVoid("mudKeyInterceptor.connect", _ => true);
         JSInterop.SetupVoid("mudDragAndDrop.initDropZone", _ => true);
+        JSInterop.SetupVoid("mudElementRef.addOnBlurEvent", _ => true);
         JSInterop.Setup<int>("mudpopoverHelper.countProviders").SetResult(0);
     }
 

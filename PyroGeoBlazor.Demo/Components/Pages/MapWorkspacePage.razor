@@ -275,17 +275,8 @@
         StateHasChanged();
     }
 
-    private Task OnAttributesSaved((string LayerId, string FeatureId, AttributeEditContext EditContext) data)
+    private Task OnAttributesSaved(object data)
     {
-        Console.WriteLine($"💾 Saving attributes for feature {data.FeatureId} in layer {data.LayerId}");
-        Console.WriteLine($"   Modified fields: {string.Join(", ", data.EditContext.ModifiedFields)}");
-
-        foreach (var fieldName in data.EditContext.ModifiedFields)
-        {
-            var newValue = data.EditContext.GetCurrentValue(fieldName);
-            Console.WriteLine($"   - {fieldName}: {newValue}");
-        }
-
         // TODO: Implement actual save logic here
         // This would typically involve:
         // 1. Calling a backend API to persist the changes

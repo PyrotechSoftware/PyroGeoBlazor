@@ -213,6 +213,16 @@ public partial class DeckGLView
         {
             try
             {
+                // Debug: Log layer configs being sent
+                foreach (var layer in _layers)
+                {
+                    Console.WriteLine($"📤 Sending layer {layer.Id}: Visible={layer.Visible}, HasLabelConfig={layer.LabelConfig != null}");
+                    if (layer.LabelConfig != null)
+                    {
+                        Console.WriteLine($"   Label: Property={layer.LabelConfig.TextProperty}, Enabled={layer.LabelConfig.Enabled}, MinZoom={layer.LabelConfig.MinZoom}");
+                    }
+                }
+                
                 if (currentViewState != null)
                 {
                     await _deckGLViewRef.InvokeVoidAsync("updateLayers", _layers, currentViewState);
@@ -451,6 +461,13 @@ public partial class DeckGLView
     /// </summary>
     public async Task SetLayerVisibility(string layerId, bool visible)
     {
+        // Update the LayerConfig in the collection
+        var layer = _layers.FirstOrDefault(l => l.Id == layerId);
+        if (layer != null)
+        {
+            layer.Visible = visible;
+        }
+        
         if (_deckGLViewRef != null)
         {
             try

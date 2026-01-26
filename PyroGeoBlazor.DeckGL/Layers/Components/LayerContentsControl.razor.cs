@@ -169,9 +169,27 @@ public partial class LayerContentsControl
         Console.WriteLine($"Data Design clicked for layer: {layer.Id}");
     }
 
-    private void OnToggleLabel(LayerConfig layer)
+    private bool HasLabelSupport(LayerConfig layer)
     {
-        // TODO: Implement Label toggle functionality
-        Console.WriteLine($"Label toggle clicked for layer: {layer.Id}");
+        // Only layers with label configuration can toggle labels
+        return layer.LabelConfig != null && 
+               !string.IsNullOrEmpty(layer.LabelConfig.TextProperty);
+    }
+
+    private async Task OnToggleLabel(LayerConfig layer)
+    {
+        if (layer.LabelConfig == null || DeckGLView == null)
+        {
+            return;
+        }
+
+        // Toggle enabled state
+        layer.LabelConfig.Enabled = !layer.LabelConfig.Enabled;
+        
+        Console.WriteLine($"Labels {(layer.LabelConfig.Enabled ? "enabled" : "disabled")} for layer: {layer.Id}");
+        
+        // Refresh layers to apply the change
+        await DeckGLView.RefreshLayers();
+        StateHasChanged();
     }
 }

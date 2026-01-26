@@ -38,7 +38,7 @@
                             OnViewStateChanged="@OnViewStateChanged"
                             OnDeckInitialized="@OnDeckInitialized">
                     <LayersContent>
-                        <TileLayer Id="carto-basemap"
+                        @* <TileLayer Id="carto-basemap"
                                    TileUrl="https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
                                    Pickable="false"
                                    Visible="true" />
@@ -85,7 +85,7 @@
                                                                                                 Order = 3
                                                                                             }
                                                                                         ])"
-                                      ExcludedProperties="@(["growth"])" />
+                                      ExcludedProperties="@(["growth"])" /> *@
 
                         <GeoJsonLayer Id="Townships"
                                       DataUrl="api/townships"
@@ -96,6 +96,12 @@
                                       TooltipConfig="@TooltipConfig.ForProperties("townName")"
                                       UniqueIdProperty="geoTownshipId"
                                       DisplayProperty="townName"
+                                      LabelProperty="townName"
+                                      LabelsEnabled="true"
+                                      LabelMinZoom="0"
+                                      LabelFontSize="8"
+                                      LabelTextColor="#000000"
+                                      LabelBackgroundColor="#ffffff"
                                       IsEditable="false"
                                       FeatureStyle="@(new()
                                       {
@@ -106,7 +112,7 @@
                                           LineWidth = 1,
                                       })" />
 
-                        <GeoJsonLayer Id="Extensions"
+                       @*  <GeoJsonLayer Id="Extensions"
                                       DataUrl="api/townshipextensions"
                                       Pickable="true"
                                       Extruded="false"
@@ -169,7 +175,7 @@
                                                             Order = 1
                                                         }
                                                     ])"
-                                  ExcludedProperties="@(["id", "InspectionProjectID", "InspectionStateCode", "layerName", "LocationLatitude", "LocationLongitude", "LPI", "Source", "Unit"])" />
+                                  ExcludedProperties="@(["id", "InspectionProjectID", "InspectionStateCode", "layerName", "LocationLatitude", "LocationLongitude", "LPI", "Source", "Unit"])" /> *@
                     </LayersContent>
                 </DeckGLView>
             </MudExDockItem>

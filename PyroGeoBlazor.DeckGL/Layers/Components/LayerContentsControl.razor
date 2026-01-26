@@ -38,10 +38,10 @@
                                          Disabled="true">
                                 Data Design
                             </MudMenuItem>
-                            <MudMenuItem OnClick="@(() => { OnToggleLabel(context); })"
+                            <MudMenuItem OnClick="@(async () => { await OnToggleLabel(context); })"
                                          Icon="@Icons.Material.Filled.Label"
-                                         Disabled="true">
-                                Label
+                                         Disabled="@(!HasLabelSupport(context))">
+                                @(context.LabelConfig?.Enabled == true ? "Hide Labels" : "Show Labels")
                             </MudMenuItem>
                         </ChildContent>
                     </MudMenu>

@@ -11,7 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Context menu for `LayerContentsControl` with right-click activation
   - "Zoom to Layer" - zooms and pans map to layer bounds (fully functional)
   - "Data Design" - placeholder for future implementation
-  - "Label" - placeholder for future label toggle functionality
+  - "Label" - toggles feature labels on/off for the selected layer (fully functional)
+- **Label support for GeoJsonLayer and MVTLayer**
+  - Display text from feature properties as labels on map features
+  - Configurable via `LabelProperty`, `LabelsEnabled`, and styling parameters
+  - Automatic label positioning at feature centroids/bounding box centers
+  - Smart boundary detection - labels only appear if text fits within polygon bounds
+  - Size validation with 1.5x threshold (polygon must be 1.5x larger than estimated text size)
+  - MVT-specific implementation with per-tile TextLayer overlays
+  - Coordinate transformation from tile-local (0-1) to geographic (LNGLAT) coordinates
+  - Configurable font size, text color, and background color
+  - Works with both GeoJSON and MVT (vector tile) layers
 - Bounds caching system for viewport-culled layers
   - Layers now cache their full extent as data is loaded across different viewports
   - Cached bounds expand cumulatively as you explore different areas
@@ -70,6 +80,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed CSS024 validation warning in `FeatureSelectionControl`
   - Moved inline conditional style logic to helper method `GetFeatureStyle()`
   - Ensures valid CSS is always generated (no empty strings or trailing semicolons)
+- **Fixed MVT label rendering coordinate system mismatch**
+  - Labels now correctly convert from tile-local coordinates (0-1) to geographic coordinates (LNGLAT)
+  - Fixed Y-axis inversion in MVT coordinate transformation (Y=0 is north in MVT)
+  - Labels now appear at correct positions on MVT layers
+
+### Known Limitations
+- **MVT Label Duplication**: Large features spanning multiple tiles may show duplicate labels (one per tile)
+  - This is an acceptable tradeoff for reliable label rendering
+  - Most features don't span multiple tiles, so impact is minimal
+  - Future enhancement: Implement proper de-duplication with feature ID tracking and lifecycle management
 
 ### Updated
 - ParcelsController, TownshipsController, and TownshipExtensionsController to handle viewport padding server-side

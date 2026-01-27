@@ -398,7 +398,32 @@ private async Task OnToggleLabel(LayerConfig layer)
 
 ## Technical Considerations
 
-### 1. MVT Deduplication Challenge
+### 1. MVT Label Rendering (CURRENT IMPLEMENTATION)
+
+**Approach**: Per-tile TextLayer overlays with coordinate transformation
+
+**Key Technical Details**:
+- MVT features use **tile-local coordinates** (0-1 range within tile)
+- TextLayer requires **geographic coordinates** (LNGLAT)
+- **Critical fix**: Do NOT inherit `coordinateSystem` or `modelMatrix` from MVTLayer
+- Must convert tile coords to geo coords using tile bounding box
+
+**Code Pattern**:
+```typescript
+const tileToGeo = (tileCoord: [number, number]): [number, number] => {
+    const [tileX, tileY] = tileCoord;
+    const lon = tileBbox.west + (tileX * (tileBbox.east - tileBbox.west));
+    // MVT Y axis is inverted!
+    const lat = tileBbox.north - (tileY * (tileBbox.north - tileBbox.south));
+    return [lon, lat];
+};
+```
+
+**Limitations**:
+- Large features spanning multiple tiles will show duplicate labels (one per tile)
+- No de-duplication currently implemented (see section above)
+
+### 2. Label Boundary Detection (IMPLEMENTED)
 
 **Problem**: MVT layers load features per tile. A feature spanning multiple tiles appears in each tile, causing duplicate labels.
 
@@ -420,7 +445,52 @@ getText: (feature) => {
 }
 ```
 
-### 2. Label Positioning
+### 2. Label Boundary Detection (IMPLEMENTED)
+
+**Problem**: Labels should only appear if they fit within polygon boundaries, not overflow edges.
+
+**Solution**: Calculate polygon bounding box in tile space and compare to estimated text dimensions.
+
+**Implementation**:
+```typescript
+// Calculate polygon bounding box in tile coordinates [0,1]
+const width = maxX - minX;
+const height = maxY - minY;
+
+// Convert to pixels (MVT tiles = 512px)
+const pixelWidth = width * 512;
+const pixelHeight = height * 512;
+
+// Estimate text size
+const estimatedTextWidth = text.length * fontSize * 0.6;
+const textHeight = fontSize * 1.5;
+
+// Require polygon to be 1.5x larger than text
+const fitThreshold = 1.5;
+if (pixelWidth < estimatedTextWidth * fitThreshold || 
+    pixelHeight < textHeight * fitThreshold) {
+    return ''; // Don't show label
+}
+```
+
+**Benefits**:
+- Prevents labels on small polygons where text would overflow
+- Simple bounding-box check (fast performance)
+- Works in tile coordinate space (no geographic calculations needed)
+
+**Limitations**:
+- Uses bounding box, not actual polygon shape (conservative estimate)
+- Rough text width estimation (0.6 * fontSize per character)
+- Doesn't account for polygon holes or concave shapes
+
+**Tuning Parameters**:
+- `fitThreshold: 1.5` - Polygon must be 1.5x larger than text (adjust for tighter/looser fit)
+- `0.6` - Character width multiplier (adjust for different fonts)
+- `1.5` - Text height multiplier (includes background padding)
+
+### 3. MVT Deduplication Challenge
+
+**Problem**: MVT layers load features per tile. A feature spanning multiple tiles appears in each tile, causing duplicate labels.
 
 **deck.gl Default Behavior**:
 - Labels render at feature centroid
@@ -608,7 +678,8 @@ await deckGLView.UpdateLayerConfig(layerId, config =>
 
 ## Future Enhancements
 
-- **Label boundary detection** - Don't render label if text doesn't fit inside polygon bounds (Started implementing but not working yet)
+- ✅ **Label boundary detection** - Labels only render if text fits inside polygon bounds (IMPLEMENTED with 1.5x threshold)
+- **De-duplication for MVT layers** - Prevent duplicate labels when features span multiple tiles (ATTEMPTED but problematic - see notes below)
 - Icon labels (combine icon + text)
 - Label fade-in/out animations
 - Smart label placement to avoid occlusion
@@ -617,6 +688,25 @@ await deckGLView.UpdateLayerConfig(layerId, config =>
 - Interactive labels (click to show tooltip)
 - Label filtering by attribute values
 - Expression-based label text (e.g., "{FIRSTNAME} {LASTNAME}")
+
+### De-duplication Challenges & Lessons Learned
+
+**Attempted Approaches**:
+1. **ID-based Set tracking** - Failed because the Set never cleared, blocking all labels after first tile
+2. **Time-based Set clearing** - Failed because tiles render in quick succession, causing premature clearing
+3. **Spatial proximity** - Rejected because it would hide labels from different nearby small features
+
+**Root Cause**: True de-duplication requires:
+- Reliable feature IDs across all tiles (not always available in MVT)
+- Proper lifecycle management (knowing when to clear the Set)
+- Distinguishing same-feature-in-multiple-tiles from different-nearby-features
+
+**Current Decision**: Accept duplicate labels for very large features as a reasonable tradeoff for reliable label rendering. Most features don't span multiple tiles, so impact is minimal.
+
+**Possible Future Solutions**:
+- Server-side pre-processing to assign unique IDs
+- deck.gl CollisionFilterExtension
+- Custom layer that merges features before labeling
 
 ---
 

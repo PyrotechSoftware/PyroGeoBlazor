@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **IconLayer support for custom markers and pins**
+  - Place custom icons or default Google Maps-style pins at specific coordinates
+  - Supports custom icon atlases and icon mapping configurations
+  - Default red map pin icon included (similar to Google Maps style)
+  - Configurable color tinting, size scaling, and positioning
+  - `HideFromLayerControl` property to exclude layers from LayerContentsControl
+  - Comprehensive test coverage (C# unit tests + Vitest TypeScript tests)
+  - See `Docs/IconLayer-Usage.md` for usage examples
+- **Location marker and zoom control in MapWorkspacePage**
+  - Optional `loc` query string parameter for placing markers (Google Maps format: `latitude,longitude`)
+  - Optional `zoom` query string parameter for custom zoom level (0-24)
+  - Automatically centers map on marker location
+  - Red pin marker with tooltip showing coordinates
+  - Location marker is automatically hidden from LayerContentsControl
+  - Examples:
+    - `/map-workspace?loc=-25.98208,32.59083` (default zoom 14)
+    - `/map-workspace?loc=-25.98208,32.59083&zoom=18` (custom zoom)
+    - `/map-workspace?zoom=12` (zoom only, no marker)
+  - See `PyroGeoBlazor.Demo/Docs/MapWorkspace-Location-Marker.md` for details
+- **HideFromLayerControl property for LayerConfig**
+  - Allows layers to be hidden from the LayerContentsControl UI
+  - Useful for temporary layers, overlays, or programmatically-managed layers
+  - Layers are still rendered on the map but don't clutter the layer list
+
 ## [1.0.4] - 2026-01-27
 
 ### Added

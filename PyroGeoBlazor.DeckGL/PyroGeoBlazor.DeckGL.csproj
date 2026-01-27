@@ -82,5 +82,8 @@
             <Pack>false</Pack>
         </None>
     </ItemGroup>
+    <ItemGroup>
+      <Folder Include="Docs\" />
+    </ItemGroup>
     
 </Project>

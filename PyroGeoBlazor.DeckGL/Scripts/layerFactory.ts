@@ -1,5 +1,5 @@
 import { Layer } from '@deck.gl/core';
-import { GeoJsonLayer, ScatterplotLayer, ArcLayer, BitmapLayer, TextLayer } from '@deck.gl/layers';
+import { GeoJsonLayer, ScatterplotLayer, ArcLayer, BitmapLayer, TextLayer, IconLayer } from '@deck.gl/layers';
 import { TileLayer, MVTLayer } from '@deck.gl/geo-layers';
 import type { LayerConfig } from './deckGLView';
 
@@ -325,6 +325,44 @@ export function createLayerFromConfig(config: LayerConfig, data: any): Layer[] {
                     getRadius: [props.getRadius],
                     getFillColor: [props.getFillColor],
                     getLineColor: [props.getLineColor]
+                }
+            }));
+            return layers;
+
+        case 'icon':
+        case 'iconlayer':
+            // Default Google Maps-style pin icon atlas
+            const defaultIconAtlas = '/_content/PyroGeoBlazor.DeckGL/icons/map-pin.svg';
+            const defaultIconMapping = {
+                marker: { x: 0, y: 0, width: 24, height: 36, mask: true, anchorY: 36 }
+            };
+
+            const iconAtlas = props.iconAtlas || defaultIconAtlas;
+            const iconMapping = props.iconMapping || defaultIconMapping;
+            const iconName = props.iconName || 'marker';
+
+            layers.push(new IconLayer({
+                id,
+                data,
+                ...props,
+                pickable: props.pickable ?? true,
+                iconAtlas,
+                iconMapping,
+                getIcon: props.getIcon ?? ((d: any) => iconName),
+                getPosition: props.getPosition ?? ((d: any) => d.coordinates || d.position || [d.longitude, d.latitude]),
+                getSize: props.getSize ?? (props.iconSize || 32),
+                getColor: props.getColor ?? [255, 0, 0, 255],  // Default red color for pins
+                sizeScale: props.sizeScale ?? 1,
+                sizeMinPixels: props.sizeMinPixels ?? 0,
+                sizeMaxPixels: props.sizeMaxPixels ?? Number.MAX_SAFE_INTEGER,
+                billboard: props.billboard ?? true,
+                
+                // Update triggers for icon properties
+                updateTriggers: {
+                    getIcon: [props.getIcon, iconName],
+                    getPosition: [props.getPosition],
+                    getSize: [props.getSize, props.iconSize],
+                    getColor: [props.getColor]
                 }
             }));
             return layers;

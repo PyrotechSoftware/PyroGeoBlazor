@@ -182,6 +182,15 @@ public abstract class LayerConfig
     /// </summary>
     [JsonPropertyName("labelConfig")]
     public LabelConfig? LabelConfig { get; set; }
+
+    /// <summary>
+    /// Whether this layer should be hidden from the LayerContentsControl.
+    /// When true, the layer will not appear in the layer list UI, but will still be rendered on the map.
+    /// Useful for temporary layers like markers, overlays, or programmatically-managed layers.
+    /// Defaults to false (layer appears in control).
+    /// </summary>
+    [JsonIgnore]
+    public bool HideFromLayerControl { get; set; } = false;
 }
 
 /// <summary>

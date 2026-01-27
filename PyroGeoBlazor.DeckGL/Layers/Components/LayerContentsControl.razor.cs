@@ -15,7 +15,10 @@ using PyroGeoBlazor.Utilities;
 /// </summary>
 public partial class LayerContentsControl
 {
-    private List<LayerConfig> Layers => DeckGLView?.Layers.ToList() ?? [];
+    private List<LayerConfig> Layers => DeckGLView?.Layers
+        .Where(l => !l.HideFromLayerControl)
+        .ToList() ?? [];
+    
     private List<LayerConfig> LayersReverse => Layers.AsEnumerable().Reverse().ToList();
 
     /// <summary>

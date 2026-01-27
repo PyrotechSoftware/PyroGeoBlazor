@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="24" height="36">
+  <!-- Google Maps-style pin marker -->
+  <!-- Shadow -->
+  <ellipse cx="12" cy="34" rx="6" ry="2" fill="rgba(0,0,0,0.2)"/>
+  
+  <!-- Pin body -->
+  <path d="M12 2 C7.029 2 3 6.029 3 11 C3 16.5 12 30 12 30 S21 16.5 21 11 C21 6.029 16.971 2 12 2 Z" 
+        fill="#EA4335" 
+        stroke="#FFFFFF" 
+        stroke-width="1.5"/>
+  
+  <!-- Inner circle -->
+  <circle cx="12" cy="11" r="4" fill="#FFFFFF"/>
+</svg>

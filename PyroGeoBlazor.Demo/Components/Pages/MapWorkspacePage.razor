@@ -1,10 +1,12 @@
 @page "/map-workspace"
+@using Microsoft.AspNetCore.Components
 @using Microsoft.EntityFrameworkCore
 @using MudBlazor
 @using MudBlazor.Utilities
 @using PyroGeoBlazor.DeckGL.Components
 @using PyroGeoBlazor.DeckGL.Models
 @using PyroGeoBlazor.Demo.Models
+@using System.Globalization
 
 <div style="height: 100%; display: flex; flex-direction: column; overflow: hidden;">
     <MapToolbar CurrentMode="@currentMapMode" CurrentModeChanged="@OnMapModeChanged">
@@ -179,6 +181,18 @@
                                                         }
                                                     ])"
                                   ExcludedProperties="@(["id", "InspectionProjectID", "InspectionStateCode", "layerName", "LocationLatitude", "LocationLongitude", "LPI", "Source", "Unit"])" /> 
+                        
+                        @* Location marker from query string (if provided) *@
+                        @if (locationMarker != null)
+                        {
+                            <IconLayer Id="location-marker"
+                                       Data="@locationMarker"
+                                       IconSize="48"
+                                       Pickable="true"
+                                       Visible="true"
+                                       HideFromLayerControl="true"
+                                       TooltipConfig="@TooltipConfig.ForProperties("name")" />
+                        }
                     </LayersContent>
                 </DeckGLView>
             </MudExDockItem>
@@ -205,37 +219,171 @@
 </div>
 
 @code {
+/// <summary>
+/// Optional location parameter from query string in Google Maps format: latitude,longitude
+/// Example: ?loc=-25.98208,32.59083
+/// </summary>
+[SupplyParameterFromQuery(Name = "loc")]
+public string? LocationQueryString { get; set; }
 
-    private MapMode currentMapMode = MapMode.Explore;
-    private DeckGLView? deckGLView;
+/// <summary>
+/// Optional zoom level parameter from query string
+/// Example: ?zoom=12
+/// Valid range: 0-22 (typical web map zoom levels)
+/// </summary>
+[SupplyParameterFromQuery(Name = "zoom")]
+public string? ZoomQueryString { get; set; }
 
-    private ViewState initialViewState = new()
+private MapMode currentMapMode = MapMode.Explore;
+private DeckGLView? deckGLView;
+private object[]? locationMarker;
+
+private ViewState initialViewState = new()
+{
+    Longitude = 32.59083,
+    Latitude = -25.98208,
+    Zoom = 16.31,
+    Pitch = 0,
+    Bearing = 0
+};
+
+private ViewState viewState = new()
+{
+    Longitude = 32.71,
+    Latitude = -25.95,
+    Zoom = 11
+};
+
+protected override void OnInitialized()
+{
+    // Parse zoom level if provided
+    double? customZoom = null;
+    if (!string.IsNullOrWhiteSpace(ZoomQueryString))
     {
-        Longitude = 32.59083,
-        Latitude = -25.98208,
-        Zoom = 16.31,
-        Pitch = 0,
-        Bearing = 0
-    };
-
-    private ViewState viewState = new()
-    {
-        Longitude = 32.71,
-        Latitude = -25.95,
-        Zoom = 11
-    };
-
-    protected override void OnInitialized()
-    {
-        // Don't add layers here - wait for OnDeckInitialized callback
+        var (isValidZoom, zoomLevel) = ParseZoomLevel(ZoomQueryString);
+        if (isValidZoom)
+        {
+            customZoom = zoomLevel;
+            Console.WriteLine($"🔍 Custom zoom level: {zoomLevel}");
+        }
+        else
+        {
+            Console.WriteLine($"⚠️ Invalid zoom format: {ZoomQueryString}. Expected a number between 0 and 22.");
+        }
     }
 
-    private async Task OnDeckInitialized()
+    // Parse location query string if provided
+    if (!string.IsNullOrWhiteSpace(LocationQueryString))
     {
-        Console.WriteLine("🎉 Deck.gl initialized!");
+        var (isValid, latitude, longitude) = ParseLocationString(LocationQueryString);
+            
+        if (isValid)
+        {
+            // Create marker data
+            locationMarker = new[]
+            {
+                new
+                {
+                    coordinates = new[] { longitude, latitude },
+                    name = $"Location: {latitude:F5}, {longitude:F5}"
+                }
+            };
 
-        StateHasChanged();
+            // Center map on the location with custom or default zoom
+            initialViewState = new ViewState
+            {
+                Longitude = longitude,
+                Latitude = latitude,
+                Zoom = customZoom ?? 14, // Use custom zoom if provided, otherwise default to 14
+                Pitch = 0,
+                Bearing = 0
+            };
+
+            Console.WriteLine($"📍 Location marker created at: {latitude}, {longitude} (zoom: {initialViewState.Zoom})");
+        }
+        else
+        {
+            Console.WriteLine($"⚠️ Invalid location format: {LocationQueryString}. Expected format: latitude,longitude (e.g., -25.98208,32.59083)");
+        }
     }
+    else if (customZoom.HasValue)
+    {
+        // Zoom parameter provided without location - apply to default initial view
+        initialViewState = new ViewState
+        {
+            Longitude = initialViewState.Longitude,
+            Latitude = initialViewState.Latitude,
+            Zoom = customZoom.Value,
+            Pitch = initialViewState.Pitch,
+            Bearing = initialViewState.Bearing
+        };
+        Console.WriteLine($"🔍 Applied custom zoom level: {customZoom.Value} to default location");
+    }
+}
+
+/// <summary>
+/// Parses a Google Maps-style location string (latitude,longitude)
+/// </summary>
+/// <param name="locationString">Location string in format: "latitude,longitude" (e.g., "-25.98208,32.59083")</param>
+/// <returns>Tuple with (isValid, latitude, longitude)</returns>
+private static (bool IsValid, double Latitude, double Longitude) ParseLocationString(string locationString)
+{
+    ArgumentNullException.ThrowIfNull(locationString);
+
+    // Split by comma
+    var parts = locationString.Split(',', StringSplitOptions.TrimEntries);
+
+    if (parts.Length != 2)
+    {
+        return (false, 0, 0);
+    }
+
+    // Try to parse latitude and longitude
+    if (!double.TryParse(parts[0], CultureInfo.InvariantCulture, out double latitude) || 
+        !double.TryParse(parts[1], CultureInfo.InvariantCulture, out double longitude))
+    {
+        return (false, 0, 0);
+    }
+
+    // Validate ranges
+    if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180)
+    {
+        return (false, 0, 0);
+    }
+
+    return (true, latitude, longitude);
+}
+
+/// <summary>
+/// Parses a zoom level string
+/// </summary>
+/// <param name="zoomString">Zoom level as string (e.g., "12" or "15.5")</param>
+/// <returns>Tuple with (isValid, zoomLevel)</returns>
+private static (bool IsValid, double ZoomLevel) ParseZoomLevel(string zoomString)
+{
+    ArgumentNullException.ThrowIfNull(zoomString);
+
+    // Try to parse the zoom level
+    if (!double.TryParse(zoomString, CultureInfo.InvariantCulture, out double zoom))
+    {
+        return (false, 0);
+    }
+
+    // Validate zoom range (typical web map range is 0-22, but allow up to 24 for flexibility)
+    if (zoom < 0 || zoom > 24)
+    {
+        return (false, 0);
+    }
+
+    return (true, zoom);
+}
+
+private async Task OnDeckInitialized()
+{
+    Console.WriteLine("🎉 Deck.gl initialized!");
+
+    StateHasChanged();
+}
 
     private async Task OnMapModeChanged(MapMode newMode)
     {

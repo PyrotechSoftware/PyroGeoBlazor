@@ -268,9 +268,9 @@ export function createLayerFromConfig(config: LayerConfig, data: any): Layer[] {
                     sizeMinPixels: config.labelConfig.fontSize * 0.5, // Don't get smaller than half size
                     sizeMaxPixels: config.labelConfig.fontSize * 3, // Don't get larger than 3x size
                     
-                    // Text outline for better visibility
-                    outlineWidth: 2,
-                    outlineColor: [255, 255, 255, 200], // White outline
+                    // Remove outline - requires SDF font configuration
+                    // outlineWidth: 2,
+                    // outlineColor: [255, 255, 255, 200],
                     
                     // Character set
                     characterSet: 'auto',
@@ -424,6 +424,9 @@ export function createLayerFromConfig(config: LayerConfig, data: any): Layer[] {
                 // Point styling
                 pointRadiusMinPixels: props.pointRadiusMinPixels ?? 2,
                 
+                // Pass through uniqueIdProperty from LayerConfig
+                uniqueIdProperty: config.uniqueIdProperty,
+                
                 // PERFORMANCE OPTIMIZATION: Use binary mode by default for 5-10x faster rendering
                 // Binary mode is disabled when pickable=true or labels enabled
                 // When binary=true: Uses WebGL buffers directly (fast, but no feature access)
@@ -448,53 +451,274 @@ export function createLayerFromConfig(config: LayerConfig, data: any): Layer[] {
                 ...props
             };
 
-            // Add MVT label support with deduplication
-            if (hasLabels) {
-                console.log(`📝 Adding labels to MVT layer ${id}: property="${config.labelConfig.textProperty}"`);
-                
-                // Track seen feature IDs to prevent duplicate labels across tiles
-                const seenFeatures = new Set<string>();
-                
-                mvtProps.getText = (feature: any) => {
-                    // Try to get unique feature ID (commonly used in MVT)
-                    const featureId = feature.properties?.id || 
-                                     feature.properties?.ID ||
-                                     feature.properties?.OBJECTID || 
-                                     feature.properties?.objectid ||
-                                     feature.id;
-                    
-                    if (featureId) {
-                        // Deduplicate: only show label once across all tiles
-                        if (seenFeatures.has(String(featureId))) {
-                            return ''; // Already shown in another tile
-                        }
-                        seenFeatures.add(String(featureId));
-                    }
-                    
-                    // Get text from feature property
-                    const text = feature?.properties?.[config.labelConfig.textProperty];
-                    if (text === null || text === undefined || text === '') {
-                        return ''; // No label
-                    }
-                    return String(text);
-                };
-                
-                mvtProps.getTextSize = config.labelConfig.fontSize;
-                mvtProps.getTextColor = hexToRgba(config.labelConfig.textColor);
-                mvtProps.getTextBackgroundColor = hexToRgba(config.labelConfig.backgroundColor);
-                mvtProps.getTextAnchor = config.labelConfig.textAnchor;
-                mvtProps.getTextAlignmentBaseline = config.labelConfig.textAlignment;
-                mvtProps.textSizeMinPixels = config.labelConfig.fontSize;
-                mvtProps.textSizeMaxPixels = config.labelConfig.fontSize * 2;
-                mvtProps.textBackgroundPadding = [2, 1]; // [x, y] padding in pixels
-                
-                // CRITICAL: Tell deck.gl which characters to pre-load into the font atlas
-                mvtProps.characterSet = 'auto'; // Auto-detect characters from data
-                
-                console.log(`🔤 MVT Character set: auto`);
-            }
+            console.log(`🆔 MVT uniqueIdProperty: ${config.uniqueIdProperty || 'not set'}`);
 
-            layers.push(new MVTLayer(mvtProps));
+
+            // For MVT layers with labels, we need to use renderSubLayers to create TextLayer per tile
+            if (hasLabels) {
+                console.log(`📝 Enabling per-tile labels for MVT layer ${id}: property="${config.labelConfig.textProperty}"`);
+                
+                // Override renderSubLayers to add a TextLayer for each tile's features
+                const originalRenderSubLayers = mvtProps.renderSubLayers;
+                
+                mvtProps.renderSubLayers = (subLayerProps: any) => {
+                    // Debug: Log tile info to understand coordinate system
+                    if (subLayerProps.tile) {
+                        console.log(`🗺️ Tile info:`, {
+                            id: subLayerProps.tile.id,
+                            bbox: subLayerProps.tile.bbox,
+                            index: subLayerProps.tile.index,
+                            zoom: subLayerProps.tile.zoom
+                        });
+                    }
+                    
+                    // Debug: Log what we receive
+                    console.log(`📦 renderSubLayers called for tile:`, {
+                        id: subLayerProps.id,
+                        hasData: !!subLayerProps.data,
+                        dataType: typeof subLayerProps.data,
+                        isArray: Array.isArray(subLayerProps.data),
+                        dataLength: Array.isArray(subLayerProps.data) ? subLayerProps.data.length : 'N/A',
+                        hasTile: !!subLayerProps.tile,
+                        tileKeys: subLayerProps.tile ? Object.keys(subLayerProps.tile) : []
+                    });
+                    
+                    // First, render the geometry layer (default behavior)
+                    const geoLayer = originalRenderSubLayers 
+                        ? originalRenderSubLayers(subLayerProps)
+                        : new GeoJsonLayer(subLayerProps);
+                    
+                    const layers: Layer[] = geoLayer ? [geoLayer] : [];
+                    
+                    // Try to get the features from various possible locations
+                    let features: any[] = [];
+                    
+                    if (subLayerProps.data && Array.isArray(subLayerProps.data)) {
+                        features = subLayerProps.data;
+                    } else if (subLayerProps.tile?.data) {
+                        const tileData = subLayerProps.tile.data;
+                        if (Array.isArray(tileData)) {
+                            features = tileData;
+                        } else if (tileData.type === 'FeatureCollection' && tileData.features) {
+                            features = tileData.features;
+                        }
+                    }
+                    
+                    // Add a TextLayer for this tile's features
+                    if (features.length > 0) {
+                        
+                        // Get tile bounding box for coordinate transformation
+                        const tileBbox = subLayerProps.tile?.bbox;
+                        
+                        if (!tileBbox) {
+                            console.error(`❌ No tile bbox available for coordinate transformation`);
+                            return layers;
+                        }
+                        
+                        console.log(`📐 Tile bbox:`, tileBbox);
+                        
+                        // Helper function to convert tile coordinates [0,1] to geographic coordinates
+                        const tileToGeo = (tileCoord: [number, number]): [number, number] => {
+                            const [tileX, tileY] = tileCoord;
+                            const lon = tileBbox.west + (tileX * (tileBbox.east - tileBbox.west));
+                            // MVT Y axis is inverted: Y=0 is north (top), Y=1 is south (bottom)
+                            const lat = tileBbox.north - (tileY * (tileBbox.north - tileBbox.south));
+                            return [lon, lat];
+                        };
+                        
+                        // Counters for debug logging
+                        let labelCount = 0;
+                        let debugLoggedText = false;
+                        let debugLoggedPosition = false;
+                        
+                        const textLayer = new TextLayer({
+                            id: `${subLayerProps.id}-labels`,
+                            data: features,
+                            pickable: false,
+                            visible: true,  // Explicitly set visible
+                            
+                            // DO NOT inherit coordinate system from MVT layer!
+                            // MVT uses tile-local coordinates, but we're converting to geographic
+                            // Let TextLayer use default LNGLAT coordinate system
+                            // coordinateSystem: subLayerProps.coordinateSystem,
+                            // modelMatrix: subLayerProps.modelMatrix,
+                            
+                            getPosition: (d: any) => {
+                                const geometry = d.geometry;
+                                
+                                if (!geometry || !geometry.coordinates) {
+                                    if (!debugLoggedPosition) {
+                                        console.log(`⚠️ Feature has no geometry or coordinates`);
+                                    }
+                                    return [0, 0];
+                                }
+                                
+                                try {
+                                    let tilePosition: [number, number] = [0, 0];
+                                    
+                                    if (geometry.type === 'Point') {
+                                        tilePosition = geometry.coordinates as [number, number];
+                                    } 
+                                    else if (geometry.type === 'Polygon' && geometry.coordinates[0]) {
+                                        // Calculate center of bounding box in tile space
+                                        const coords = geometry.coordinates[0];
+                                        let minX = Infinity, maxX = -Infinity;
+                                        let minY = Infinity, maxY = -Infinity;
+                                        
+                                        coords.forEach((coord: number[]) => {
+                                            minX = Math.min(minX, coord[0]);
+                                            maxX = Math.max(maxX, coord[0]);
+                                            minY = Math.min(minY, coord[1]);
+                                            maxY = Math.max(maxY, coord[1]);
+                                        });
+                                        
+                                        tilePosition = [(minX + maxX) / 2, (minY + maxY) / 2];
+                                    }
+                                    else if (geometry.type === 'MultiPolygon' && geometry.coordinates.length > 0) {
+                                        const firstPolygon = geometry.coordinates[0][0];
+                                        let minX = Infinity, maxX = -Infinity;
+                                        let minY = Infinity, maxY = -Infinity;
+                                        
+                                        firstPolygon.forEach((coord: number[]) => {
+                                            minX = Math.min(minX, coord[0]);
+                                            maxX = Math.max(maxX, coord[0]);
+                                            minY = Math.min(minY, coord[1]);
+                                            maxY = Math.max(maxY, coord[1]);
+                                        });
+                                        
+                                        tilePosition = [(minX + maxX) / 2, (minY + maxY) / 2];
+                                    }
+                                    else if (geometry.type === 'LineString' && geometry.coordinates.length > 0) {
+                                        const coords = geometry.coordinates;
+                                        let minX = Infinity, maxX = -Infinity;
+                                        let minY = Infinity, maxY = -Infinity;
+                                        
+                                        coords.forEach((coord: number[]) => {
+                                            minX = Math.min(minX, coord[0]);
+                                            maxX = Math.max(maxX, coord[0]);
+                                            minY = Math.min(minY, coord[1]);
+                                            maxY = Math.max(maxY, coord[1]);
+                                        });
+                                        
+                                        tilePosition = [(minX + maxX) / 2, (minY + maxY) / 2];
+                                    }
+                                    
+                                    // Convert tile coordinates to geographic coordinates
+                                    const geoPosition = tileToGeo(tilePosition);
+                                    
+                                    // Debug log first position
+                                    if (!debugLoggedPosition) {
+                                        debugLoggedPosition = true;
+                                        console.log(`📍 Tile position:`, tilePosition);
+                                        console.log(`📍 Converted to geo:`, geoPosition);
+                                        console.log(`📍 Geometry type:`, geometry.type);
+                                    }
+                                    
+                                    return geoPosition;
+                                } catch (error) {
+                                    if (!debugLoggedPosition) {
+                                        console.error('❌ Error calculating position:', error);
+                                    }
+                                    return [0, 0];
+                                }
+                            },
+                            
+                            getText: (d: any) => {
+                                const properties = d.properties || {};
+                                const text = properties[config.labelConfig.textProperty];
+                                
+                                if (text === null || text === undefined || text === '') {
+                                    return '';
+                                }
+                                
+                                // SIZE VALIDATION: Check if the feature is large enough to display a label
+                                const geometry = d.geometry;
+                                let passesSizeCheck = true;
+                                
+                                if (geometry && (geometry.type === 'Polygon' || geometry.type === 'MultiPolygon')) {
+                                    try {
+                                        let coords: number[][] = [];
+                                        
+                                        if (geometry.type === 'Polygon' && geometry.coordinates[0]) {
+                                            coords = geometry.coordinates[0];
+                                        } else if (geometry.type === 'MultiPolygon' && geometry.coordinates.length > 0) {
+                                            coords = geometry.coordinates[0][0];
+                                        }
+                                        
+                                        if (coords.length > 0) {
+                                            let minX = Infinity, maxX = -Infinity;
+                                            let minY = Infinity, maxY = -Infinity;
+                                            
+                                            coords.forEach((coord: number[]) => {
+                                                minX = Math.min(minX, coord[0]);
+                                                maxX = Math.max(maxX, coord[0]);
+                                                minY = Math.min(minY, coord[1]);
+                                                maxY = Math.max(maxY, coord[1]);
+                                            });
+                                            
+                                            const width = maxX - minX;
+                                            const height = maxY - minY;
+                                            
+                                            const tileExtent = 512;
+                                            const pixelWidth = width * tileExtent;
+                                            const pixelHeight = height * tileExtent;
+                                            
+                                            const fontSize = config.labelConfig.fontSize || 12;
+                                            const textStr = String(text);
+                                            const estimatedTextWidth = textStr.length * fontSize * 0.6;
+                                            const textHeight = fontSize * 1.5;
+                                            
+                                            const fitThreshold = 1.5;
+                                            if (pixelWidth < estimatedTextWidth * fitThreshold || 
+                                                pixelHeight < textHeight * fitThreshold) {
+                                                passesSizeCheck = false;
+                                            }
+                                        }
+                                    } catch (error) {
+                                        console.error('Error checking label bounds:', error);
+                                    }
+                                }
+                                
+                                if (!passesSizeCheck) {
+                                    return '';
+                                }
+                                
+                                labelCount++;
+                                return String(text);
+                            },
+                            
+                            getSize: config.labelConfig.fontSize,
+                            getColor: hexToRgba(config.labelConfig.textColor),
+                            getBackgroundColor: hexToRgba(config.labelConfig.backgroundColor),
+                            getTextAnchor: config.labelConfig.textAnchor as 'start' | 'middle' | 'end',
+                            getAlignmentBaseline: config.labelConfig.textAlignment as 'top' | 'center' | 'bottom',
+                            
+                            backgroundPadding: [2, 1],
+                            sizeScale: 1,
+                            sizeMinPixels: config.labelConfig.fontSize * 0.5,
+                            sizeMaxPixels: config.labelConfig.fontSize * 3,
+                            
+                            // Remove outline for now - requires SDF font configuration
+                            // outlineWidth: 2,
+                            // outlineColor: [255, 255, 255, 200],
+                            
+                            characterSet: 'auto',
+                            fontFamily: 'Arial, sans-serif',
+                            fontWeight: 'normal',
+                            billboard: true
+                        });
+                        
+                        layers.push(textLayer);
+                    }
+                    
+                    return layers;
+                };
+            }
+            
+            // Create the MVT layer (with custom renderSubLayers if labels enabled)
+            const mvtLayer = new MVTLayer(mvtProps);
+            layers.push(mvtLayer);
+            
             return layers;
 
         default:

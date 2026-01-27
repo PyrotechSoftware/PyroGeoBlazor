@@ -196,17 +196,17 @@ export class DeckGLView {
      * Returns true if the layer must be recreated, false if it can be reused.
      */
     private layerNeedsUpdate(oldConfig: LayerConfig | undefined, newConfig: LayerConfig): boolean {
-        if (DEBUG_LOGGING) {
-            console.log(`🔍 Checking if layer ${newConfig.id} needs update...`);
-            console.log(`  - Has old config: ${!!oldConfig}`);
-            console.log(`  - Visible: ${newConfig.props.visible ?? true}`);
-            console.log(`  - MinZoom: ${newConfig.minZoom ?? 'none'}`);
-            console.log(`  - EnableViewportCulling: ${newConfig.enableViewportCulling ?? false}`);
-        }
-
         // Check if layer is visible (default to true if not specified)
         const isVisible = newConfig.props.visible ?? true;
         const wasVisible = oldConfig?.props.visible ?? true;
+
+        // Always log visibility checks for debugging label toggle issues
+        console.log(`🔍 Checking if layer ${newConfig.id} needs update...`);
+        console.log(`  - Has old config: ${!!oldConfig}`);
+        console.log(`  - Visible (new): ${isVisible}, Visible (old): ${wasVisible}`);
+        console.log(`  - MinZoom: ${newConfig.minZoom ?? 'none'}`);
+        console.log(`  - EnableViewportCulling: ${newConfig.enableViewportCulling ?? false}`);
+        console.log(`  - LabelConfig: ${JSON.stringify(newConfig.labelConfig)}`);
 
         // If visibility changed, we need to update
         if (isVisible !== wasVisible) {
@@ -323,6 +323,12 @@ export class DeckGLView {
 
         if (JSON.stringify(oldConfig.hoverStyle) !== JSON.stringify(newConfig.hoverStyle)) {
             console.log(`  ✅ HoverStyle changed for ${newConfig.id}`);
+            return true;
+        }
+
+        // Check if label config changed
+        if (JSON.stringify(oldConfig.labelConfig) !== JSON.stringify(newConfig.labelConfig)) {
+            console.log(`  ✅ LabelConfig changed for ${newConfig.id}`);
             return true;
         }
 
@@ -1411,8 +1417,36 @@ export class DeckGLView {
 
         console.log(`Layer ${layerId} visibility set to ${visible}`);
 
-        // Recreate the layer with new visibility
-        await this.recreateLayer(layerId);
+        // Find the existing layer(s) - may include companion layers like text
+        const layerIndices: number[] = [];
+        this.currentLayers.forEach((layer, index) => {
+            if (layer.id === layerId || layer.id.startsWith(`${layerId}-`)) {
+                layerIndices.push(index);
+            }
+        });
+
+        if (layerIndices.length === 0) {
+            console.warn(`Layer ${layerId} not found in currentLayers`);
+            return;
+        }
+
+        // Update visibility on existing layer(s) instead of recreating
+        layerIndices.forEach(index => {
+            const layer = this.currentLayers[index];
+            // Clone the layer with updated visible prop
+            this.currentLayers[index] = layer.clone({ visible });
+        });
+
+        // Update deck.gl to reflect the change
+        if (this.deck) {
+            const allLayers = [...this.currentLayers];
+            if (this.editableLayer) {
+                allLayers.push(this.editableLayer as any);
+            }
+            this.deck.setProps({ layers: allLayers });
+        }
+
+        console.log(`Layer ${layerId} visibility updated to ${visible} (${layerIndices.length} layer(s) affected)`);
     }
 
     /**
@@ -3536,7 +3570,7 @@ export class DeckGLView {
         return [totalX / coordinates.length, totalY / coordinates.length];
     }
 
-    private refreshLayers(): void {
+    private applyCurrentLayers(): void {
         if (!this.deck) return;
 
         // Use selection-aware refresh if there are selected features

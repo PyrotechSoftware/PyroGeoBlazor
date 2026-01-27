@@ -38,12 +38,12 @@
                             OnViewStateChanged="@OnViewStateChanged"
                             OnDeckInitialized="@OnDeckInitialized">
                     <LayersContent>
-                        @* <TileLayer Id="carto-basemap"
+                        <TileLayer Id="carto-basemap"
                                    TileUrl="https://basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
                                    Pickable="false"
                                    Visible="true" />
 
-                        <GeoJsonLayer Id="vancouver-blocks"
+                        @* <GeoJsonLayer Id="vancouver-blocks"
                                       DataUrl="https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/geojson/vancouver-blocks.json"
                                       Pickable="true"
                                       Stroked="true"
@@ -129,7 +129,7 @@
                                           LineWidth = 1,
                                       })"
                                       MinZoom="10"
-                                      EnableViewportCulling />
+                                      EnableViewportCulling />*@
 
                         <MVTLayer Id="Parcels"
                                   GeoServerUrl="https://lims.koleta.co.mz/geoserver"
@@ -138,6 +138,9 @@
                                   Pickable="true"
                                   Visible="true"
                                   UniqueIdProperty="GeoPropertyID"
+                                  LabelsEnabled="true"
+                                  LabelProperty="CustomIdentifier"
+                                  LabelMinZoom="12"
                                   FeatureStyle="@(new()
                                   {
                                       FillColor = "#0096FF",
@@ -175,7 +178,7 @@
                                                             Order = 1
                                                         }
                                                     ])"
-                                  ExcludedProperties="@(["id", "InspectionProjectID", "InspectionStateCode", "layerName", "LocationLatitude", "LocationLongitude", "LPI", "Source", "Unit"])" /> *@
+                                  ExcludedProperties="@(["id", "InspectionProjectID", "InspectionStateCode", "layerName", "LocationLatitude", "LocationLongitude", "LPI", "Source", "Unit"])" /> 
                     </LayersContent>
                 </DeckGLView>
             </MudExDockItem>

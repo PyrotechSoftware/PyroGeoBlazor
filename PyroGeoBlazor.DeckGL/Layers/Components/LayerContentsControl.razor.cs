@@ -188,8 +188,8 @@ public partial class LayerContentsControl
         
         Console.WriteLine($"Labels {(layer.LabelConfig.Enabled ? "enabled" : "disabled")} for layer: {layer.Id}");
         
-        // Refresh layers to apply the change
-        await DeckGLView.RefreshLayers();
+        // Update layers to apply the label config change
+        await DeckGLView.UpdateLayers();
         StateHasChanged();
     }
 }

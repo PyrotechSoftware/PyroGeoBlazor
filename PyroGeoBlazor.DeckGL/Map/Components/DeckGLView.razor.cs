@@ -19,6 +19,8 @@ public partial class DeckGLView
     private List<LayerConfig> _layers = [];
     private ViewState? _currentViewState;
     private bool _isLoading;
+    private System.Threading.Timer? _viewportUpdateTimer;
+    private ViewState? _pendingViewState;
 
     /// <summary>
     /// Event raised when the selection changes (features selected or deselected).
@@ -115,6 +117,15 @@ public partial class DeckGLView
     public bool ShowStatusBar { get; set; } = true;
 
     /// <summary>
+    /// Debounce duration in milliseconds for viewport updates.
+    /// When the viewport changes (zoom/pan), layer updates are delayed by this amount
+    /// to avoid excessive updates during rapid camera movements.
+    /// Set to 0 to disable debouncing. Default is 300ms.
+    /// </summary>
+    [Parameter]
+    public int ViewportUpdateDebounceMs { get; set; } = 300;
+
+    /// <summary>
     /// Callback when features are selected (both single and multi-selection)
     /// </summary>
     [Parameter]
@@ -148,6 +159,49 @@ public partial class DeckGLView
             var layerConfig = layer.GetLayerConfig();
             _layers.RemoveAll(l => l.Id == layerConfig.Id);
         }
+    }
+
+    /// <summary>
+    /// Programmatically add a layer using a LayerConfig object.
+    /// Use this method for dynamically adding layers from configuration files,
+    /// databases, or at runtime.
+    /// </summary>
+    /// <param name="layerConfig">The layer configuration to add</param>
+    /// <param name="updateLayers">Whether to automatically trigger layer update on the map. Default is false.</param>
+    public async Task AddLayer(LayerConfig layerConfig, bool updateLayers = false)
+    {
+        ArgumentNullException.ThrowIfNull(layerConfig);
+
+        if (_layers.Any(l => l.Id == layerConfig.Id))
+        {
+            throw new InvalidOperationException($"A layer with ID '{layerConfig.Id}' already exists. Layer IDs must be unique.");
+        }
+
+        _layers.Add(layerConfig);
+
+        // Update the map with the new layer if requested and component is initialized
+        if (updateLayers && _deckGLViewRef != null)
+        {
+            await UpdateLayers(_currentViewState);
+        }
+    }
+
+    /// <summary>
+    /// Programmatically remove a layer by its ID.
+    /// </summary>
+    /// <param name="layerId">The ID of the layer to remove</param>
+    /// <param name="updateLayers">Whether to automatically trigger layer update on the map. Default is false.</param>
+    /// <returns>True if the layer was found and removed, false otherwise</returns>
+    public async Task<bool> RemoveLayer(string layerId, bool updateLayers = false)
+    {
+        var removed = _layers.RemoveAll(l => l.Id == layerId) > 0;
+
+        if (removed && updateLayers && _deckGLViewRef != null)
+        {
+            await UpdateLayers(_currentViewState);
+        }
+
+        return removed;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -327,11 +381,38 @@ public partial class DeckGLView
     public async Task OnViewStateChangedCallback(ViewState viewState)
     {
         _currentViewState = viewState;
-        StateHasChanged();
+        await InvokeAsync(StateHasChanged);
         
+        // Notify subscribers immediately (for UI updates like status bar)
         if (OnViewStateChanged.HasDelegate)
         {
             await OnViewStateChanged.InvokeAsync(viewState);
+        }
+
+        // Debounce layer updates to avoid excessive refreshes during camera movement
+        if (ViewportUpdateDebounceMs > 0)
+        {
+            // Store the pending view state
+            _pendingViewState = viewState;
+
+            // Cancel any existing timer and start a new one
+            _viewportUpdateTimer?.Dispose();
+            _viewportUpdateTimer = new Timer(async _ =>
+            {
+                await InvokeAsync(async () =>
+                {
+                    if (_pendingViewState != null)
+                    {
+                        // Update layers with the current view state for accurate zoom detection
+                        await UpdateLayers(_pendingViewState);
+                    }
+                });
+            }, null, ViewportUpdateDebounceMs, Timeout.Infinite);
+        }
+        else
+        {
+            // No debouncing - update layers immediately
+            await UpdateLayers(viewState);
         }
     }
 
@@ -896,6 +977,9 @@ public partial class DeckGLView
 
     public async ValueTask DisposeAsync()
     {
+        // Dispose the viewport update timer
+        _viewportUpdateTimer?.Dispose();
+
         if (_deckGLViewRef != null)
         {
             try

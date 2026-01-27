@@ -1,5 +1,4 @@
 @page "/map-workspace"
-@implements IDisposable
 @using Microsoft.EntityFrameworkCore
 @using MudBlazor
 @using MudBlazor.Utilities
@@ -250,31 +249,9 @@
         StateHasChanged();
     }
 
-    private System.Threading.Timer? _viewportUpdateTimer;
-    private ViewState? _pendingViewState;
-
     private void OnViewStateChanged(ViewState newViewState)
     {
         viewState = newViewState;
-
-        // Store the pending view state
-        _pendingViewState = newViewState;
-
-        // Debounce viewport updates - only update layers after user stops zooming/panning for 300ms
-        _viewportUpdateTimer?.Dispose();
-        _viewportUpdateTimer = new System.Threading.Timer(async _ =>
-        {
-            await InvokeAsync(async () =>
-            {
-                if (deckGLView != null && _pendingViewState != null)
-                {
-                    // Pass the current view state to UpdateLayers for accurate zoom detection
-                    await deckGLView.UpdateLayers(_pendingViewState);
-                    Console.WriteLine($"🌍 Viewport changed - layers updated (zoom: {_pendingViewState.Zoom:F1})");
-                }
-            });
-        }, null, 300, Timeout.Infinite);
-
         StateHasChanged();
     }
 
@@ -297,11 +274,6 @@
     {
         Console.WriteLine("↩️ Attributes reset to original values");
         return Task.CompletedTask;
-    }
-
-    public void Dispose()
-    {
-        _viewportUpdateTimer?.Dispose();
     }
 }
 

@@ -256,16 +256,57 @@ jobs:
             curl -s -X POST -H "Authorization: token $GITHUB_TOKEN" -H "Content-Type: application/octet-stream" --data-binary @"$f" "$UPLOAD_URL_BASE?name=$fname"
           done
 
-      - name: Inject CHANGELOG.md into GitHub Release body (if present)
+      - name: Inject Unreleased section from CHANGELOG.md into GitHub Release body
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_NAME: ${{ github.event.release.tag_name }}
         run: |
           set -e
           if [ -f CHANGELOG.md ]; then
-            echo "CHANGELOG.md found, updating release body"
-            BODY_JSON=$(jq -Rs '{body: .}' < CHANGELOG.md)
+            echo "CHANGELOG.md found, extracting Unreleased section"
+            
+            # Extract version from tag (strip leading v/V)
+            VERSION=${TAG_NAME#v}
+            VERSION=${VERSION#V}
+            
+            # Get release date from the release object
+            RELEASE_DATE="${{ github.event.release.created_at }}"
+            # Convert to YYYY-MM-DD format
+            RELEASE_DATE=$(date -d "$RELEASE_DATE" +%Y-%m-%d 2>/dev/null || date -j -f "%Y-%m-%dT%H:%M:%SZ" "$RELEASE_DATE" +%Y-%m-%d 2>/dev/null || echo "$(date +%Y-%m-%d)")
+            
+            echo "Version: $VERSION"
+            echo "Release Date: $RELEASE_DATE"
+            
+            # Extract only the Unreleased section content (everything between ## [Unreleased] and the next ## header)
+            # and replace the header with the version and date
+            RELEASE_BODY=$(awk -v version="$VERSION" -v date="$RELEASE_DATE" '
+              /^## \[Unreleased\]/ {
+                in_unreleased = 1
+                print "## [" version "] - " date
+                print ""
+                next
+              }
+              /^## \[/ && in_unreleased {
+                exit
+              }
+              in_unreleased && NF {
+                print
+              }
+            ' CHANGELOG.md | head -c 125000)
+            
+            if [ -z "$RELEASE_BODY" ]; then
+              echo "No content found in Unreleased section, skipping release body update"
+              exit 0
+            fi
+            
+            echo "Extracted and formatted release content:"
+            echo "$RELEASE_BODY"
+            
+            # Update release body with the formatted content
+            BODY_JSON=$(jq -Rs --arg body "$RELEASE_BODY" '{body: $body}')
             API_URL="https://api.github.com/repos/${{ github.repository }}/releases/${{ github.event.release.id }}"
             curl -s -X PATCH -H "Authorization: token $GITHUB_TOKEN" -H "Content-Type: application/json" -d "$BODY_JSON" "$API_URL"
+            echo "Release body updated with version $VERSION and date $RELEASE_DATE"
           else
             echo "No CHANGELOG.md found, skipping release body update"
           fi

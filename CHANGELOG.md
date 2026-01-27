@@ -8,6 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Automatic viewport update debouncing in DeckGLView component**
+  - Built-in debounced layer updates when viewport changes (pan/zoom)
+  - Configurable via `ViewportUpdateDebounceMs` parameter (default: 300ms)
+  - Eliminates need for manual debounce implementation in consumer pages
+  - Reduces excessive layer updates during rapid camera movements
+  - Set to 0 to disable debouncing for special cases
+- **Programmatic layer management methods**
+  - `AddLayer(LayerConfig, bool updateLayers)` - Dynamically add layers from configuration files, databases, or runtime
+  - `RemoveLayer(string layerId, bool updateLayers)` - Programmatically remove layers by ID
+  - Optional `updateLayers` parameter (default: false) to control automatic layer refresh
+  - Complements declarative Razor syntax layer configuration
+  - Enables flexible layer management for dynamic map configurations
+
+## [1.0.3] - 2026-01-27
+
+### Added
 - Context menu for `LayerContentsControl` with right-click activation
   - "Zoom to Layer" - zooms and pans map to layer bounds (fully functional)
   - "Data Design" - placeholder for future implementation
@@ -171,6 +187,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed GeoJSON selection with two-way sync and runtime toggling
 - Improved JS install logic in CI workflow
 
-[Unreleased]: https://github.com/PyrotechSoftware/PyroGeoBlazor/compare/v1.0.2...HEAD
+[Unreleased]: https://github.com/PyrotechSoftware/PyroGeoBlazor/compare/v1.0.3...HEAD
+[1.0.3]: https://github.com/PyrotechSoftware/PyroGeoBlazor/releases/tag/v1.0.3
 [1.0.2]: https://github.com/PyrotechSoftware/PyroGeoBlazor/releases/tag/v1.0.2
 [1.0.0]: https://github.com/PyrotechSoftware/PyroGeoBlazor/releases/tag/v1.0.0
+

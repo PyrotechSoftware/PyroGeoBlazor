@@ -16,10 +16,12 @@ describe('LayerFactory', () => {
             features: []
         };
 
-        const layer = createLayerFromConfig(config, data);
+        const layers = createLayerFromConfig(config, data);
         
-        expect(layer).toBeDefined();
-        expect(layer?.id).toBe('test-geojson');
+        expect(layers).toBeDefined();
+        expect(Array.isArray(layers)).toBe(true);
+        expect(layers.length).toBeGreaterThan(0);
+        expect(layers[0]?.id).toBe('test-geojson');
     });
 
     it('should create a ScatterplotLayer from config', () => {
@@ -36,10 +38,12 @@ describe('LayerFactory', () => {
             { position: [-122.45, 37.8], radius: 100 }
         ];
 
-        const layer = createLayerFromConfig(config, data);
+        const layers = createLayerFromConfig(config, data);
         
-        expect(layer).toBeDefined();
-        expect(layer?.id).toBe('test-scatter');
+        expect(layers).toBeDefined();
+        expect(Array.isArray(layers)).toBe(true);
+        expect(layers.length).toBeGreaterThan(0);
+        expect(layers[0]?.id).toBe('test-scatter');
     });
 
     it('should create an ArcLayer from config', () => {
@@ -58,21 +62,95 @@ describe('LayerFactory', () => {
             }
         ];
 
-        const layer = createLayerFromConfig(config, data);
+        const layers = createLayerFromConfig(config, data);
         
-        expect(layer).toBeDefined();
-        expect(layer?.id).toBe('test-arc');
+        expect(layers).toBeDefined();
+        expect(Array.isArray(layers)).toBe(true);
+        expect(layers.length).toBeGreaterThan(0);
+        expect(layers[0]?.id).toBe('test-arc');
     });
 
-    it('should return null for unknown layer type', () => {
+    it('should return empty array for unknown layer type', () => {
         const config = {
             id: 'test-unknown',
             type: 'UnknownLayer',
             props: {}
         };
 
-        const layer = createLayerFromConfig(config, null);
+        const layers = createLayerFromConfig(config, null);
         
-        expect(layer).toBeNull();
+        expect(layers).toBeDefined();
+        expect(Array.isArray(layers)).toBe(true);
+        expect(layers.length).toBe(0);
+    });
+
+    it('should create GeoJsonLayer with TextLayer when labels are enabled', () => {
+        const config = {
+            id: 'test-geojson-labels',
+            type: 'GeoJsonLayer',
+            props: {
+                pickable: true
+            },
+            labelConfig: {
+                enabled: true,
+                textProperty: 'name',
+                fontSize: 12,
+                textColor: '#000000',
+                backgroundColor: '#FFFFFFCC',
+                textAnchor: 'middle',
+                textAlignment: 'center'
+            }
+        };
+
+        const data = {
+            type: 'FeatureCollection',
+            features: [
+                {
+                    type: 'Feature',
+                    properties: { name: 'Test Feature' },
+                    geometry: {
+                        type: 'Point',
+                        coordinates: [-122.45, 37.8]
+                    }
+                }
+            ]
+        };
+
+        const layers = createLayerFromConfig(config, data);
+        
+        expect(layers).toBeDefined();
+        expect(Array.isArray(layers)).toBe(true);
+        expect(layers.length).toBe(2); // GeoJsonLayer + TextLayer
+        expect(layers[0]?.id).toBe('test-geojson-labels');
+        expect(layers[1]?.id).toBe('test-geojson-labels-labels');
+    });
+
+    it('should create only GeoJsonLayer when labels are disabled', () => {
+        const config = {
+            id: 'test-geojson-no-labels',
+            type: 'GeoJsonLayer',
+            props: {
+                pickable: true
+            },
+            labelConfig: {
+                enabled: false,
+                textProperty: 'name',
+                fontSize: 12,
+                textColor: '#000000',
+                backgroundColor: '#FFFFFFCC'
+            }
+        };
+
+        const data = {
+            type: 'FeatureCollection',
+            features: []
+        };
+
+        const layers = createLayerFromConfig(config, data);
+        
+        expect(layers).toBeDefined();
+        expect(Array.isArray(layers)).toBe(true);
+        expect(layers.length).toBe(1); // Only GeoJsonLayer
+        expect(layers[0]?.id).toBe('test-geojson-no-labels');
     });
 });

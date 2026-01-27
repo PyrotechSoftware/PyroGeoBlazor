@@ -1,12 +1,13 @@
 namespace PyroGeoBlazor.DeckGL.Tests.Unit.Map.Components;
 
-using Bunit;
 using FluentAssertions;
+
 using PyroGeoBlazor.DeckGL.Components;
 using PyroGeoBlazor.DeckGL.Models;
+
 using Xunit;
 
-public class MapStatusBarTests : BunitContext
+public class MapStatusBarTests : MudBlazorTestContext
 {
     [Fact]
     public void MapStatusBar_WithViewState_DisplaysCorrectInformation()
@@ -20,7 +21,7 @@ public class MapStatusBarTests : BunitContext
         };
 
         // Act
-        var cut = Render<MapStatusBar>(parameters => parameters
+        var cut = RenderWithMud<MapStatusBar>(parameters => parameters
             .Add(p => p.CurrentViewState, viewState));
 
         // Assert
@@ -46,7 +47,7 @@ public class MapStatusBarTests : BunitContext
         };
 
         // Act
-        var cut = Render<MapStatusBar>(parameters => parameters
+        var cut = RenderWithMud<MapStatusBar>(parameters => parameters
             .Add(p => p.CurrentViewState, viewState));
 
         // Assert
@@ -78,7 +79,7 @@ public class MapStatusBarTests : BunitContext
         };
 
         // Act
-        var cut = Render<MapStatusBar>(parameters => parameters
+        var cut = RenderWithMud<MapStatusBar>(parameters => parameters
             .Add(p => p.CurrentViewState, viewState)
             .Add(p => p.Height, 45));
 
@@ -98,7 +99,7 @@ public class MapStatusBarTests : BunitContext
         };
 
         // Act
-        var cut = Render<MapStatusBar>(parameters => parameters
+        var cut = RenderWithMud<MapStatusBar>(parameters => parameters
             .Add(p => p.CurrentViewState, viewState)
             .Add(p => p.CssClass, "custom-status-bar"));
 

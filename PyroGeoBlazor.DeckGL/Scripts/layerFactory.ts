@@ -631,7 +631,7 @@ export function createLayerFromConfig(config: LayerConfig, data: any): Layer[] {
                                     return '';
                                 }
                                 
-                                // SIZE VALIDATION: Check if the feature is large enough to display a label
+                                // SIZE VALIDATION: Check if the text fits within the polygon bounds
                                 const geometry = d.geometry;
                                 let passesSizeCheck = true;
                                 
@@ -646,6 +646,7 @@ export function createLayerFromConfig(config: LayerConfig, data: any): Layer[] {
                                         }
                                         
                                         if (coords.length > 0) {
+                                            // Calculate bounding box in tile space [0,1]
                                             let minX = Infinity, maxX = -Infinity;
                                             let minY = Infinity, maxY = -Infinity;
                                             
@@ -659,15 +660,21 @@ export function createLayerFromConfig(config: LayerConfig, data: any): Layer[] {
                                             const width = maxX - minX;
                                             const height = maxY - minY;
                                             
+                                            // Convert to pixel dimensions (MVT tiles are typically 512px)
                                             const tileExtent = 512;
                                             const pixelWidth = width * tileExtent;
                                             const pixelHeight = height * tileExtent;
                                             
+                                            // Estimate text dimensions
                                             const fontSize = config.labelConfig.fontSize || 12;
                                             const textStr = String(text);
+                                            // Average char width is ~0.6 * fontSize for proportional fonts
                                             const estimatedTextWidth = textStr.length * fontSize * 0.6;
+                                            // Add vertical padding for background
                                             const textHeight = fontSize * 1.5;
                                             
+                                            // Label must fit within polygon with some margin
+                                            // Require polygon to be at least 1.5x the text size
                                             const fitThreshold = 1.5;
                                             if (pixelWidth < estimatedTextWidth * fitThreshold || 
                                                 pixelHeight < textHeight * fitThreshold) {

@@ -52,6 +52,22 @@ export interface LayerConfig {
     uniqueValueRenderer?: UniqueValueRenderer;  // Attribute-based styling
     minZoom?: number;  // Minimum zoom level before data is fetched
     enableViewportCulling?: boolean;  // Whether to append viewport bounds to dataUrl
+    labelConfig?: LabelConfig;  // Label configuration for this layer
+    tileLoadingDebounceMs?: number;  // Debounce time for tile loading indicators
+}
+
+/**
+ * Configuration for rendering labels on map features
+ */
+export interface LabelConfig {
+    textProperty?: string;  // Property name to use for label text
+    enabled?: boolean;  // Whether labels are currently enabled
+    minZoom?: number;  // Minimum zoom level for label visibility
+    fontSize?: number;  // Font size in pixels
+    textColor?: string;  // Text color (hex format)
+    backgroundColor?: string;  // Background color (hex format with optional alpha)
+    textAnchor?: string;  // Text anchor: "start", "middle", "end"
+    textAlignment?: string;  // Text alignment: "left", "center", "right"
 }
 
 /**
@@ -180,17 +196,17 @@ export class DeckGLView {
      * Returns true if the layer must be recreated, false if it can be reused.
      */
     private layerNeedsUpdate(oldConfig: LayerConfig | undefined, newConfig: LayerConfig): boolean {
-        if (DEBUG_LOGGING) {
-            console.log(`🔍 Checking if layer ${newConfig.id} needs update...`);
-            console.log(`  - Has old config: ${!!oldConfig}`);
-            console.log(`  - Visible: ${newConfig.props.visible ?? true}`);
-            console.log(`  - MinZoom: ${newConfig.minZoom ?? 'none'}`);
-            console.log(`  - EnableViewportCulling: ${newConfig.enableViewportCulling ?? false}`);
-        }
-
         // Check if layer is visible (default to true if not specified)
         const isVisible = newConfig.props.visible ?? true;
         const wasVisible = oldConfig?.props.visible ?? true;
+
+        // Always log visibility checks for debugging label toggle issues
+        console.log(`🔍 Checking if layer ${newConfig.id} needs update...`);
+        console.log(`  - Has old config: ${!!oldConfig}`);
+        console.log(`  - Visible (new): ${isVisible}, Visible (old): ${wasVisible}`);
+        console.log(`  - MinZoom: ${newConfig.minZoom ?? 'none'}`);
+        console.log(`  - EnableViewportCulling: ${newConfig.enableViewportCulling ?? false}`);
+        console.log(`  - LabelConfig: ${JSON.stringify(newConfig.labelConfig)}`);
 
         // If visibility changed, we need to update
         if (isVisible !== wasVisible) {
@@ -307,6 +323,12 @@ export class DeckGLView {
 
         if (JSON.stringify(oldConfig.hoverStyle) !== JSON.stringify(newConfig.hoverStyle)) {
             console.log(`  ✅ HoverStyle changed for ${newConfig.id}`);
+            return true;
+        }
+
+        // Check if label config changed
+        if (JSON.stringify(oldConfig.labelConfig) !== JSON.stringify(newConfig.labelConfig)) {
+            console.log(`  ✅ LabelConfig changed for ${newConfig.id}`);
             return true;
         }
 
@@ -626,7 +648,14 @@ export class DeckGLView {
                 // Check if we can reuse the existing layer
                 if (existingLayer && oldConfig && !this.layerNeedsUpdate(oldConfig, config)) {
                     console.log(`  ♻️  Reusing layer: ${config.id}`);
-                    layers.push(existingLayer);
+                    
+                    // Find all layers that belong to this config (including companion layers like text)
+                    const relatedLayers = this.currentLayers.filter(l => 
+                        l.id === config.id || l.id.startsWith(`${config.id}-`)
+                    );
+                    
+                    layers.push(...relatedLayers);
+                    console.log(`  ♻️  Reused ${relatedLayers.length} layer(s) for ${config.id}`);
                     reusedCount++;
                 } else {
                     // Layer needs update - clear cache to force fresh data fetch
@@ -637,9 +666,10 @@ export class DeckGLView {
 
                     // Create new layer only if needed
                     console.log(`  🔨 Creating layer: ${config.id}`);
-                    const layer = await this.createLayer(config);
-                    if (layer) {
-                        layers.push(layer);
+                    const createdLayers = await this.createLayer(config);
+                    if (createdLayers && createdLayers.length > 0) {
+                        // Add all created layers (may include text layer for labels)
+                        layers.push(...createdLayers);
                         recreatedCount++;
                     }
                 }
@@ -669,8 +699,9 @@ export class DeckGLView {
     /**
      * Creates a layer from configuration.
      * Handles data fetching and applies feature styles.
+     * Returns an array of layers (may include a text layer for labels).
      */
-    private async createLayer(config: LayerConfig): Promise<Layer | null> {
+    private async createLayer(config: LayerConfig): Promise<Layer[]> {
         // Import the layer class dynamically based on type
         const { createLayerFromConfig } = await import('./layerFactory');
 
@@ -741,7 +772,8 @@ export class DeckGLView {
             };
         }
 
-        // Create the layer using the factory
+        // Create the layer(s) using the factory
+        // Returns an array that may contain both geometry and text layers
         return createLayerFromConfig(enhancedConfig, data);
     }
 
@@ -1385,8 +1417,36 @@ export class DeckGLView {
 
         console.log(`Layer ${layerId} visibility set to ${visible}`);
 
-        // Recreate the layer with new visibility
-        await this.recreateLayer(layerId);
+        // Find the existing layer(s) - may include companion layers like text
+        const layerIndices: number[] = [];
+        this.currentLayers.forEach((layer, index) => {
+            if (layer.id === layerId || layer.id.startsWith(`${layerId}-`)) {
+                layerIndices.push(index);
+            }
+        });
+
+        if (layerIndices.length === 0) {
+            console.warn(`Layer ${layerId} not found in currentLayers`);
+            return;
+        }
+
+        // Update visibility on existing layer(s) instead of recreating
+        layerIndices.forEach(index => {
+            const layer = this.currentLayers[index];
+            // Clone the layer with updated visible prop
+            this.currentLayers[index] = layer.clone({ visible });
+        });
+
+        // Update deck.gl to reflect the change
+        if (this.deck) {
+            const allLayers = [...this.currentLayers];
+            if (this.editableLayer) {
+                allLayers.push(this.editableLayer as any);
+            }
+            this.deck.setProps({ layers: allLayers });
+        }
+
+        console.log(`Layer ${layerId} visibility updated to ${visible} (${layerIndices.length} layer(s) affected)`);
     }
 
     /**
@@ -3510,7 +3570,7 @@ export class DeckGLView {
         return [totalX / coordinates.length, totalY / coordinates.length];
     }
 
-    private refreshLayers(): void {
+    private applyCurrentLayers(): void {
         if (!this.deck) return;
 
         // Use selection-aware refresh if there are selected features

@@ -175,6 +175,80 @@ public abstract class LayerConfig
     /// </summary>
     [JsonPropertyName("tileLoadingDebounceMs")]
     public int TileLoadingDebounceMs { get; set; } = 1000;
+
+    /// <summary>
+    /// Configuration for feature labels displayed on the layer.
+    /// When set, labels will be rendered on the map using the specified property.
+    /// </summary>
+    [JsonPropertyName("labelConfig")]
+    public LabelConfig? LabelConfig { get; set; }
+}
+
+/// <summary>
+/// Configuration for rendering labels on map features.
+/// </summary>
+public class LabelConfig
+{
+    /// <summary>
+    /// Property name to use for label text.
+    /// If the property doesn't exist or is null, no label will be displayed for that feature.
+    /// Example: "name", "label", "title", etc.
+    /// </summary>
+    [JsonPropertyName("textProperty")]
+    public string? TextProperty { get; set; }
+
+    /// <summary>
+    /// Minimum zoom level at which labels become visible.
+    /// Prevents cluttering the view when zoomed out.
+    /// Defaults to 12 (city/neighborhood level).
+    /// </summary>
+    [JsonPropertyName("minZoom")]
+    public double MinZoom { get; set; } = 12;
+
+    /// <summary>
+    /// Whether labels are currently enabled for this layer.
+    /// Can be toggled at runtime through the UI.
+    /// Defaults to false.
+    /// </summary>
+    [JsonPropertyName("enabled")]
+    public bool Enabled { get; set; } = false;
+
+    /// <summary>
+    /// Font size in pixels for label text.
+    /// Defaults to 12px.
+    /// </summary>
+    [JsonPropertyName("fontSize")]
+    public int FontSize { get; set; } = 12;
+
+    /// <summary>
+    /// Text color as hex string (e.g., "#000000" for black).
+    /// Defaults to black.
+    /// </summary>
+    [JsonPropertyName("textColor")]
+    public string TextColor { get; set; } = "#000000";
+
+    /// <summary>
+    /// Background color as hex string with optional alpha (e.g., "#FFFFFF" or "#FFFFFFAA").
+    /// If set, renders a background behind the text for better readability.
+    /// Defaults to semi-transparent white.
+    /// </summary>
+    [JsonPropertyName("backgroundColor")]
+    public string BackgroundColor { get; set; } = "#FFFFFFCC";
+
+    /// <summary>
+    /// Text anchor position relative to the feature's center point.
+    /// Options: "start", "middle", "end".
+    /// Defaults to "middle" (centered).
+    /// </summary>
+    [JsonPropertyName("textAnchor")]
+    public string TextAnchor { get; set; } = "middle";
+
+    /// <summary>
+    /// Text alignment. Options: "left", "center", "right".
+    /// Defaults to "center".
+    /// </summary>
+    [JsonPropertyName("textAlignment")]
+    public string TextAlignment { get; set; } = "center";
 }
 
 /// <summary>

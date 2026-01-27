@@ -93,6 +93,52 @@ public class GeoJsonLayer : DeckGLLayer
     [Parameter]
     public bool EnableViewportCulling { get; set; }
 
+    /// <summary>
+    /// Property name to use for label text.
+    /// Labels will only display if this property exists and has a value.
+    /// Example: "name", "label", "title"
+    /// </summary>
+    [Parameter]
+    public string? LabelProperty { get; set; }
+
+    /// <summary>
+    /// Whether labels are enabled for this layer.
+    /// Can be changed at runtime through the LayerContentsControl.
+    /// Defaults to false.
+    /// </summary>
+    [Parameter]
+    public bool LabelsEnabled { get; set; } = false;
+
+    /// <summary>
+    /// Minimum zoom level for label visibility.
+    /// Labels won't appear when zoomed out below this level.
+    /// Defaults to 12 (neighborhood level).
+    /// </summary>
+    [Parameter]
+    public double LabelMinZoom { get; set; } = 12;
+
+    /// <summary>
+    /// Label font size in pixels.
+    /// Defaults to 12.
+    /// </summary>
+    [Parameter]
+    public int LabelFontSize { get; set; } = 12;
+
+    /// <summary>
+    /// Label text color in hex format (e.g., "#000000" for black).
+    /// Defaults to black.
+    /// </summary>
+    [Parameter]
+    public string LabelTextColor { get; set; } = "#000000";
+
+    /// <summary>
+    /// Label background color in hex format with optional alpha (e.g., "#FFFFFFCC").
+    /// Provides better readability by rendering behind text.
+    /// Defaults to semi-transparent white.
+    /// </summary>
+    [Parameter]
+    public string LabelBackgroundColor { get; set; } = "#FFFFFFCC";
+
     protected override LayerConfig CreateLayerConfig()
     {
         var config = new GeoJsonLayerConfig
@@ -108,6 +154,20 @@ public class GeoJsonLayer : DeckGLLayer
             LineColor = LineColor,
             EnableViewportCulling = EnableViewportCulling
         };
+
+        // Configure labels if property specified
+        if (!string.IsNullOrEmpty(LabelProperty))
+        {
+            config.LabelConfig = new LabelConfig
+            {
+                TextProperty = LabelProperty,
+                Enabled = LabelsEnabled,
+                MinZoom = LabelMinZoom,
+                FontSize = LabelFontSize,
+                TextColor = LabelTextColor,
+                BackgroundColor = LabelBackgroundColor
+            };
+        }
 
         // Set additional properties via Props if needed
         if (PointsAsCircles)

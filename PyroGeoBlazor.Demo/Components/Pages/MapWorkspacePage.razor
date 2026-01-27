@@ -43,7 +43,7 @@
                                    Pickable="false"
                                    Visible="true" />
 
-                        <GeoJsonLayer Id="vancouver-blocks"
+                        @* <GeoJsonLayer Id="vancouver-blocks"
                                       DataUrl="https://raw.githubusercontent.com/visgl/deck.gl-data/master/examples/geojson/vancouver-blocks.json"
                                       Pickable="true"
                                       Stroked="true"
@@ -85,7 +85,7 @@
                                                                                                 Order = 3
                                                                                             }
                                                                                         ])"
-                                      ExcludedProperties="@(["growth"])" />
+                                      ExcludedProperties="@(["growth"])" /> *@
 
                         <GeoJsonLayer Id="Townships"
                                       DataUrl="api/townships"
@@ -96,6 +96,12 @@
                                       TooltipConfig="@TooltipConfig.ForProperties("townName")"
                                       UniqueIdProperty="geoTownshipId"
                                       DisplayProperty="townName"
+                                      LabelProperty="townName"
+                                      LabelsEnabled="true"
+                                      LabelMinZoom="0"
+                                      LabelFontSize="8"
+                                      LabelTextColor="#000000"
+                                      LabelBackgroundColor="#ffffff"
                                       IsEditable="false"
                                       FeatureStyle="@(new()
                                       {
@@ -106,7 +112,7 @@
                                           LineWidth = 1,
                                       })" />
 
-                        <GeoJsonLayer Id="Extensions"
+                       @*  <GeoJsonLayer Id="Extensions"
                                       DataUrl="api/townshipextensions"
                                       Pickable="true"
                                       Extruded="false"
@@ -123,7 +129,7 @@
                                           LineWidth = 1,
                                       })"
                                       MinZoom="10"
-                                      EnableViewportCulling />
+                                      EnableViewportCulling />*@
 
                         <MVTLayer Id="Parcels"
                                   GeoServerUrl="https://lims.koleta.co.mz/geoserver"
@@ -132,6 +138,10 @@
                                   Pickable="true"
                                   Visible="true"
                                   UniqueIdProperty="GeoPropertyID"
+                                  LabelTextColor="#000000"
+                                  LabelsEnabled="true"
+                                  LabelProperty="CustomIdentifier"
+                                  LabelMinZoom="12"
                                   FeatureStyle="@(new()
                                   {
                                       FillColor = "#0096FF",
@@ -169,7 +179,7 @@
                                                             Order = 1
                                                         }
                                                     ])"
-                                  ExcludedProperties="@(["id", "InspectionProjectID", "InspectionStateCode", "layerName", "LocationLatitude", "LocationLongitude", "LPI", "Source", "Unit"])" />
+                                  ExcludedProperties="@(["id", "InspectionProjectID", "InspectionStateCode", "layerName", "LocationLatitude", "LocationLongitude", "LPI", "Source", "Unit"])" /> 
                     </LayersContent>
                 </DeckGLView>
             </MudExDockItem>
@@ -202,9 +212,9 @@
 
     private ViewState initialViewState = new()
     {
-        Longitude = 32.71773,  // Vancouver coordinates
-        Latitude = -25.95087,
-        Zoom = 10.83,
+        Longitude = 32.59083,
+        Latitude = -25.98208,
+        Zoom = 16.31,
         Pitch = 0,
         Bearing = 0
     };

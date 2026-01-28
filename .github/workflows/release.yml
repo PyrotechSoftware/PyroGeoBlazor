@@ -283,13 +283,12 @@ jobs:
               /^## \[Unreleased\]/ {
                 in_unreleased = 1
                 print "## [" version "] - " date
-                print ""
                 next
               }
               /^## \[/ && in_unreleased {
                 exit
               }
-              in_unreleased && NF {
+              in_unreleased {
                 print
               }
             ' CHANGELOG.md | head -c 125000)

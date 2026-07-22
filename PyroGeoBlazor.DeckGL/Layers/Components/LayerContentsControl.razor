@@ -1,8 +1,5 @@
 @namespace PyroGeoBlazor.DeckGL.Components
-@using MudBlazor.Extensions.Options
-@using MudBlazor.Utilities
 @using PyroGeoBlazor.DeckGL.Models
-@using PyroGeoBlazor.Utilities
 
 @if (Layers != null && Layers.Any())
 {
@@ -16,7 +13,7 @@
             <MudTreeViewItem T="LayerConfig" Expanded ExpandButtonIcon="@(context.Type == "TileLayer" ? "" : Icons.Material.Outlined.KeyboardArrowRight)">
                 <BodyContent Context="item">
                     <MudMenu PositionAtCursor FullWidth ActivationEvent="@MouseEvent.RightClick">
-                        <ActivatorContent>
+                        <ActivatorContent Context="menuContext">
                             <MudStack Row AlignItems="AlignItems.Center" Spacing="2">
                                 <MudCheckBox T="bool"
                                              Value="@context.Visible"
